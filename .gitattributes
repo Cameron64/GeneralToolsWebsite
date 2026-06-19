@@ -1,0 +1,6 @@
+# Railway deploy scripts MUST be LF: the container runs them with bash, and CRLF
+# breaks the entrypoint ($'\r' errors, "unrecognized arguments: --noinput").
+# Without this, autocrlf=true on Windows checks them out as CRLF and `railway up
+# --path-as-root .` uploads the broken working copy. (DEMO branch only.)
+railway-entrypoint.sh text eol=lf
+railway-seed.py text eol=lf
