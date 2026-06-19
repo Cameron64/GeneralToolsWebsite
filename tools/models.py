@@ -7,6 +7,8 @@ import pytz
 from django.urls import reverse
 from . import permissions
 from . import utils
+from .resolutionText import normalizedTextHash
+from .ActionNetworkAPI.migValidator import MIGStatus
 
 # Approving a committee (EventOwner) join grants the full event-lead capability
 # through this managed role group. The EventOwner's authorizer list scopes which
@@ -870,3 +872,214 @@ class LinkEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_source_display()} @ {self.occurredAt:%Y-%m-%d %H:%M}"
+
+
+# ---------------------------------------------------------------------------
+# Resolutions
+#
+# A member-submitted resolution gathering signature "sign-ons" to make a meeting
+# agenda. Echo owns the canonical text and enforces the integrity guarantee: the
+# text locks when the first member signs on, and any later edit resets the
+# sign-ons (see replaceText). Each signer is validated live as a Member in Good
+# Standing against Action Network at sign-on time (see ActionNetworkAPI/).
+#
+# The bylaws set the rules by kind: a general resolution needs no sign-ons (the
+# Leadership Committee sets the agenda); a project committee needs 25 sign-ons
+# filed 10 days out (Section 7.1.5); a bylaws amendment needs proponent + 35
+# filed 21 days out (Section 10.1). Kind is the single source of that truth.
+# ---------------------------------------------------------------------------
+
+
+class Resolution(models.Model):
+    class Kind:
+        GENERAL = "GENERAL"
+        PROJECT_COMMITTEE = "PROJECT_COMMITTEE"
+        BYLAWS_AMENDMENT = "BYLAWS_AMENDMENT"
+
+        CHOICES = (
+            (GENERAL, "General resolution"),
+            (PROJECT_COMMITTEE, "Project committee or campaign"),
+            (BYLAWS_AMENDMENT, "Bylaws amendment"),
+        )
+
+        # The single source of threshold / lead-day truth. None threshold means
+        # no sign-on requirement (general resolutions). Lead days are how far
+        # ahead of the meeting it must be filed.
+        THRESHOLDS = {GENERAL: None, PROJECT_COMMITTEE: 25, BYLAWS_AMENDMENT: 35}
+        LEAD_DAYS = {GENERAL: 0, PROJECT_COMMITTEE: 10, BYLAWS_AMENDMENT: 21}
+
+        # Self-documenting metadata for the submit-form type cards.
+        COVERAGE = {
+            GENERAL: "An endorsement, a political position, or a statement of the chapter.",
+            PROJECT_COMMITTEE: "Create or dissolve a campaign, working group, or other project committee.",
+            BYLAWS_AMENDMENT: "Change the text of the bylaws themselves.",
+        }
+        SECTION = {GENERAL: "", PROJECT_COMMITTEE: "Section 7.1", BYLAWS_AMENDMENT: "Section 10.1"}
+
+    class Status:
+        GATHERING = "GATHERING"
+        WITHDRAWN = "WITHDRAWN"
+        CLOSED = "CLOSED"
+
+        CHOICES = (
+            (GATHERING, "Gathering sign-ons"),
+            (WITHDRAWN, "Withdrawn"),
+            (CLOSED, "Closed"),
+        )
+
+    title = models.CharField(max_length=200)
+    kind = models.CharField(max_length=32, choices=Kind.CHOICES)
+    # The canonical markdown copy. Echo is the source of truth while gathering.
+    text = models.TextField()
+    proponent = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="resolutionsProposed",
+    )
+    # The meeting it is filed for, read from the events domain. Nullable so a
+    # draft can exist before a meeting is chosen; SET_NULL mirrors the event
+    # owner FKs - any code reading targetMeeting must null-guard.
+    targetMeeting = models.ForeignKey(
+        PostedEvents, on_delete=models.SET_NULL, blank=True, null=True,
+        related_name="resolutions",
+    )
+    status = models.CharField(max_length=16, choices=Status.CHOICES, default=Status.GATHERING)
+
+    # Integrity lock: set on the first verified sign-on; cleared by replaceText
+    # when the text changes.
+    locked = models.BooleanField(default=False)
+    lockedTextHash = models.CharField(max_length=64, blank=True)
+    lockedAt = models.DateTimeField(null=True, blank=True)
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-createdAt"]
+
+    def __str__(self) -> str:
+        return self.title
+
+    # --- kind-derived rules (read from Kind, never duplicated) ----------
+
+    @property
+    def threshold(self) -> int | None:
+        return Resolution.Kind.THRESHOLDS.get(self.kind)
+
+    @property
+    def leadDays(self) -> int:
+        return Resolution.Kind.LEAD_DAYS.get(self.kind, 0)
+
+    def getKindDisplay(self) -> str:
+        return dict(Resolution.Kind.CHOICES).get(self.kind, self.kind)
+
+    def getBylawsSection(self) -> str:
+        return Resolution.Kind.SECTION.get(self.kind, "")
+
+    # --- sign-on counting ------------------------------------------------
+
+    @property
+    def signatureCount(self) -> int:
+        return self.signatures.filter(verified=True).count()
+
+    @property
+    def meetsThreshold(self) -> bool:
+        return self.threshold is None or self.signatureCount >= self.threshold
+
+    # --- deadline (null-guards a missing/orphaned meeting) ---------------
+
+    def deadline(self) -> datetime.datetime | None:
+        if self.targetMeeting is None:
+            return None
+        return self.targetMeeting.start - datetime.timedelta(days=self.leadDays)
+
+    def deadlineMet(self) -> bool | None:
+        """Whether it was filed in time (createdAt at or before the deadline).
+        None when there is no meeting to measure against."""
+        deadline = self.deadline()
+        if deadline is None:
+            return None
+        createdAt = self.createdAt
+        if createdAt is None:
+            return None
+        if createdAt.tzinfo is None:
+            createdAt = pytz.utc.localize(createdAt)
+        cutoff = deadline
+        if cutoff.tzinfo is None:
+            cutoff = pytz.utc.localize(cutoff)
+        return createdAt <= cutoff
+
+    def getDeadlineStr(self) -> str:
+        deadline = self.deadline()
+        if deadline is None:
+            return "no meeting selected"
+        if deadline.tzinfo is None:
+            deadline = pytz.utc.localize(deadline)
+        return deadline.strftime(utils.DATE_TIME_FORMAT)
+
+    # --- integrity lock --------------------------------------------------
+
+    def isOpenForSignOn(self) -> bool:
+        return self.status == Resolution.Status.GATHERING
+
+    def lockText(self) -> None:
+        """Lock the text on the first sign-on. Idempotent."""
+        if not self.locked:
+            self.locked = True
+            self.lockedTextHash = normalizedTextHash(self.text)
+            self.lockedAt = datetime.datetime.now(datetime.UTC)
+            self.save()
+
+    def replaceText(self, newText: str) -> bool:
+        """Replace the resolution text. Returns True if this reset sign-ons.
+
+        A cosmetically-identical resave (same normalized hash) is a no-op and
+        preserves sign-ons. A real change to a locked resolution deletes every
+        sign-on and re-opens gathering - the integrity guarantee. The reset
+        logic lives only here so the edit view and any future admin path share
+        it."""
+        if self.locked and normalizedTextHash(newText) == self.lockedTextHash:
+            if newText != self.text:
+                self.text = newText
+                self.save()
+            return False
+
+        wasLocked = self.locked
+        self.text = newText
+        if wasLocked:
+            self.signatures.all().delete()
+            self.locked = False
+            self.lockedTextHash = ""
+            self.lockedAt = None
+        self.save()
+        return wasLocked
+
+    def getUrl(self) -> str:
+        return reverse("resolution-detail", kwargs={"pk": self.id})
+
+
+class ResolutionSignature(models.Model):
+    # Verification outcome codes live in ActionNetworkAPI.migValidator (the
+    # validator and this model share them, so they never drift).
+    VerificationStatus = MIGStatus
+
+    resolution = models.ForeignKey(
+        Resolution, on_delete=models.CASCADE, related_name="signatures",
+    )
+    member = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="resolutionSignatures",
+    )
+    signedAt = models.DateTimeField(auto_now_add=True)
+    # The normalized hash of the text the member actually signed (defense in
+    # depth: a counted signature can be proven to match the locked text).
+    textHashAtSigning = models.CharField(max_length=64)
+    verified = models.BooleanField(default=False)
+    verificationStatus = models.CharField(max_length=20, choices=MIGStatus.CHOICES)
+    checkedAt = models.DateTimeField()
+
+    class Meta:
+        unique_together = (("resolution", "member"),)
+
+    def __str__(self) -> str:
+        return f"{self.member.getDisplayName()} -> {self.resolution.title}"
+
+    def getStatusDisplay(self) -> str:
+        return dict(MIGStatus.CHOICES).get(self.verificationStatus, self.verificationStatus)

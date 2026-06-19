@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ resolution.title }} - Echo{% endblock title %}
+{% block page_content %}
+{% include "tools/resolutions/_editorAssets.html" %}
+
+<div class="page-card max-w-2xl">
+  <h1 class="page-title">{{ resolution.title }}</h1>
+  <p class="pb-1">
+    <span class="badge badge-active">{{ resolution.getKindDisplay }}</span>
+    &nbsp;Proposed by <strong>{{ resolution.proponent.getDisplayName }}</strong>
+  </p>
+  <p class="page-subtitle">
+    {% if resolution.threshold %}
+      <strong>{{ resolution.signatureCount }} of {{ resolution.threshold }}</strong> sign-ons gathered
+    {% else %}
+      <strong>No sign-on threshold</strong> (the Leadership Committee sets the agenda)
+    {% endif %}
+    {% if resolution.targetMeeting %}
+      &middot; for {{ resolution.targetMeeting.title }} &middot; file by {{ resolution.getDeadlineStr }}
+    {% endif %}
+  </p>
+
+  {% if signOutcome %}
+  <div class="alert {% if signOutcome.ok %}alert-success{% else %}alert-error{% endif %}">{{ signOutcome.message }}</div>
+  {% endif %}
+
+  {% if resolution.locked %}
+  <div class="alert alert-info">The text is <strong>locked</strong> as signed. If the proponent edits it, every sign-on resets.</div>
+  {% endif %}
+
+  <div class="resolution-body my-3">{{ renderedText }}</div>
+
+  {% if canSign %}
+  <form action="" method="post" class="pt-2">
+    {% csrf_token %}
+    <div class="form-row form-row-checkbox" data-field="affirm">
+      <label for="sign-affirm"><input type="checkbox" id="sign-affirm" name="affirm" checked /><span>I am a member in good standing and I support this resolution.</span></label>
+    </div>
+    <p class="form-help">When you sign on, we check your standing with Action Network using this account's email ({{ request.user.email }}).</p>
+    <input type="submit" name="sign-on" value="Add my sign-on" class="btn btn-primary my-3" />
+  </form>
+  {% elif alreadySigned %}
+  <div class="alert alert-info">You have signed on to this resolution.</div>
+  {% elif not resolution.isOpenForSignOn %}
+  <div class="alert alert-info">This resolution is not open for sign-ons.</div>
+  {% endif %}
+
+  <div class="pt-2 flex gap-3 flex-wrap">
+    <a class="btn btn-secondary" href="{% url 'sign-resolution' %}">Back to open resolutions</a>
+    {% if isProponent and resolution.isOpenForSignOn %}
+    <a class="btn btn-secondary" href="{% url 'resolution-edit' pk=resolution.pk %}">Edit text</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock page_content %}

@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from .EventAutomation import EventAutomationDriver, ActionNetworkAutomation
 
 from . import permissions
-from .models import User, EventOwners, AccessRequests, LinkTree, LinkTreeItem, QRCode
+from .models import User, EventOwners, AccessRequests, LinkTree, LinkTreeItem, QRCode, Resolution, PostedEvents
 
 STATES = [
     "AL",
@@ -917,3 +917,57 @@ class QRCodeForm(forms.Form):
                 "A QR code must point at exactly one target: a link tree, a link tree item, or a raw URL."
             )
         return cleaned
+
+
+class ResolutionForm(forms.Form):
+    """Submit a new resolution. Hand-rolled forms.Form (house style); the view
+    calls Resolution.objects.create() directly. The ``kind`` radios are
+    hand-rendered as type cards in the template, but the field validates the
+    posted value against Kind.CHOICES."""
+
+    title = forms.CharField(
+        label="Title", max_length=200,
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full",
+            "placeholder": "e.g. Endorse the Eastside BRT Plan",
+        }),
+    )
+    kind = forms.ChoiceField(
+        label="Type", choices=Resolution.Kind.CHOICES, widget=forms.RadioSelect,
+    )
+    # Restricted to upcoming meetings in __init__ (runtime ``now`` comparison
+    # must not be frozen at import). Optional so a draft can exist before a
+    # meeting is chosen.
+    targetMeeting = forms.ModelChoiceField(
+        label="Target meeting", queryset=PostedEvents.objects.none(), required=False,
+        empty_label="Select a meeting (you can add one later)",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    text = forms.CharField(
+        label="Resolution text",
+        widget=forms.Textarea(attrs={
+            "class": "form-field w-full", "rows": "12", "data-markdown-editor": "1",
+            "placeholder": "Whereas...\n\nTherefore, be it resolved...",
+        }),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        now = datetime.datetime.now(datetime.UTC)
+        self.fields["targetMeeting"].queryset = (
+            PostedEvents.objects.filter(start__gt=now).order_by("start")
+        )
+
+
+class ResolutionEditForm(forms.Form):
+    """Edit a resolution's text. A change to a locked resolution resets its
+    sign-ons (Resolution.replaceText); the view requires confirmReset before
+    applying such a change."""
+
+    text = forms.CharField(
+        label="Resolution text",
+        widget=forms.Textarea(attrs={
+            "class": "form-field w-full", "rows": "12", "data-markdown-editor": "1",
+        }),
+    )
+    confirmReset = forms.BooleanField(required=False)

@@ -7,6 +7,7 @@ from . import accessViews
 from . import eventViews
 from . import linkTreeViews
 from . import ownerViews
+from . import resolutionViews
 from .navigation import NAV_DOMAINS
 
 urlpatterns = [
@@ -42,6 +43,13 @@ urlpatterns = [
     path("manage-event-owners/<int:ownerId>", ownerViews.manage_event_owner, name="manage-event-owner"),
     path("manage-event-owners/<int:ownerId>/authorizer-search", ownerViews.manage_event_owner_authorizer_search, name="manage-event-owner-authorizer-search"),
     path("manage-event-owners/<int:ownerId>/cancel-stuck-event/<int:eventId>", ownerViews.cancel_stuck_delegated_event, name="cancel-stuck-delegated-event"),
+
+    # --- Resolutions (submit, browse-to-sign, detail + sign-on, edit, Secretary dashboard) ---
+    path("submit-resolution", resolutionViews.submit_resolution, name="submit-resolution"),
+    path("sign-resolution", resolutionViews.sign_resolution, name="sign-resolution"),
+    path("resolution-status", resolutionViews.resolution_status, name="resolution-status"),
+    path("resolution/<int:pk>", resolutionViews.resolution_detail, name="resolution-detail"),
+    path("resolution/<int:pk>/edit", resolutionViews.resolution_edit, name="resolution-edit"),
 
     # --- Link Tree (public: tree page + tracked click/scan redirects) ---
     path("t/<slug:slug>/", linkTreeViews.public_tree, name="link-tree"),

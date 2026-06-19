@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Resolution Status - Echo{% endblock title %}
+{% block page_content %}
+<h1 class="page-title">Resolution Status</h1>
+<p class="page-subtitle">The Secretary's view of everything in flight. Checks update automatically as sign-ons come in.</p>
+
+<div class="page-card">
+  <h2 class="section-title pt-0">In flight ({{ resolutions|length }})</h2>
+  {% if resolutions %}
+  <table class="data-table">
+    <tr>
+      <th>Resolution</th>
+      <th>Type</th>
+      <th>Sign-ons</th>
+      <th>Deadline</th>
+      <th>Checks</th>
+    </tr>
+    {% for r in resolutions %}
+    <tr>
+      <td>
+        <a href="{% url 'resolution-detail' pk=r.pk %}"><strong>{{ r.title }}</strong></a><br />
+        <span class="text-dark/60">by {{ r.proponent.getDisplayName }}</span>
+      </td>
+      <td data-label="Type">{{ r.getKindDisplay }}</td>
+      <td data-label="Sign-ons">
+        {% if r.threshold %}
+          {% if r.meetsThreshold %}
+          <span class="badge badge-approved">{{ r.signatureCount }}/{{ r.threshold }}</span>
+          {% else %}
+          <span class="badge badge-requested">{{ r.signatureCount }}/{{ r.threshold }}</span>
+          {% endif %}
+        {% else %}
+        <span class="text-dark/60">n/a</span>
+        {% endif %}
+      </td>
+      <td data-label="Deadline" class="md:whitespace-nowrap">
+        {% if r.targetMeeting %}
+          {% if r.deadlineMet %}{{ r.getDeadlineStr }}{% else %}<span class="badge badge-expired">{{ r.getDeadlineStr }}</span>{% endif %}
+        {% else %}
+        <span class="text-dark/60">no meeting</span>
+        {% endif %}
+      </td>
+      <td data-label="Checks">
+        {% if r.locked %}<span class="badge badge-active">Text locked</span>{% else %}<span class="text-dark/60">Gathering</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="text-dark/70">Nothing in flight right now.</p>
+  {% endif %}
+</div>
+
+<div class="page-card page-card-narrow">
+  <h2 class="section-title pt-0">What this is checking</h2>
+  <ul class="list-disc pl-5 space-y-1">
+    <li><strong>Sign-ons</strong> - proponent + 35 members for a bylaws amendment (<a href="https://github.com/Austin-DSA/Bylaws-Resolutions/blob/main/bylaws.md#section-101-notice-of-proposed-amendments" target="_blank" rel="noopener">Section 10.1</a>); 25 for a project committee or campaign (<a href="https://github.com/Austin-DSA/Bylaws-Resolutions/blob/main/bylaws.md#section-71-project-committees" target="_blank" rel="noopener">Section 7.1</a>). A general resolution needs no sign-ons - the Leadership Committee sets the agenda - so it shows n/a.</li>
+    <li><strong>Deadline</strong> - filed ahead of the meeting (21 days for an amendment, 10 for a project committee) so the agenda can publish on time.</li>
+    <li><strong>Where it lives</strong> - members read the text in Echo while it gathers sign-ons; once adopted it is archived with the chapter's passed resolutions.</li>
+    <li><strong>Text locked</strong> - the wording hasn't changed since the first sign-on; any edit resets the count.</li>
+  </ul>
+</div>
+{% endblock page_content %}

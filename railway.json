@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "_comment": "LOCAL DEPLOY CONFIG for the Railway demo server - do NOT commit; the upstream deploy path is DeploymentTools + nginx.",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "bash /app/railway-entrypoint.sh",
+    "healthcheckPath": "/accounts/login/",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
