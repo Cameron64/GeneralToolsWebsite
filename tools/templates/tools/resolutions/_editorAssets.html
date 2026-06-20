@@ -18,7 +18,9 @@ enhancement: the textarea works without it.
   .mde-btn:active { background: rgba(35, 31, 32, 0.12); }
   .mde-btn svg { width: 1rem; height: 1rem; display: block; }
   .mde-ico-b { font-weight: 800; }
-  .mde-ico-i { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; }
+  /* Georgia's italic cap sits low in the flex button (its baseline metrics
+     differ from the sans B/H), so nudge it up to optically center the row. */
+  .mde-ico-i { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; transform: translateY(-0.09em); }
   .mde-ico-h { font-weight: 700; }
   .mde > textarea { width: 100%; max-width: none; border: 0; border-radius: 0; outline: none; box-shadow: none; resize: vertical; }
   .mde > textarea:focus { border: 0; outline: none; box-shadow: none; }

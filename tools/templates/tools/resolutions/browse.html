@@ -17,7 +17,12 @@
     <tr>
       <td>
         <a href="{% url 'resolution-detail' pk=r.pk %}"><strong>{{ r.title }}</strong></a><br />
-        <span class="text-dark/60">by {{ r.proponent.getDisplayName }}</span>
+        <span class="text-dark/60">by {{ r.proponent.getDisplayName }}</span><br />
+        {% if r.signedByMe %}
+        <span class="badge badge-approved">You signed on</span>
+        {% else %}
+        <span class="text-dark/60">You have not signed on yet</span>
+        {% endif %}
       </td>
       <td data-label="Type">{{ r.getKindDisplay }}</td>
       <td data-label="Sign-ons">

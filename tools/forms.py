@@ -971,3 +971,80 @@ class ResolutionEditForm(forms.Form):
         }),
     )
     confirmReset = forms.BooleanField(required=False)
+
+
+class ScheduleForm(forms.Form):
+    """Place a resolution on an upcoming meeting agenda (GATHERING -> SCHEDULED)."""
+
+    targetMeeting = forms.ModelChoiceField(
+        label="Meeting", queryset=PostedEvents.objects.none(),
+        empty_label="Select a meeting",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        now = datetime.datetime.now(datetime.UTC)
+        self.fields["targetMeeting"].queryset = (
+            PostedEvents.objects.filter(start__gt=now).order_by("start")
+        )
+
+
+class RecordVoteForm(forms.Form):
+    """Record the membership's Yes / No / Abstain tally. The view applies
+    Resolution.recordVote, which decides adopted vs rejected by the kind's vote
+    threshold (two-thirds for amendments and endorsements, otherwise majority)."""
+
+    votesYes = forms.IntegerField(
+        label="Yes", min_value=0,
+        widget=forms.NumberInput(attrs={"class": "form-field", "min": "0"}),
+    )
+    votesNo = forms.IntegerField(
+        label="No", min_value=0,
+        widget=forms.NumberInput(attrs={"class": "form-field", "min": "0"}),
+    )
+    votesAbstain = forms.IntegerField(
+        label="Abstain", min_value=0, initial=0,
+        widget=forms.NumberInput(attrs={"class": "form-field", "min": "0"}),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        yes = cleaned.get("votesYes") or 0
+        no = cleaned.get("votesNo") or 0
+        if yes + no <= 0:
+            raise ValidationError("Record at least one Yes or No vote.")
+        return cleaned
+
+
+class WithdrawForm(forms.Form):
+    """Pull an in-flight resolution before it is voted on."""
+
+    note = forms.CharField(
+        label="Reason (optional)", required=False,
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full", "placeholder": "e.g. duplicate of an earlier resolution",
+        }),
+    )
+
+
+class SupersedeForm(forms.Form):
+    """Mark an adopted resolution as repealed, optionally pointing at the later
+    resolution that replaced it."""
+
+    replacement = forms.ModelChoiceField(
+        label="Replaced by (optional)", queryset=Resolution.objects.none(), required=False,
+        empty_label="Repealed (no replacement)",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    note = forms.CharField(
+        label="Note (optional)", required=False,
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+
+    def __init__(self, *args, excludePk=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = Resolution.objects.filter(status=Resolution.Status.ADOPTED)
+        if excludePk is not None:
+            qs = qs.exclude(pk=excludePk)
+        self.fields["replacement"].queryset = qs.order_by("-decidedAt")

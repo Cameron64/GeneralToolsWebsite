@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+{% load navigation_tags %}
 {% block title %}Edit Resolution - Echo{% endblock title %}
+{% block breadcrumbs %}{% url 'resolution-detail' pk=resolution.pk as parentUrl %}{% breadcrumbs parentLabel=resolution.title parentUrl=parentUrl currentLabel="Edit" %}{% endblock breadcrumbs %}
 {% block page_content %}
 {% include "tools/resolutions/_editorAssets.html" %}
 

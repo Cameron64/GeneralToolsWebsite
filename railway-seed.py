@@ -34,6 +34,7 @@ MEMBERS = [
     ("priya.patel",     "Priya",  "Patel"),
     ("tomas.herrera",   "Tomás",  "Herrera"),
     ("kelly.osullivan", "Kelly",  "O'Sullivan"),
+    ("rodrigo.salazar", "Rodrigo","Salazar"),
     ("rosa-demo",       "Rosa",   "Demo"),
 ]
 users = {}
@@ -66,6 +67,8 @@ GROUPS = {
                               ["manageLinkTree"]),
     "Metrics Viewers":       (["tomas.herrera"],
                               ["viewLinkMetrics"]),
+    "Secretary":             (["rodrigo.salazar"],
+                              ["administerResolutions"]),
 }
 for groupName, (names, codenames) in GROUPS.items():
     group, wasCreated = Group.objects.get_or_create(name=groupName)
@@ -344,5 +347,174 @@ if LinkEvent.objects.count() < 50:
                   f"(now {LinkEvent.objects.count()}), QR codes: {QRCode.objects.count()}")
 else:
     report.append("link events: already seeded")
+
+# --- Resolutions ---------------------------------------------------------------
+# Sample resolutions across every lifecycle state so the demo exercises the full
+# system: gathering sign-ons, on the agenda, adopted (in effect), did-not-pass,
+# withdrawn, and superseded - across all four kinds. Idempotent and RESUMABLE:
+# each resolution is get_or_create'd by title, and its sign-ons / audit events
+# are added only when first created and isolated in try/except, so a re-deploy
+# fills in anything a prior boot left behind and one bad row can't abort the rest.
+import traceback as _tb
+from tools.models import Resolution, ResolutionSignature, ResolutionEvent
+from tools.resolutionText import normalizedTextHash
+from tools.ActionNetworkAPI.migValidator import MIGStatus
+
+K, S = Resolution.Kind, Resolution.Status
+
+# A pool of signers: the nine named demo members alone cannot reach the
+# 25 / 35 sign-on thresholds.
+signerPool = []
+for n in range(1, 41):
+    uname = f"demo-signer-{n:02d}"
+    signer, signerNew = User.objects.get_or_create(
+        username=uname,
+        defaults={"first_name": "Member", "last_name": f"{n:02d}",
+                  "email": f"{uname}@example.com"})
+    if signerNew:
+        signer.set_password(PASSWORD)
+        signer.save()
+    signerPool.append(signer)
+
+# A future GBM for resolutions still heading to a vote.
+julyGBM, _ = PostedEvents.objects.get_or_create(
+    title="Monthly General Meeting - July",
+    defaults=dict(
+        start=ct(2026, 7, 12, 14), end=ct(2026, 7, 12, 16),
+        timezone="America/Chicago", locationName="AFL-CIO Auditorium",
+        streetAddress="1106 Lavaca St", city="Austin", state="TX",
+        zip="78701", country="US",
+        description="Chapter business and resolutions up for a vote.",
+        instructions="", dateCreated=NOW, datePublished=NOW,
+        anManageLink="", anShareLink="", gCalLink="", zoomLink="",
+        zoomAccount="events@austindsa.org", reason=""))
+
+
+def addSignatures(res, count):
+    for member in signerPool[:count]:
+        ResolutionSignature.objects.get_or_create(
+            resolution=res, member=member,
+            defaults=dict(textHashAtSigning=normalizedTextHash(res.text),
+                          verified=True, verificationStatus=MIGStatus.OK,
+                          checkedAt=NOW))
+
+
+def lockAt(res, when):
+    res.locked = True
+    res.lockedTextHash = normalizedTextHash(res.text)
+    res.lockedAt = when
+    res.save()
+
+
+def addEvent(res, fromStatus, toStatus, note="", at=None):
+    event = ResolutionEvent.objects.create(
+        resolution=res, actor=admin, fromStatus=fromStatus,
+        toStatus=toStatus, note=note)
+    if at is not None:
+        ResolutionEvent.objects.filter(id=event.id).update(at=at)
+
+
+def seedRes(title, kind, proponent, status, text, then=None, **extra):
+    """Idempotent by title; runs ``then(res)`` (sign-ons + events) only on first
+    create, isolated so one failure logs a traceback but does not abort the seed."""
+    res, created = Resolution.objects.get_or_create(
+        title=title,
+        defaults=dict(kind=kind, proponent=proponent, status=status, text=text, **extra))
+    if created and then is not None:
+        try:
+            then(res)
+        except Exception:
+            _tb.print_exc()
+            print(f"SEED_RES_EXTRAS_FAILED: {title}")
+    return res
+
+
+# Gathering sign-ons (general has no threshold).
+seedRes("Endorse the Eastside Bus Rapid Transit Plan", K.GENERAL, users["maria.flores"], S.GATHERING,
+        "**Whereas** reliable transit on the Eastside is a racial and economic justice issue, and\n\n"
+        "**Whereas** the proposed line connects three working-class neighborhoods to downtown jobs,\n\n"
+        "**Therefore, be it resolved** that Austin DSA endorses the Eastside BRT Plan and mobilizes members to testify at the next Capital Metro board meeting.")
+
+seedRes("Form a Tenant Organizing Committee", K.PROJECT_COMMITTEE, users["devon.brooks"], S.GATHERING,
+        "**Whereas** rent in Austin has outpaced wages for a decade,\n\n"
+        "**Therefore, be it resolved** that the chapter form a standing Tenant Organizing Committee to support tenant unions citywide.",
+        targetMeeting=julyGBM,
+        then=lambda r: (addSignatures(r, 18), lockAt(r, NOW)))
+
+seedRes("Amend Article 7 to Lower Committee Quorum", K.BYLAWS_AMENDMENT, users["priya.patel"], S.GATHERING,
+        "**Whereas** several working groups have struggled to reach quorum,\n\n"
+        "**Therefore, be it resolved** that Article 7, Section 3 be amended to set committee quorum at three members.",
+        targetMeeting=julyGBM,
+        then=lambda r: (addSignatures(r, 31), lockAt(r, NOW)))
+
+# On the agenda (threshold met, scheduled for the July GBM).
+seedRes("Launch a Healthcare Justice Campaign", K.PROJECT_COMMITTEE, users["kelly.osullivan"], S.SCHEDULED,
+        "**Whereas** Texas has the highest uninsured rate in the country,\n\n"
+        "**Therefore, be it resolved** that the chapter launch a Healthcare Justice Campaign with a Medicare for All pledge drive.",
+        targetMeeting=julyGBM,
+        then=lambda r: (addSignatures(r, 27), lockAt(r, NOW),
+                        addEvent(r, S.GATHERING, S.SCHEDULED, note="Threshold met; placed on the July agenda.")))
+
+# Adopted, in effect (mirroring the chapter's real passed resolutions).
+seedRes("Endorse Jose Garza for District Attorney", K.GENERAL, users["maria.flores"], S.ADOPTED,
+        "**Whereas** Jose Garza has advanced decarceral, pro-worker policies,\n\n"
+        "**Therefore, be it resolved** that Austin DSA endorses Jose Garza for re-election as Travis County District Attorney.",
+        slug="endorse-jose-garza", decidedAt=ct(2023, 12, 13, 15),
+        effectiveDate=datetime.date(2023, 12, 13), votesYes=88, votesNo=1, votesAbstain=3,
+        then=lambda r: (lockAt(r, ct(2023, 12, 13, 15)),
+                        addEvent(r, S.SCHEDULED, S.ADOPTED, note="Adopted at the December GBM.", at=ct(2023, 12, 13, 16))))
+
+seedRes("Schools for All Campaign", K.PROJECT_COMMITTEE, users["devon.brooks"], S.ADOPTED,
+        "**Whereas** fully funded public schools are a precondition for a just society,\n\n"
+        "**Therefore, be it resolved** that the chapter authorize a multi-year Schools for All campaign.",
+        slug="schools-for-all", decidedAt=ct(2023, 9, 26, 15),
+        effectiveDate=datetime.date(2023, 9, 26), votesYes=66, votesNo=0, votesAbstain=0,
+        then=lambda r: (addSignatures(r, 31), lockAt(r, ct(2023, 9, 26, 15)),
+                        addEvent(r, S.SCHEDULED, S.ADOPTED, note="Adopted unanimously.", at=ct(2023, 9, 26, 16))))
+
+r7 = seedRes("YDSA Standing Committee Bylaws Amendment", K.BYLAWS_AMENDMENT, users["priya.patel"], S.ADOPTED,
+             "**Whereas** the chapter should formally recognize its youth and student organizing,\n\n"
+             "**Therefore, be it resolved** that the bylaws be amended to establish a YDSA Standing Committee.",
+             slug="ydsa-standing-committee", decidedAt=ct(2024, 3, 10, 15),
+             effectiveDate=datetime.date(2024, 3, 10), votesYes=52, votesNo=10, votesAbstain=3,
+             then=lambda r: (addSignatures(r, 38), lockAt(r, ct(2024, 3, 10, 15)),
+                             addEvent(r, S.SCHEDULED, S.ADOPTED, note="Adopted by a two-thirds vote.", at=ct(2024, 3, 10, 16))))
+
+seedRes("Endorse Greg Casar for Congress", K.CANDIDATE_ENDORSEMENT, users["kelly.osullivan"], S.ADOPTED,
+        "**Whereas** Greg Casar has a record of pro-labor organizing,\n\n"
+        "**Therefore, be it resolved** that Austin DSA endorses Greg Casar for Congress in TX-35.",
+        slug="endorse-greg-casar", decidedAt=ct(2024, 2, 1, 19),
+        effectiveDate=datetime.date(2024, 2, 1), votesYes=70, votesNo=5, votesAbstain=2,
+        then=lambda r: (lockAt(r, ct(2024, 2, 1, 19)),
+                        addEvent(r, S.SCHEDULED, S.ADOPTED, note="Adopted by a two-thirds vote.", at=ct(2024, 2, 1, 20))))
+
+# Did not pass.
+seedRes("Relocate Monthly Meetings Downtown", K.GENERAL, users["tomas.herrera"], S.REJECTED,
+        "**Whereas** some members find the current venue hard to reach,\n\n"
+        "**Therefore, be it resolved** that monthly meetings move to a downtown location.",
+        decidedAt=ct(2026, 5, 17, 15), votesYes=18, votesNo=40, votesAbstain=6,
+        then=lambda r: addEvent(r, S.SCHEDULED, S.REJECTED, note="Did not pass.", at=ct(2026, 5, 17, 16)))
+
+# Withdrawn before a vote.
+seedRes("Form a Crypto Working Group", K.PROJECT_COMMITTEE, users["sam.nguyen"], S.WITHDRAWN,
+        "**Whereas** some members are interested in blockchain technology,\n\n"
+        "**Therefore, be it resolved** that the chapter form a Crypto Working Group.",
+        then=lambda r: (addSignatures(r, 4), lockAt(r, NOW),
+                        addEvent(r, S.GATHERING, S.WITHDRAWN, note="Withdrawn by the proponent.")))
+
+# Superseded by a later adopted resolution (the YDSA amendment, r7 above).
+seedRes("Standing Committee Rules (2022)", K.BYLAWS_AMENDMENT, users["priya.patel"], S.SUPERSEDED,
+        "**Whereas** the chapter needed interim rules for standing committees in 2022,\n\n"
+        "**Therefore, be it resolved** that the attached interim committee rules be adopted.",
+        slug="standing-committee-rules-2022", decidedAt=ct(2022, 4, 9, 15),
+        effectiveDate=datetime.date(2022, 4, 9), votesYes=40, votesNo=8, votesAbstain=1,
+        supersededBy=r7,
+        then=lambda r: (addSignatures(r, 36), lockAt(r, ct(2022, 4, 9, 15)),
+                        addEvent(r, S.SCHEDULED, S.ADOPTED, note="Adopted as interim rules.", at=ct(2022, 4, 9, 16)),
+                        addEvent(r, S.ADOPTED, S.SUPERSEDED, note="Superseded by the 2024 YDSA Standing Committee amendment.", at=ct(2024, 3, 10, 17))))
+
+report.append("resolutions: now %d (%s)" % (
+    Resolution.objects.count(),
+    dict((s, Resolution.objects.filter(status=s).count()) for s, _ in S.CHOICES)))
 
 print("\n".join("  " + line for line in report))
