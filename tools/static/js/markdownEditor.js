@@ -117,13 +117,33 @@
     textarea.dispatchEvent(new Event("input"));
   }
 
+  // Toolbar glyphs. B/I/H are styled letters; list/quote/link are inline SVGs.
+  // All are developer-authored constants (no user input), so assigning them via
+  // innerHTML below is safe.
+  var ICON_LIST =
+    '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<circle cx="2.4" cy="4" r="1.1" fill="currentColor"/>' +
+    '<circle cx="2.4" cy="8" r="1.1" fill="currentColor"/>' +
+    '<circle cx="2.4" cy="12" r="1.1" fill="currentColor"/>' +
+    '<rect x="5.2" y="3.3" width="8.8" height="1.4" rx="0.7" fill="currentColor"/>' +
+    '<rect x="5.2" y="7.3" width="8.8" height="1.4" rx="0.7" fill="currentColor"/>' +
+    '<rect x="5.2" y="11.3" width="8.8" height="1.4" rx="0.7" fill="currentColor"/></svg>';
+  var ICON_QUOTE =
+    '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<path fill="currentColor" d="M3 4h3.5v3.6C6.5 9.7 5.3 11 3.4 11.6l-.5-1.2c1-.4 1.5-1 1.6-1.9H3V4zm6 0h3.5v3.6c0 2.1-1.2 3.4-3.1 4l-.5-1.2c1-.4 1.5-1 1.6-1.9H9V4z"/></svg>';
+  var ICON_LINK =
+    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M6.6 9.4l2.8-2.8"/>' +
+    '<path d="M8.2 5l1-1a2.4 2.4 0 0 1 3.4 3.4l-1 1"/>' +
+    '<path d="M7.8 11l-1 1A2.4 2.4 0 0 1 3.4 8.6l1-1"/></svg>';
+
   var BUTTONS = [
-    { label: "Bold", title: "Bold", run: function (t) { surround(t, "**", "**", "bold text"); } },
-    { label: "Italic", title: "Italic", run: function (t) { surround(t, "_", "_", "italic text"); } },
-    { label: "H", title: "Heading", run: function (t) { prefixLines(t, "## "); } },
-    { label: "List", title: "Bullet list", run: function (t) { prefixLines(t, "- "); } },
-    { label: "Quote", title: "Blockquote", run: function (t) { prefixLines(t, "> "); } },
-    { label: "Link", title: "Link", run: function (t) { surround(t, "[", "](https://)", "link text"); } },
+    { html: '<span class="mde-ico-b">B</span>', title: "Bold", run: function (t) { surround(t, "**", "**", "bold text"); } },
+    { html: '<span class="mde-ico-i">I</span>', title: "Italic", run: function (t) { surround(t, "_", "_", "italic text"); } },
+    { html: '<span class="mde-ico-h">H</span>', title: "Heading", run: function (t) { prefixLines(t, "## "); } },
+    { html: ICON_LIST, title: "Bullet list", run: function (t) { prefixLines(t, "- "); } },
+    { html: ICON_QUOTE, title: "Blockquote", run: function (t) { prefixLines(t, "> "); } },
+    { html: ICON_LINK, title: "Link", run: function (t) { surround(t, "[", "](https://)", "link text"); } },
   ];
 
   function enhance(textarea) {
@@ -140,7 +160,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "mde-btn";
-      btn.textContent = b.label;
+      btn.innerHTML = b.html;
       btn.title = b.title;
       btn.setAttribute("aria-label", b.title);
       btn.addEventListener("click", function () { b.run(textarea); });
