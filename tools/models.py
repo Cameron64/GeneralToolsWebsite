@@ -88,6 +88,9 @@ class PostedEvents(models.Model):
 
     owner = models.ForeignKey(EventOwners, on_delete=models.SET_NULL, blank=True, null=True)
 
+    def __str__(self) -> str:
+        return f"{self.title} ({self.getStartLocalizedStr()})"
+
     def getCreatorName(self) -> str:
         if self.creator is None:
             return ""
