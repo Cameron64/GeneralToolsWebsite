@@ -960,9 +960,12 @@ class ResolutionForm(forms.Form):
 
 
 class ResolutionEditForm(forms.Form):
-    """Edit a resolution's text. A change to a locked resolution resets its
-    sign-ons (Resolution.replaceText); the view requires confirmReset before
-    applying such a change."""
+    """Edit a resolution's text and (optionally) re-target its meeting while it is
+    still gathering. A change to a locked resolution resets its sign-ons
+    (Resolution.replaceText); the view requires confirmReset before applying such
+    a change. Re-targeting the meeting is independent - it shifts the filing
+    deadline and never resets sign-ons - and is how a proponent gives a resolution
+    more time by moving it to a later meeting."""
 
     text = forms.CharField(
         label="Resolution text",
@@ -970,7 +973,22 @@ class ResolutionEditForm(forms.Form):
             "class": "form-field w-full", "rows": "12", "data-markdown-editor": "1",
         }),
     )
+    # Restricted to upcoming meetings in __init__ (runtime ``now`` must not be
+    # frozen at import), mirroring ResolutionForm. Optional so it can be cleared
+    # back to "no meeting" (gathers indefinitely, no deadline).
+    targetMeeting = forms.ModelChoiceField(
+        label="Target meeting", queryset=PostedEvents.objects.none(), required=False,
+        empty_label="No meeting yet (gather without a deadline)",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
     confirmReset = forms.BooleanField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        now = datetime.datetime.now(datetime.UTC)
+        self.fields["targetMeeting"].queryset = (
+            PostedEvents.objects.filter(start__gt=now).order_by("start")
+        )
 
 
 class ScheduleForm(forms.Form):

@@ -7,7 +7,7 @@
 
 <div class="page-card max-w-2xl">
   <h1 class="page-title">Edit: {{ resolution.title }}</h1>
-  <p class="page-subtitle">Edit the resolution text. If you change a resolution that members have already signed, every sign-on resets and members will need to sign again.</p>
+  <p class="page-subtitle">Edit the resolution text or move it to a different meeting. If you change a resolution that members have already signed, every sign-on resets and members will need to sign again; changing the meeting does not.</p>
 
   {% if needsResetConfirm %}
   <div class="alert alert-error">
@@ -26,6 +26,13 @@
       <label for="{{ form.text.id_for_label }}">Resolution text</label>
       {{ form.text }}
       {% if form.text.errors %}<div class="form-errors">{{ form.text.errors }}</div>{% endif %}
+    </div>
+
+    <div class="form-row" data-field="targetMeeting">
+      <label for="{{ form.targetMeeting.id_for_label }}">Target meeting</label>
+      {{ form.targetMeeting }}
+      <p class="hint">Move this to a later meeting to give it more time to gather sign-ons. Changing the meeting updates the filing deadline and does not reset sign-ons.</p>
+      {% if form.targetMeeting.errors %}<div class="form-errors">{{ form.targetMeeting.errors }}</div>{% endif %}
     </div>
 
     {% if resolution.locked %}

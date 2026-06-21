@@ -124,6 +124,16 @@
       <button type="submit" class="btn btn-primary">Schedule</button>
     </form>
   </div>
+  {% if deadlinePassed %}
+  <div class="sec-action">
+    <h3>Mark lapsed</h3>
+    <p class="hint">The filing deadline passed before this reached an agenda, so it can no longer take sign-ons. Close it out as lapsed, or <a href="{% url 'resolution-edit' pk=resolution.pk %}">edit it</a> to move it to a later meeting and keep it gathering.</p>
+    <form method="post" action="{% url 'resolution-lapse' pk=resolution.pk %}" class="sec-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">Mark lapsed</button>
+    </form>
+  </div>
+  {% endif %}
   {% endif %}
 
   {% if resolution.isInFlight %}

@@ -80,6 +80,7 @@ _ACTION_OUTCOMES = {
     "rejected": (True, "Recorded as not passed."),
     "withdrawn": (True, "Withdrawn."),
     "superseded": (True, "Marked as superseded."),
+    "lapsed": (True, "Marked as lapsed - the filing deadline passed before it reached an agenda."),
     "invalid": (False, "That action could not be completed. Check the form and try again."),
     "illegal": (False, "That action is not allowed from the resolution's current state."),
 }
@@ -175,6 +176,12 @@ def sign_resolution(request):
         .select_related("proponent", "targetMeeting")
         .annotate(signedByMe=Exists(mySignOn))
     )
+    # Drop ones whose filing deadline has already passed: the detail page refuses
+    # new sign-ons on them (see canSign), so listing them is a dead end. The
+    # deadline is computed from the meeting (not a column), so filter in Python;
+    # the gathering set is small. The daily sweep moves long-lapsed ones to
+    # LAPSED, but this also covers the window before that runs.
+    resolutions = [r for r in resolutions if not r.signOnDeadlinePassed()]
     return render(request, "tools/resolutions/browse.html", {
         "resolutions": resolutions,
     })
@@ -363,9 +370,20 @@ def resolution_edit(request, pk):
                 needsResetConfirm = True
             else:
                 resolution.replaceText(newText)
+                # Re-targeting the meeting is independent of the text edit: it
+                # shifts the filing deadline and never resets sign-ons. Persist
+                # it separately because replaceText short-circuits its save on a
+                # cosmetically-identical text.
+                newMeeting = form.cleaned_data.get("targetMeeting")
+                if (newMeeting.pk if newMeeting else None) != resolution.targetMeeting_id:
+                    resolution.targetMeeting = newMeeting
+                    resolution.save(update_fields=["targetMeeting"])
                 return redirect("resolution-detail", pk=resolution.pk)
     else:
-        form = ResolutionEditForm(initial={"text": resolution.text})
+        form = ResolutionEditForm(initial={
+            "text": resolution.text,
+            "targetMeeting": resolution.targetMeeting_id,
+        })
 
     return render(request, "tools/resolutions/edit.html", {
         "resolution": resolution,
@@ -460,6 +478,18 @@ def resolution_withdraw(request, pk):
     except ValueError:
         return _actionRedirect(resolution, "illegal")
     return _actionRedirect(resolution, "withdrawn")
+
+
+@login_required
+@permission_required(permissions.ADMINISTER_RESOLUTIONS)
+@require_POST
+def resolution_lapse(request, pk):
+    resolution = get_object_or_404(Resolution, pk=pk)
+    try:
+        resolution.markLapsed(actor=request.user, note="Marked lapsed by the Secretary.")
+    except ValueError:
+        return _actionRedirect(resolution, "illegal")
+    return _actionRedirect(resolution, "lapsed")
 
 
 @login_required

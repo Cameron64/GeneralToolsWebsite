@@ -6,6 +6,7 @@ a fake client for the live-gate test), so nothing here touches the network.
 import datetime
 from unittest import mock
 
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
@@ -89,6 +90,26 @@ class ResolutionModelTests(TestCase):
 
     def test_general_meets_threshold_with_no_signatures(self):
         self.assertTrue(self._make(Resolution.Kind.GENERAL).meetsThreshold)
+
+    def test_stage_display_no_threshold_reads_awaiting_agenda(self):
+        # No-threshold kinds have nothing to gather while GATHERING.
+        self.assertEqual(self._make(Resolution.Kind.GENERAL).getStageDisplay(), "Awaiting agenda")
+        self.assertEqual(self._make(Resolution.Kind.CANDIDATE_ENDORSEMENT).getStageDisplay(), "Awaiting agenda")
+        # Threshold kinds still read the literal status label.
+        self.assertEqual(self._make(Resolution.Kind.PROJECT_COMMITTEE).getStageDisplay(), "Gathering sign-ons")
+
+    def test_stage_display_falls_through_once_scheduled(self):
+        res = self._make(Resolution.Kind.GENERAL)
+        res.schedule(meeting=_futureMeeting())
+        self.assertEqual(res.getStageDisplay(), "On the agenda")
+
+    def test_stage_display_lapsed_reads_status_not_awaiting(self):
+        # A terminal no-threshold resolution shows its real status, not the
+        # GATHERING-only "Awaiting agenda" label.
+        res = self._make(Resolution.Kind.GENERAL)
+        res.markLapsed()
+        self.assertEqual(res.status, Resolution.Status.LAPSED)
+        self.assertEqual(res.getStageDisplay(), "Lapsed")
 
     def test_only_verified_signatures_count(self):
         res = self._make()
@@ -376,6 +397,28 @@ class EditResetTests(_ViewBase):
         self.assertEqual(res.signatureCount, 0)
         self.assertFalse(res.locked)
 
+    def test_edit_retargets_meeting_without_resetting_signons(self):
+        # Re-pointing a gathering resolution at a later meeting is how a proponent
+        # buys more time. It must shift the meeting but keep existing sign-ons,
+        # since the text is unchanged.
+        res = self._make(text="Stable text")
+        signer = UserFactory.make("retarget-signer")
+        ResolutionSignature.objects.create(
+            resolution=res, member=signer, textHashAtSigning=normalizedTextHash("Stable text"),
+            verified=True, verificationStatus=MIGStatus.OK,
+            checkedAt=datetime.datetime.now(datetime.UTC),
+        )
+        res.lockText()
+        meeting = _futureMeeting(daysAhead=60, title="Later GBM")
+        self.client.force_login(self.member)
+        url = reverse("resolution-edit", kwargs={"pk": res.pk})
+        resp = self.client.post(url, {"text": "Stable text", "targetMeeting": meeting.pk})
+        self.assertEqual(resp.status_code, 302)
+        res.refresh_from_db()
+        self.assertEqual(res.targetMeeting_id, meeting.pk)
+        self.assertEqual(res.signatureCount, 1)   # unchanged text => sign-ons preserved
+        self.assertTrue(res.locked)
+
     def test_non_proponent_cannot_edit(self):
         res = self._make(proponent=self.member)
         other = UserFactory.make("interloper")
@@ -519,6 +562,23 @@ class TransitionTests(TestCase):
         r = self._make(status=Resolution.Status.SCHEDULED)
         r.sendBackToGathering(actor=self.actor)
         self.assertEqual(r.status, Resolution.Status.GATHERING)
+
+    def test_mark_lapsed_from_gathering_logs_event(self):
+        r = self._make()
+        r.markLapsed(actor=self.actor, note="deadline passed")
+        self.assertEqual(r.status, Resolution.Status.LAPSED)
+        event = r.events.first()
+        self.assertEqual(event.fromStatus, Resolution.Status.GATHERING)
+        self.assertEqual(event.toStatus, Resolution.Status.LAPSED)
+        self.assertEqual(event.note, "deadline passed")
+
+    def test_cannot_lapse_a_scheduled_or_terminal_resolution(self):
+        scheduled = self._make(status=Resolution.Status.SCHEDULED)
+        with self.assertRaises(ValueError):
+            scheduled.markLapsed(actor=self.actor)
+        adopted = self._make(status=Resolution.Status.ADOPTED)
+        with self.assertRaises(ValueError):
+            adopted.markLapsed(actor=self.actor)
 
     def test_illegal_transitions_raise(self):
         adopted = self._make(status=Resolution.Status.ADOPTED)
@@ -734,3 +794,58 @@ class SignOnBrowseTests(_ViewBase):
         self.assertContains(resp, "Untouched Petition")
         self.assertContains(resp, "You signed on", count=1)
         self.assertContains(resp, "You have not signed on yet", count=1)
+
+    def test_browse_hides_resolutions_past_their_deadline(self):
+        # Meeting tomorrow + a 10-day project-committee lead => deadline already
+        # passed, so the resolution can take no new sign-ons and is dropped from
+        # the list (the detail page would refuse a sign-on anyway).
+        soon = _futureMeeting(daysAhead=1, title="Tomorrow GBM")
+        Resolution.objects.create(
+            title="Past Deadline Petition", kind=Resolution.Kind.PROJECT_COMMITTEE,
+            text="x", proponent=self.member, targetMeeting=soon)
+        Resolution.objects.create(
+            title="Still Open Petition", kind=Resolution.Kind.GENERAL,
+            text="x", proponent=self.member)
+        self.client.force_login(self.member)
+        resp = self.client.get(reverse("sign-resolution"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Still Open Petition")
+        self.assertNotContains(resp, "Past Deadline Petition")
+
+
+class LapseSweepCommandTests(TestCase):
+    """The lapse_expired_resolutions sweep closes out gathering resolutions whose
+    filing deadline has passed, and leaves everything else alone."""
+
+    def setUp(self):
+        self.member = UserFactory.make("sweep-prop")
+
+    def test_sweep_lapses_only_past_deadline_gathering(self):
+        soon = _futureMeeting(daysAhead=1, title="Tomorrow GBM")   # past its 10-day lead
+        late = Resolution.objects.create(
+            title="Too Late", kind=Resolution.Kind.PROJECT_COMMITTEE,
+            text="x", proponent=self.member, targetMeeting=soon)
+        far = _futureMeeting(daysAhead=60, title="Far GBM")
+        ontime = Resolution.objects.create(
+            title="On Time", kind=Resolution.Kind.PROJECT_COMMITTEE,
+            text="x", proponent=self.member, targetMeeting=far)
+        nomeeting = Resolution.objects.create(   # no meeting => no deadline => never lapses
+            title="No Meeting", kind=Resolution.Kind.GENERAL,
+            text="x", proponent=self.member)
+
+        call_command("lapse_expired_resolutions", quiet=True)
+
+        late.refresh_from_db(); ontime.refresh_from_db(); nomeeting.refresh_from_db()
+        self.assertEqual(late.status, Resolution.Status.LAPSED)
+        self.assertEqual(ontime.status, Resolution.Status.GATHERING)
+        self.assertEqual(nomeeting.status, Resolution.Status.GATHERING)
+        self.assertTrue(late.events.filter(toStatus=Resolution.Status.LAPSED).exists())
+
+    def test_dry_run_reports_without_changing(self):
+        soon = _futureMeeting(daysAhead=1)
+        late = Resolution.objects.create(
+            title="Dry Run", kind=Resolution.Kind.PROJECT_COMMITTEE,
+            text="x", proponent=self.member, targetMeeting=soon)
+        call_command("lapse_expired_resolutions", dry_run=True, quiet=True)
+        late.refresh_from_db()
+        self.assertEqual(late.status, Resolution.Status.GATHERING)

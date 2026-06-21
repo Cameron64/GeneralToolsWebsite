@@ -941,6 +941,9 @@ class Resolution(models.Model):
         REJECTED = "REJECTED"
         WITHDRAWN = "WITHDRAWN"
         SUPERSEDED = "SUPERSEDED"
+        # Terminal: was still gathering when its filing deadline passed, so it
+        # can never make that agenda. Distinct from a deliberate WITHDRAWN.
+        LAPSED = "LAPSED"
 
         CHOICES = (
             (GATHERING, "Gathering sign-ons"),
@@ -949,6 +952,7 @@ class Resolution(models.Model):
             (REJECTED, "Did not pass"),
             (WITHDRAWN, "Withdrawn"),
             (SUPERSEDED, "Superseded"),
+            (LAPSED, "Lapsed"),
         )
 
         # The two "in flight" states the Secretary actively manages; the rest
@@ -1024,6 +1028,17 @@ class Resolution(models.Model):
 
     def getStatusDisplay(self) -> str:
         return dict(Resolution.Status.CHOICES).get(self.status, self.status)
+
+    def getStageDisplay(self) -> str:
+        """The Stage label shown to members. Identical to getStatusDisplay except
+        that a no-threshold resolution (general resolution, candidate endorsement)
+        has nothing to gather while in GATHERING - it is simply awaiting the
+        Leadership Committee's agenda decision - so it reads "Awaiting agenda"
+        rather than the misleading "Gathering sign-ons". The status itself stays
+        GATHERING so the Secretary scheduling workflow is unchanged."""
+        if self.status == Resolution.Status.GATHERING and self.threshold is None:
+            return "Awaiting agenda"
+        return self.getStatusDisplay()
 
     @property
     def voteThreshold(self) -> str:
@@ -1236,6 +1251,21 @@ class Resolution(models.Model):
             raise ValueError(f"Cannot withdraw a {self.status} resolution")
         fromStatus = self.status
         self.status = Resolution.Status.WITHDRAWN
+        self.save()
+        self._recordEvent(actor, fromStatus, note)
+
+    def markLapsed(self, actor=None, note: str = "") -> None:
+        """Close out a gathering resolution whose filing deadline passed before it
+        reached a meeting agenda. Terminal, and only legal from GATHERING - a
+        scheduled resolution is already on an agenda, and the other statuses are
+        themselves terminal. The daily sweep (lapse_expired_resolutions) is the
+        usual caller; the Secretary can also trigger it by hand once the deadline
+        has passed. To keep it open instead, re-target it to a later meeting
+        (which resets the deadline) before it lapses."""
+        if self.status != Resolution.Status.GATHERING:
+            raise ValueError(f"Cannot lapse a {self.status} resolution")
+        fromStatus = self.status
+        self.status = Resolution.Status.LAPSED
         self.save()
         self._recordEvent(actor, fromStatus, note)
 

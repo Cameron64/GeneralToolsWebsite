@@ -57,6 +57,7 @@ urlpatterns = [
     path("resolution/<int:pk>/send-back", resolutionViews.resolution_send_back, name="resolution-send-back"),
     path("resolution/<int:pk>/record-vote", resolutionViews.resolution_record_vote, name="resolution-record-vote"),
     path("resolution/<int:pk>/withdraw", resolutionViews.resolution_withdraw, name="resolution-withdraw"),
+    path("resolution/<int:pk>/lapse", resolutionViews.resolution_lapse, name="resolution-lapse"),
     path("resolution/<int:pk>/supersede", resolutionViews.resolution_supersede, name="resolution-supersede"),
     path("resolution/<int:pk>/export.md", resolutionViews.resolution_export, name="resolution-export"),
 

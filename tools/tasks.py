@@ -53,6 +53,17 @@ def syncLinkTreeWiki():
             )
 
 
+@db_periodic_task(crontab(hour="11", minute="30"))
+def lapseExpiredResolutions():
+    """Daily sweep: close out gathering resolutions whose filing deadline passed.
+
+    The management command stays the imperative core (manual runs and --dry-run
+    keep working); this is just its schedule. 11:30 UTC sits just after the
+    wiki-link sync, in the same quiet early-Central window.
+    """
+    call_command("lapse_expired_resolutions", quiet=True)
+
+
 # --- Event publishing (PublishJob) ------------------------------------------
 #
 # The two real-publish flows in eventViews.py (new_event and the
