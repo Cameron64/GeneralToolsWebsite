@@ -209,6 +209,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "resolution-send-back": "resolutions",
     "resolution-record-vote": "resolutions",
     "resolution-withdraw": "resolutions",
+    "resolution-lapse": "resolutions",
     "resolution-supersede": "resolutions",
     "resolution-export": "resolutions",
 }
