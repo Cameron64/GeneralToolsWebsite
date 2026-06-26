@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo — Warm welcome journey map · one record, four doors</title>
+
+<style>
+  /* =====================================================================
+     LOW-FIDELITY SWIMLANE JOURNEY MAP — grey-box, system font, no brand.
+     Single neutral accent (--mark) ONLY to flag screens we design.
+     --hole = the loud callout for the paid-first gap (still neutral ink).
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* the one neutral accent - "we design this" */
+    --mark-bg:#eef1f5;
+    --beat:   #8a6d2f;   /* emotional-beat ink (muted ochre, meta) */
+    --beat-bg:#f8f3e6;
+    --hole:   #1d1d1d;   /* the hole callout - loud, dark, neutral */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { width: 1860px; margin: 0 auto; }
+
+  /* ---- title + legend ------------------------------------------------ */
+  header.doc { margin-bottom: 26px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 32px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; max-width: 980px; line-height: 1.55; }
+  .spine { font-size: 13px; color: var(--ink); margin: 12px 0 0; max-width: 980px; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .spine b { color: var(--mark); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; font-size: 12px; color: var(--muted); }
+  .legend .li { display: flex; align-items: center; gap: 8px; }
+  .lg-solid { width: 30px; height: 0; border-top: 2px solid var(--ink); position: relative; }
+  .lg-solid::after { content: "›"; position: absolute; right: -7px; top: -10px; font-size: 15px; color: var(--ink); }
+  .lg-dash { width: 30px; height: 0; border-top: 2px dashed var(--faint); }
+  .lg-mark { width: 16px; height: 16px; border: 2px solid var(--mark); border-radius: 4px; background: var(--mark-bg); }
+  .lg-beat { width: 16px; height: 16px; border-radius: 4px; background: var(--beat-bg); border: 1px solid #e3d6b0; }
+  .lg-cap  { font-size: 9px; font-weight: 800; letter-spacing: .05em; color: #fff; background: var(--ink); padding: 2px 6px; border-radius: 3px; }
+  .lg-mile { font-size: 9px; font-weight: 800; letter-spacing: .05em; color: var(--ink); border: 1.5px solid var(--ink); padding: 1px 6px; border-radius: 3px; }
+  .lg-ansys { width: 16px; height: 16px; border: 1.5px dashed var(--faint); background: var(--fill-3); border-radius: 4px; }
+
+  /* ---- grid ---------------------------------------------------------- */
+  .map { display: grid; grid-template-columns: 172px repeat(6, 1fr); gap: 16px 30px; align-items: start; }
+
+  .corner { grid-row: 1; grid-column: 1; }
+  .colhead { grid-row: 1; align-self: end; padding: 0 2px 8px; border-bottom: 2px solid var(--ink); }
+  .colhead .cn { font-size: 11px; font-weight: 700; color: var(--faint); letter-spacing: .1em; }
+  .colhead .ct { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 3px; }
+  .colhead.mile { border-bottom: 3px solid var(--mark); }
+  .colhead.mile .cn { color: var(--mark); }
+
+  .lane-label { border-radius: 6px; background: var(--fill); border: 1px solid var(--line-2); padding: 14px 12px; display: flex; flex-direction: column; justify-content: center; height: 100%; }
+  .lane-label .ll-t { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .lane-label .ll-s { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+
+  /* ---- cells & boxes ------------------------------------------------- */
+  .cell { display: flex; flex-direction: column; gap: 9px; position: relative; }
+  .box { background: #fff; border: 1px solid var(--line); border-radius: 7px; padding: 11px 12px; position: relative; }
+  .box.milebox { border: 2px solid var(--mark); }
+  .box .bt { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+  .box .bd { font-size: 12px; color: var(--ink); line-height: 1.45; }
+  .box .bsub { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 6px; }
+  .mileflag { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--mark); border: 1.5px solid var(--mark); border-radius: 4px; padding: 2px 7px; margin-bottom: 6px; }
+
+  .sub { background: var(--fill-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; line-height: 1.4; color: var(--ink); }
+  .sub .st { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 3px; }
+
+  /* horizontal flow chevron sitting in the column gap */
+  .arrow-next::after { content: "›"; position: absolute; right: -23px; top: 16px; font-size: 26px; line-height: 0; color: var(--ink); font-weight: 700; }
+
+  /* number-capture chip - marks WHERE THE NUMBER ENTERS on each door */
+  .cap { display: inline-flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; border-radius: 4px; padding: 3px 7px; margin-top: 8px; }
+  .cap.enters  { background: var(--ink); color: #fff; }
+  .cap.already { background: #fff; color: var(--muted); border: 1px solid var(--line); }
+  .cap.confirm { background: #fff; color: var(--mark); border: 1px solid var(--mark); }
+
+  /* emotional beat */
+  .beat { background: var(--beat-bg); border: 1px solid #e7dab4; border-left: 3px solid var(--beat); border-radius: 5px; padding: 6px 9px; font-size: 11.5px; color: var(--beat); }
+  .beat b { font-weight: 700; text-transform: uppercase; letter-spacing: .05em; font-size: 10px; display: block; margin-bottom: 2px; }
+
+  /* branch / failure */
+  .branch { border: 1.5px dashed var(--line); background: var(--fill-3); border-radius: 7px; padding: 9px 11px; }
+  .branch .brt { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .branch .brd { font-size: 11.5px; line-height: 1.45; color: var(--ink); }
+  .branch.fail { background: repeating-linear-gradient(135deg, #f4f2f1, #f4f2f1 7px, #ededeb 7px, #ededeb 14px); border-color: var(--faint); }
+  .branch.fail .brt { color: #555; }
+
+  /* doors */
+  .door { background: #fff; border: 1px solid var(--line); border-radius: 7px; padding: 11px 12px; position: relative; }
+  .door .dn { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .door .dh { font-size: 12.5px; font-weight: 700; margin: 2px 0 4px; }
+  .door .dd { font-size: 11.5px; color: var(--ink); line-height: 1.4; }
+  .door .opt { font-size: 11px; line-height: 1.4; margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--line-2); }
+  .door .opt b { font-weight: 700; }
+
+  /* the loud HOLE callout (Door 3) */
+  .door.hole { border: 2px solid var(--hole); }
+  .door.hole .dn { color: var(--hole); }
+  .hole-flag { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--hole); padding: 3px 8px; border-radius: 4px; margin: 8px 0 6px; }
+  .hole-fix { background: #f3f3f1; border: 1px solid var(--line-2); border-radius: 6px; padding: 8px 10px; font-size: 11px; line-height: 1.4; margin-top: 6px; }
+  .hole-fix b { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .skip { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--mark); border: 1px dashed var(--mark); border-radius: 4px; padding: 3px 7px; margin-top: 7px; }
+
+  /* Door 4 - lighter, optional shape */
+  .door.light { border: 1.5px dashed var(--line); background: var(--fill-3); }
+  .door.light .dn { color: var(--muted); }
+  .opt-offer { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); border: 1px dashed var(--line); background: #fff; border-radius: 4px; padding: 3px 7px; margin-top: 8px; }
+
+  /* converge arrow + funnel */
+  .converge { text-align: center; color: var(--ink); font-size: 12px; font-weight: 700; padding-top: 2px; }
+  .converge .da { font-size: 22px; line-height: 1; display: block; }
+
+  /* the one record box */
+  .record { background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 13px 13px; }
+  .record .rn { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .record .rt { font-size: 15px; font-weight: 800; letter-spacing: -.01em; margin: 3px 0 5px; }
+  .record .rd { font-size: 11.5px; color: var(--ink); line-height: 1.45; }
+  .record .rmeta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .record .pill { font-size: 10px; font-weight: 700; color: var(--muted); background: var(--fill-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 9px; }
+  .record .funnel { font-size: 11px; color: var(--mark); font-weight: 700; margin-top: 9px; }
+
+  /* Action Network drawn as a SEPARATE side system Echo reads from */
+  .ansys { background: var(--fill-3); border: 1.5px dashed var(--faint); border-radius: 8px; padding: 11px 12px; margin-bottom: 9px; }
+  .ansys .ans-t { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ansys .ans-d { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 4px; }
+  .ansys .ans-route { font-size: 10.5px; font-weight: 700; color: var(--ink); margin-top: 7px; }
+
+  /* the two/three screens we will design */
+  .design { border: 2px solid var(--mark); background: var(--mark-bg); border-radius: 8px; padding: 12px; position: relative; }
+  .design .tag { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; }
+  .design.maybe { border-style: dashed; }
+  .design.maybe .tag { background: #fff; color: var(--mark); border: 1px solid var(--mark); }
+  .design .dt { font-size: 13.5px; font-weight: 800; }
+  .design .dd { font-size: 12px; color: var(--ink); line-height: 1.45; margin-top: 5px; }
+
+  /* organizer cockpit spanning band (cols 1-5) */
+  .cockpit { grid-row: 4; grid-column: 2 / 7; }
+  .cockpit-inner { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; }
+  .cockpit-inner .cpcol { background: #fff; border: 1px solid var(--line-2); border-radius: 6px; padding: 9px 10px; }
+  .cockpit-inner .cpw { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mark); margin-bottom: 4px; }
+  .cockpit-inner .cpd { font-size: 11.5px; line-height: 1.4; color: var(--ink); }
+  .span-note { font-size: 11px; color: var(--muted); margin-top: 9px; font-style: italic; }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="80" y="120" width="1040" height="120" rx="10" fill="#ffffff" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="80" y="300" width="240" height="380" rx="10" fill="#ffffff" stroke="#1d1d1d" stroke-width="4"/>
+    <rect x="360" y="300" width="240" height="380" rx="10" fill="#eef1f5" stroke="#41526b" stroke-width="4"/>
+    <rect x="640" y="300" width="240" height="380" rx="10" fill="#ffffff" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="920" y="300" width="200" height="380" rx="10" fill="#ffffff" stroke="#c4c4c4" stroke-width="3"/>
+    <circle cx="200" cy="360" r="14" fill="#1d1d1d"/>
+    <circle cx="480" cy="360" r="14" fill="#41526b"/>
+    <rect x="120" y="410" width="160" height="14" rx="7" fill="#d9d9d9"/>
+    <rect x="120" y="440" width="120" height="14" rx="7" fill="#ededed"/>
+    <rect x="400" y="410" width="160" height="14" rx="7" fill="#d9d9d9"/>
+    <rect x="400" y="440" width="120" height="14" rx="7" fill="#ededed"/>
+  </svg>
+</template>
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome flow · low-fidelity journey map</div>
+    <h1 class="doc">One Echo Person, four doors · oriented, then escorted</h1>
+    <p class="lede">The system of record for the funnel is Echo - anyone can have an Echo Person record (and an Echo account) regardless of membership, and most people start here as non-members. Welcome Home writes the name, email, and phone to Echo. One Echo Person per human (keyed by email), one cohort; four doors create or confirm it. Action Network is a separate side system - the record for membership and dues only - that Echo reads by email, never writes. Today, any door that establishes contact without a membership is invisible to us, and any membership preceded by a newsletter signup is also invisible. That is the hole this redesign closes.</p>
+    <p class="spine"><b>The spine.</b> Every door funnels toward the same recurring <b>virtual orientation</b> ("I belong to a chapter"), framed around the person's actual fight - not bureaucratic onboarding. Their <b>Rose Buddy</b> optionally joins that orientation, but definitely escorts them, in person, to their <b>first GBM</b> - the belonging beat where the warm welcome lands or fails.</p>
+    <div class="legend">
+      <div class="li"><span class="lg-solid"></span> Main path</div>
+      <div class="li"><span class="lg-dash"></span> Branch / failure path</div>
+      <div class="li"><span class="lg-mark"></span> Screen we design next</div>
+      <div class="li"><span class="lg-beat"></span> Newcomer's emotional beat</div>
+      <div class="li"><span class="lg-cap">NUMBER ENTERS</span> Where the phone number is captured</div>
+      <div class="li"><span class="lg-mile">◆ MILESTONE</span> The two-milestone spine</div>
+      <div class="li"><span class="lg-ansys"></span> Action Network · side system Echo reads</div>
+    </div>
+  </header>
+
+  <div class="map">
+
+    <!-- ===== column headers ===== -->
+    <div class="corner"></div>
+    <div class="colhead" style="grid-column:2;"><div class="cn">COL 1</div><div class="ct">Day 0 · the doors (capture)</div></div>
+    <div class="colhead" style="grid-column:3;"><div class="cn">COL 2</div><div class="ct">Day 0 · home (RSVP to orientation)</div></div>
+    <div class="colhead" style="grid-column:4;"><div class="cn">COL 3</div><div class="ct">Days 1-2 · before orientation</div></div>
+    <div class="colhead mile" style="grid-column:5;"><div class="cn">COL 4 · ◆ MILESTONE</div><div class="ct">Week 1 · orientation (virtual)</div></div>
+    <div class="colhead mile" style="grid-column:6;"><div class="cn">COL 5 · ◆ MILESTONE</div><div class="ct">Weeks 1-8 · first GBM + the valley</div></div>
+    <div class="colhead" style="grid-column:7;"><div class="cn">COL 6</div><div class="ct">Staying in / the join ask</div></div>
+
+    <!-- ============================================================
+         LANE 1 — THE NEWCOMER
+         ============================================================ -->
+    <div class="lane-label" style="grid-row:2; grid-column:1;">
+      <div class="ll-t">The newcomer</div>
+      <div class="ll-s">Front of house · what they do and feel</div>
+    </div>
+
+    <!-- COL 1 · the four doors -->
+    <div class="cell" style="grid-row:2; grid-column:2;">
+      <div class="door">
+        <div class="dn">Door 1 · QR / text link</div>
+        <div class="dh">Self-serve</div>
+        <div class="dd">Scans a QR or taps a link, lands on Welcome Home, types their own name, email, phone.</div>
+        <span class="cap enters">↓ Number enters here · into Echo</span>
+        <div class="bsub">Net-new, self-serve write to the Echo Person - best data: explicit consent, no transcription, they see their Rose Buddy as they type. Non-member, no Action Network record yet; that is fine, Echo holds them. Welcome Home is this door's capture surface.</div>
+        <div class="beat" style="margin-top:8px;"><b>Beat</b> Seen.</div>
+      </div>
+
+      <div class="door">
+        <div class="dn">Door 2 · the tabler</div>
+        <div class="dh">Organizer-mediated</div>
+        <div class="dd">Talks to a tabler, hears a 30-second "this is your fight" story, gives a number.</div>
+        <div class="opt"><b>(a)</b> Tabler points them at the QR - it becomes Door 1 on a phone. Preferred.</div>
+        <div class="design maybe" style="margin-top:8px; padding:10px;">
+          <span class="tag">Maybe Screen 3 · quick intake</span>
+          <div class="dt" style="font-size:12.5px;">(b) Thin organizer intake</div>
+          <div class="dd" style="font-size:11.5px;">Add a person · name + phone · fast and repeatable, one after another at a table. Writes a net-new Echo Person, same as Door 1.</div>
+          <span class="cap enters" style="margin-bottom:0;">↓ Number enters here · into Echo</span>
+        </div>
+        <div class="beat" style="margin-top:8px;"><b>Beat</b> Seen and named.</div>
+      </div>
+
+      <div class="door hole">
+        <div class="dn">Door 3 · direct dues join</div>
+        <div class="dh">Paid first</div>
+        <div class="dd">Fills the external national / chapter join form, pays, becomes a member immediately.</div>
+        <span class="cap already">Born in Action Network · read into Echo</span>
+        <div class="bsub">This is the one door where the person first appears in Action Network - the join form wrote them there, with a phone often missing. Echo reads them in by email and creates / confirms their Echo Person; it does not re-ask. The only door whose arrow passes through the Action Network box.</div>
+        <div class="hole-flag">⚑ THIS IS A HOLE</div>
+        <div class="bsub" style="color:var(--ink);">A person who signs up for the news letter first and then becomes a member is invisible today. </div>
+        <div class="hole-fix">THE FIX
+The exact same path as Door 1 - linked to Echo, lands on Welcome Home, meets a named Rose Buddy, RSVPs to orientation, walks the full spine. Not a shortcut, not a lesser track: identical treatment.</div>
+        <span class="skip">→ Merges into Door 1 at home · Col 2</span>
+        <div class="bsub" style="color:var(--ink);">The only asymmetry left: the join-ask column (Col 6) is not an ask for them - they already paid.</div>
+      </div>
+
+      <div class="door light">
+        <div class="dn">Door 4 · reactivation</div>
+        <div class="dh">Organizer-initiated · lighter touch</div>
+        <div class="dd">A lapsed former member, re-contacted by a comrade who also lapsed once.</div>
+        <span class="cap confirm">Read from AN · claim Echo account</span>
+        <div class="bsub">Existed in Action Network before, but stale. Echo reads them in by email and creates / confirms their Echo Person; capture here is confirm / refresh the number and re-consent to texts, woven into the first warm touch, not a new form.</div>
+        <div class="bsub">A good moment to claim an Echo account - a login on their existing Echo Person. (An account is NOT membership-gated; anyone can have one. This is just where it naturally happens.)</div>
+        <span class="opt-offer">Orientation + Rose Buddy = optional offers</span>
+        <div class="bsub">A lighter, opt-in re-entry. Not pushed down the orientation → first-GBM spine unless they take the offer. The forced funnel is for the other doors; this one is an open hand.</div>
+        <div class="beat" style="margin-top:8px;"><b>Beat</b> Shame first ("I let it lapse; they probably think I flaked").</div>
+      </div>
+
+      <div class="converge"><span class="da">▼</span> All four doors create or confirm the one Echo Person (Doors 3-4 read in via Action Network). Doors 1-3 pointed at the next orientation; Door 4 is offered it.</div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="cell" style="grid-row:2; grid-column:3;">
+      <div class="box arrow-next">
+        <div class="bt">Taps the text · RSVPs to orientation</div>
+        <div class="bd">Gets a same-day text, taps the link, lands on Welcome Home, RSVPs to the next orientation.</div>
+        <div class="bsub">Doors 1 and 3 land here directly and identically. Door 2 arrives via the same-day text. Door 4 gets a warmer "welcome back" - the orientation RSVP and a buddy are offered, not pushed.</div>
+      </div>
+      <div class="beat"><b>Beat</b> Expected.</div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="cell" style="grid-row:2; grid-column:4;">
+      <div class="box arrow-next">
+        <div class="bt">Light reminder</div>
+        <div class="bd">May get one light reminder about the orientation.</div>
+      </div>
+    </div>
+
+    <!-- COL 4 · ORIENTATION milestone -->
+    <div class="cell" style="grid-row:2; grid-column:5;">
+      <div class="box milebox arrow-next">
+        <span class="mileflag">◆ Milestone · orientation</span>
+        <div class="bt">Attends virtual orientation</div>
+        <div class="bd">"This is the chapter, here is how it works, here is where you plug in." Low-barrier, framed around their fight.</div>
+        <div class="bsub">Doors 1-3 are aimed here. A Door-4 returning member may skip it - they have been here before - or opt in.</div>
+      </div>
+      <div class="beat"><b>Beat</b> I belong to something.</div>
+    </div>
+
+    <!-- COL 5 · FIRST GBM milestone + valley -->
+    <div class="cell" style="grid-row:2; grid-column:6;">
+      <div class="box milebox arrow-next">
+        <span class="mileflag">◆ Milestone · first GBM</span>
+        <div class="bt">Escorted to the first GBM</div>
+        <div class="bd">The dangerous stretch: texts can feel like spam, no friend made yet, most drift happens here. What pulls them through - their Rose Buddy escorts them in person. A room of strangers becomes "someone is here for me."</div>
+      </div>
+      <div class="beat"><b>Beat</b> Belonging.</div>
+      <div class="branch fail">
+        <div class="brt">⚠ Failure path</div>
+        <div class="brd">If the Rose Buddy does not show to escort, they walk into a GBM full of strangers alone, stand by the snacks, and drift away.</div>
+      </div>
+    </div>
+
+    <!-- COL 6 -->
+    <div class="cell" style="grid-row:2; grid-column:7;">
+      <div class="box">
+        <div class="bt">Asked to join · or plugged in</div>
+        <div class="bd">At or after a GBM, the not-yet-paid are asked in person to become a member. "A few dollars a month."</div>
+        <div class="bsub">The Door-3 paid-first member already crossed this on day one - for them this column is being plugged into a working group, off the back of the belonging the orientation and first GBM just built.</div>
+      </div>
+      <div class="beat"><b>Beat</b> Commitment.</div>
+    </div>
+
+    <!-- ============================================================
+         LANE 2 — ECHO (app + the one contact record)
+         ============================================================ -->
+    <div class="lane-label" style="grid-row:3; grid-column:1;">
+      <div class="ll-t">Echo</div>
+      <div class="ll-s">The app + the one contact record · where the number lands in Action Network</div>
+    </div>
+
+    <!-- COL 1 · the one record -->
+    <div class="cell" style="grid-row:3; grid-column:2;">
+      <div class="ansys">
+        <div class="ans-t">Action Network · side system</div>
+        <div class="ans-d">System of record for membership + dues only. No clean home for non-member contact capture - which is why the funnel lives in Echo. Echo reads from it by email; it never writes dues.</div>
+        <div class="ans-route">Doors 3-4 are read in THROUGH here →</div>
+      </div>
+      <div class="record arrow-next">
+        <div class="rn">↑ all four doors converge here</div>
+        <div class="rt">One Echo Person record</div>
+        <div class="rd">Doors 1-2 write a net-new Echo Person directly. Doors 3-4 are read in from the Action Network box by email. One Person per human, dropped into one cohort.</div>
+        <div class="rmeta">
+          <span class="pill">Echo · record for the funnel Person</span>
+          <span class="pill">Keyed by email</span>
+          <span class="pill">One cohort</span>
+        </div>
+        <div class="funnel">→ Doors 1-3 pointed at the next orientation · Door 4 offered it</div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="cell" style="grid-row:3; grid-column:3;">
+      <div class="box arrow-next">
+        <div class="bt">Same-day text</div>
+        <div class="bd">Goes out · names the next orientation · one-tap reply.</div>
+      </div>
+      <div class="design">
+        <span class="tag">We design this · Screen 1</span>
+        <div class="dt">Welcome Home</div>
+        <div class="dd">A named Rose Buddy first, then the one dated orientation (virtual), then the RSVP. Framed around their fight ("come meet the folks fighting your rent and utility hikes"), not bureaucratic onboarding. Double duty: Door 1's capture surface AND the landing page the text link points to for every door.</div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="cell" style="grid-row:3; grid-column:4;">
+      <div class="box arrow-next">
+        <div class="bt">Cadence reminder</div>
+        <div class="bd">Sends a reminder. Flags a contact if nothing has happened.</div>
+      </div>
+    </div>
+
+    <!-- COL 4 -->
+    <div class="cell" style="grid-row:3; grid-column:5;">
+      <div class="box arrow-next">
+        <div class="bt">Logs attendance</div>
+        <div class="bd">Logs that they attended the orientation - the funnel target every door pointed at.</div>
+      </div>
+    </div>
+
+    <!-- COL 5 -->
+    <div class="cell" style="grid-row:3; grid-column:6;">
+      <div class="box arrow-next">
+        <div class="bt">Cadence ladder + GBM check-in</div>
+        <div class="bd">A 4-week ladder: a text, then calls. A "stalled at 30 days" flag if there is no engagement. Check-in logs that they showed at the GBM.</div>
+      </div>
+    </div>
+
+    <!-- COL 6 -->
+    <div class="cell" style="grid-row:3; grid-column:7;">
+      <div class="box">
+        <div class="bt">Reads dues back from AN</div>
+        <div class="bd">Dues are recorded on Action Network - the only contact-to-member line. The Echo Person stays the system of record for the human and the funnel; Echo reads the dues fact back from Action Network by email and flips them to "member." Echo reads dues; it never writes them.</div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         LANE 3 — ORGANIZER + ROSE BUDDY (back of house)
+         ============================================================ -->
+    <div class="lane-label" style="grid-row:4; grid-column:1;">
+      <div class="ll-t">Organizer + Rose Buddy</div>
+      <div class="ll-s">Back of house · human actions, run from one operator screen</div>
+    </div>
+
+    <!-- cockpit spans cols 1-5 (the operator watches the cohort the whole way) -->
+    <div class="cockpit">
+      <div class="design" style="padding:13px 15px;">
+        <span class="tag">We design this · Screen 2</span>
+        <div class="dt">Cadence cockpit · spans the doors → the first GBM</div>
+        <div class="dd">One operator watches the whole cohort on a single review surface, from capture onward. Every human action below is run from here.</div>
+        <div class="cockpit-inner">
+          <div class="cpcol">
+            <div class="cpw">Col 1 · doors</div>
+            <div class="cpd">Tabler runs quick intake or points at the QR. Membership team pulls the direct-join and reactivation people in from Action Network by email.</div>
+          </div>
+          <div class="cpcol">
+            <div class="cpw">Col 2 · home</div>
+            <div class="cpd">New contact is visible in the cohort review.</div>
+          </div>
+          <div class="cpcol">
+            <div class="cpw">Col 3 · before</div>
+            <div class="cpd">Assign a Rose Buddy.</div>
+            <div class="branch" style="margin-top:8px; padding:7px 9px;">
+              <div class="brt">⎇ Branch · no buddy free</div>
+              <div class="brd">Route to "warm holding" - the automated cadence, honestly labeled. NOT a fake promise of a buddy.</div>
+            </div>
+          </div>
+          <div class="cpcol">
+            <div class="cpw">Col 4 · orientation</div>
+            <div class="cpd">Rose Buddy optionally joins the orientation - a friendly named face in the room.</div>
+          </div>
+          <div class="cpcol">
+            <div class="cpw">Col 5 · first GBM</div>
+            <div class="cpd">Rose Buddy definitely escorts them to the first GBM and logs the real touch.</div>
+            <div class="sub" style="margin-top:7px;"><span class="st">Distinction</span>"Buddy actually showed" is NOT the same as "a nudge was sent."</div>
+          </div>
+        </div>
+        <div class="span-note">The cockpit is a review surface, not a chase queue - it makes dormancy visible without generating per-person to-dos.</div>
+      </div>
+    </div>
+
+    <!-- COL 6 · the ask -->
+    <div class="cell" style="grid-row:4; grid-column:7;">
+      <div class="box">
+        <div class="bt">Makes the ask</div>
+        <div class="bd">A human makes the join ask, off the back of belonging - never before.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

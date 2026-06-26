@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo · warm welcome · journey map + wireframes</title>
+<style>
+  :root {
+    --ink: #2b2b2b;
+    --muted: #6f6f6f;
+    --faint: #9a9a9a;
+    --line: #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill: #ededed;
+    --mark: #41526b;
+    --mark-bg: #eef1f5;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: var(--font); color: var(--ink); background: #e9e8e7; display: flex; flex-direction: column; height: 100vh; }
+
+  .tabbar { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 4px; padding: 12px 18px 0; background: #e0dedd; border-bottom: 1px solid var(--line); }
+  .brand { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-right: 14px; padding-bottom: 11px; align-self: flex-end; }
+  .tab {
+    appearance: none; border: 1px solid var(--line); border-bottom: none;
+    background: #efeeed; color: var(--muted);
+    font-family: var(--font); font-size: 13px; font-weight: 700;
+    padding: 10px 18px; border-radius: 9px 9px 0 0; cursor: pointer;
+    display: flex; align-items: center; gap: 9px; line-height: 1;
+    transition: background .14s ease, color .14s ease;
+  }
+  .tab:hover { background: #f6f5f4; color: var(--ink); }
+  .tab .tnum { font-size: 10px; font-weight: 800; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid currentColor; display: inline-flex; align-items: center; justify-content: center; }
+  .tab[aria-selected="true"] { background: #fff; color: var(--ink); border-color: var(--line); position: relative; top: 1px; }
+  .tab[aria-selected="true"] .tnum { color: var(--mark); border-color: var(--mark); }
+  .tab .tsub { font-size: 11px; font-weight: 500; color: var(--faint); }
+
+  .stage { flex: 1 1 auto; position: relative; background: #e9e8e7; }
+  .panel { position: absolute; inset: 0; display: none; }
+  .panel.active { display: block; }
+  iframe { width: 100%; height: 100%; border: 0; background: #e9e8e7; display: block; }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="120" y="160" width="420" height="40" rx="8" fill="#41526b"/>
+    <rect x="120" y="240" width="420" height="400" rx="12" fill="#ffffff" stroke="#c4c4c4" stroke-width="4"/>
+    <rect x="660" y="200" width="200" height="440" rx="28" fill="#ffffff" stroke="#2b2b2b" stroke-width="6"/>
+    <circle cx="710" cy="290" r="22" fill="#ededed" stroke="#2b2b2b" stroke-width="3"/>
+    <rect x="685" y="430" width="150" height="34" rx="7" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="685" y="480" width="150" height="34" rx="7" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="685" y="540" width="150" height="40" rx="7" fill="#2b2b2b"/>
+  </svg>
+</template>
+
+<div class="tabbar" role="tablist" aria-label="Echo warm welcome">
+  <div class="brand">Echo · warm welcome</div>
+  <button class="tab" role="tab" id="tab-map" aria-controls="panel-map" aria-selected="true">
+    <span class="tnum">1</span>
+    <span>Journey map <span class="tsub">· one record, four doors</span></span>
+  </button>
+  <button class="tab" role="tab" id="tab-wire" aria-controls="panel-wire" aria-selected="false">
+    <span class="tnum">2</span>
+    <span>Welcome Home wireframe <span class="tsub">· page 1, low-fi</span></span>
+  </button>
+  <button class="tab" role="tab" id="tab-cockpit" aria-controls="panel-cockpit" aria-selected="false">
+    <span class="tnum">3</span>
+    <span>Cadence cockpit wireframe <span class="tsub">· page 2, live cohort</span></span>
+  </button>
+  <button class="tab" role="tab" id="tab-review" aria-controls="panel-review" aria-selected="false">
+    <span class="tnum">4</span>
+    <span>Cohort review wireframe <span class="tsub">· page 3, the leak retrospective</span></span>
+  </button>
+</div>
+
+<div class="stage">
+  <div class="panel active" id="panel-map" role="tabpanel" aria-labelledby="tab-map">
+    <iframe data-src="ww-journey-map.html" title="Journey map"></iframe>
+  </div>
+  <div class="panel" id="panel-wire" role="tabpanel" aria-labelledby="tab-wire">
+    <iframe data-src="ww-welcome-home.html" title="Welcome Home wireframe"></iframe>
+  </div>
+  <div class="panel" id="panel-cockpit" role="tabpanel" aria-labelledby="tab-cockpit">
+    <iframe data-src="ww-cadence-cockpit.html" title="Cadence cockpit wireframe"></iframe>
+  </div>
+  <div class="panel" id="panel-review" role="tabpanel" aria-labelledby="tab-review">
+    <iframe data-src="ww-cohort-review.html" title="Cohort review wireframe"></iframe>
+  </div>
+</div>
+
+<script>
+  const tabs = {
+    map:  { tab: document.getElementById('tab-map'),  panel: document.getElementById('panel-map') },
+    wire: { tab: document.getElementById('tab-wire'), panel: document.getElementById('panel-wire') },
+    cockpit: { tab: document.getElementById('tab-cockpit'), panel: document.getElementById('panel-cockpit') },
+    review: { tab: document.getElementById('tab-review'), panel: document.getElementById('panel-review') }
+  };
+  const KEY = 'echo-warm-welcome-tab';
+
+  function loadFrame(panel) {
+    const f = panel.querySelector('iframe');
+    if (f && !f.src && f.dataset.src) f.src = f.dataset.src;
+  }
+
+  function select(name) {
+    Object.entries(tabs).forEach(([k, { tab, panel }]) => {
+      const on = k === name;
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      panel.classList.toggle('active', on);
+      if (on) loadFrame(panel);
+    });
+    try { localStorage.setItem(KEY, name); } catch (e) {}
+  }
+
+  tabs.map.tab.addEventListener('click', () => select('map'));
+  tabs.wire.tab.addEventListener('click', () => select('wire'));
+  tabs.cockpit.tab.addEventListener('click', () => select('cockpit'));
+  tabs.review.tab.addEventListener('click', () => select('review'));
+
+  let start = 'map';
+  try { const s = localStorage.getItem(KEY); if (s === 'map' || s === 'wire' || s === 'cockpit' || s === 'review') start = s; } catch (e) {}
+  select(start);
+</script>
+</body>
+</html>

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Cadence cockpit · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY WIREFRAME - Cadence cockpit (page 2, back-of-house).
+     Desktop-first app shell. Grey-box, hairline borders, system font.
+     No color, no brand. One neutral accent (--mark) for annotation only.
+     Two ink tones for tags so state reads structurally, never as "color":
+       --warn = stalled / unset / blind-spot (slightly louder ink)
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --warn:   #1d1d1d;   /* loud neutral ink for stalled / unset / blind spot */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { max-width: 1660px; margin: 0 auto; }
+
+  /* ---- document header ---------------------------------------------- */
+  header.doc { margin-bottom: 28px; max-width: 1040px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 13px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+
+  /* ---- region label gutter ------------------------------------------ */
+  .stage { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 34px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 7px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-right: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { color: var(--faint); font-weight: 400; }
+
+  /* ---- desktop app shell -------------------------------------------- */
+  .app { width: 1180px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--fill-2); }
+  .topbar .logo { width: 22px; height: 22px; border: 1px dashed var(--faint); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--faint); text-transform: uppercase; }
+  .topbar .product { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .crumb b { color: var(--ink); font-weight: 700; }
+  .topbar .spacerx { flex: 1 1 auto; }
+  .topbar .acct { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--muted); }
+  .content { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  /* region 1 - liveness banner */
+  .liveness { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 11px 14px; background: var(--fill-3); }
+  .liveness .lv-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); flex: 0 0 auto; }
+  .liveness .lv-main { font-size: 13px; font-weight: 700; }
+  .liveness .lv-sep { color: var(--faint); }
+  .liveness .lv-old { color: var(--warn); }
+  .liveness .lv-note { font-size: 11px; color: var(--muted); margin-left: auto; font-style: italic; }
+
+  /* region 2 - headline metric triples */
+  .sec-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: -6px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 9px; padding: 13px; background: var(--fill-3); display: flex; flex-direction: column; gap: 6px; }
+  .tile .t-k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .tile .t-num { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+  .tile .t-counter { font-size: 11px; font-weight: 700; color: var(--ink); }
+  .tile .t-def { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .tile .t-pending { color: var(--warn); font-weight: 700; border: 1px dashed var(--warn); border-radius: 4px; padding: 1px 6px; display: inline-block; font-size: 10px; letter-spacing: .03em; text-transform: uppercase; }
+
+  /* the set-apart escort-vs-reminder pair */
+  .pair-wrap { border: 1.5px dashed var(--line); border-radius: 9px; padding: 12px 13px; background: #fff; }
+  .pair-head { font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--warn); margin-bottom: 10px; }
+  .pair { display: grid; grid-template-columns: 1fr 16px 1fr; gap: 12px; align-items: stretch; }
+  .pair .tile { background: #fff; }
+  .pair .vs { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--faint); }
+  .pair-note { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 10px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .pair-note b { color: var(--warn); }
+
+  /* region 3 - demographic bars (the blind spot, shown honestly) */
+  .panel { border: 1px solid var(--line); border-radius: 9px; padding: 14px; background: #fff; }
+  .panel .p-title { font-size: 13px; font-weight: 800; }
+  .panel .p-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  .demo-block .db-k { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+  .demo-block .db-flag { font-size: 9.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--warn); border: 1px dashed var(--warn); border-radius: 4px; padding: 1px 6px; }
+  .barrow { display: flex; align-items: center; gap: 9px; margin-top: 9px; font-size: 11px; }
+  .barrow .bl { width: 78px; color: var(--ink); flex: 0 0 auto; }
+  .barrow .track { flex: 1 1 auto; height: 13px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--fill-2); overflow: hidden; }
+  .barrow .fillb { height: 100%; background: var(--line); }
+  .barrow .bn { width: 34px; text-align: right; color: var(--muted); flex: 0 0 auto; }
+  .demo-empty { margin-top: 9px; border: 1px dashed var(--warn); border-radius: 7px; padding: 12px; text-align: center; font-size: 11.5px; color: var(--warn); font-weight: 700; background: repeating-linear-gradient(135deg, #f6f5f4, #f6f5f4 7px, #efeeed 7px, #efeeed 14px); }
+  .demo-foot { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 13px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  /* per-race pipeline-position segmented bars · grayscale ramp light->dark reads as progression, never as color */
+  .seg-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 9.5px; color: var(--muted); }
+  .seg-legend .lg { display: flex; align-items: center; gap: 5px; }
+  .seg-legend .sw { width: 13px; height: 11px; border: 1px solid var(--line-2); border-radius: 2px; flex: 0 0 auto; }
+  .segrow { display: flex; align-items: center; gap: 9px; margin-top: 9px; font-size: 11px; }
+  .segrow .sl { width: 92px; color: var(--ink); flex: 0 0 auto; font-weight: 700; }
+  .segrow .segtrack { flex: 1 1 auto; height: 16px; border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; display: flex; }
+  .segrow .seg { height: 100%; }
+  .segrow .sn2 { width: 36px; text-align: right; color: var(--muted); flex: 0 0 auto; }
+  .seg-s1 { background: #e6e6e6; } .seg-s2 { background: #c9c9c9; } .seg-s3 { background: #a8a8a8; } .seg-s4 { background: #828282; } .seg-s5 { background: #5c5c5c; }
+
+  /* region 4 - cohort parameters owned by the body */
+  .params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .param { border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: var(--fill-3); }
+  .param .pm-k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .param .pm-v { font-size: 22px; font-weight: 800; margin-top: 5px; }
+  .param .pm-unset { font-size: 12px; font-weight: 800; color: var(--warn); margin-top: 7px; border: 1px dashed var(--warn); border-radius: 5px; padding: 4px 8px; display: inline-block; letter-spacing: .03em; text-transform: uppercase; }
+  .param .pm-owner { font-size: 10.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+  /* region 5 - the cohort table */
+  .table-head-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .table-head-row .th-t { font-size: 13px; font-weight: 800; }
+  .table-head-row .th-meta { font-size: 11px; color: var(--muted); }
+  .ctable { width: 100%; border-collapse: collapse; font-size: 11.5px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .ctable th { text-align: left; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); padding: 9px 10px; background: var(--fill-2); border-bottom: 1px solid var(--line); }
+  .ctable td { padding: 9px 10px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+  .ctable tr:last-child td { border-bottom: none; }
+  .ctable .nm { font-weight: 700; }
+  .ctable .nm .sublane { display: block; font-size: 9.5px; font-weight: 400; color: var(--faint); margin-top: 1px; }
+
+  /* small tags used inside the table */
+  .tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: #fff; white-space: nowrap; }
+  .tag.soft { color: var(--muted); background: var(--fill-2); border-color: var(--line-2); }
+  .tag.stalled { color: var(--warn); border: 1.5px solid var(--warn); font-weight: 800; }
+  .tag.oncad { color: var(--muted); border-style: dashed; }
+  .tag.nobuddy { color: var(--warn); border: 1px dashed var(--warn); }
+  .tag.firstclass { border: 1.5px solid var(--ink); font-weight: 800; }
+  .next-cell { color: var(--muted); }
+  .nx-auto { color: var(--muted); }
+  .nx-you { color: var(--warn); font-weight: 800; }
+  .nx-you::before { content: "\2691  "; font-weight: 800; }
+
+  /* leak breakdown / steering panel - cause -> lever, aggregate not a to-do list */
+  .leak { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 9px; padding: 13px 14px; background: var(--fill-3); margin-top: 14px; }
+  .leak .lk-head { font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--warn); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .leak .lk-total { font-size: 11px; color: var(--ink); font-weight: 700; text-transform: none; letter-spacing: 0; }
+  .leak .lk-rows { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 11px; }
+  .leak .lk-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; font-size: 12px; border: 1px solid var(--line-2); border-radius: 7px; padding: 8px 11px; background: #fff; }
+  .leak .lk-n { font-size: 18px; font-weight: 800; text-align: center; color: var(--warn); }
+  .leak .lk-cause { color: var(--ink); line-height: 1.35; }
+  .leak .lk-cause b { font-weight: 800; }
+  .leak .lk-lever { font-size: 11px; font-weight: 800; color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 4px 9px; white-space: nowrap; background: var(--fill-2); }
+  .leak .lk-foot { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .leak .lk-foot b { color: var(--warn); }
+  /* live stage snapshot - the shape of the cohort RIGHT NOW, explicitly not final */
+  .leak .snap-label { font-size: 10.5px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+  .leak .snap { display: flex; gap: 6px; margin-top: 9px; }
+  .leak .snap .st { flex: 1 1 0; border: 1px solid var(--line-2); border-radius: 7px; padding: 8px 6px; background: #fff; text-align: center; }
+  .leak .snap .st .sn { font-size: 19px; font-weight: 800; line-height: 1; }
+  .leak .snap .st .sk { font-size: 8.5px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--faint); margin-top: 5px; line-height: 1.2; }
+
+  /* row action buttons */
+  .rowacts { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ra { font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 3px 7px; color: var(--ink); white-space: nowrap; }
+
+  /* region 6 - the complete write set legend */
+  .writes { border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; padding: 12px 14px; background: var(--fill-3); }
+  .writes .w-t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .writes .w-d { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  .writes .w-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .writes .w-list .ra { font-size: 10.5px; padding: 5px 10px; }
+
+  /* ---- phone frame (cohort collapsed to cards) ---------------------- */
+  .phone { width: 340px; background: #fff; border: 2px solid var(--ink); border-radius: 26px; padding: 12px 12px 16px; }
+  .phone .notch { width: 92px; height: 6px; background: var(--line); border-radius: 999px; margin: 2px auto 12px; }
+  .pscreen { display: flex; flex-direction: column; gap: 11px; }
+  .ptop { font-size: 12px; font-weight: 800; padding: 0 2px 8px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .ptop .pmeta { font-size: 10px; color: var(--faint); font-weight: 400; }
+  .pcard { border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px; background: var(--fill-3); }
+  .pcard .pc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .pcard .pc-nm { font-size: 13px; font-weight: 800; }
+  .pcard .pc-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin-top: 9px; font-size: 11px; }
+  .pcard .pc-grid .k { color: var(--faint); font-weight: 700; font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; align-self: center; }
+  .pcard .pc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+
+  /* ---- margin notes column ------------------------------------------ */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 15px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .em { font-weight: 700; }
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  @media (max-width: 1280px) {
+    body { padding: 22px; }
+    .app { width: 100%; min-width: 0; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="120" y="120" width="960" height="560" rx="14" fill="#ffffff" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="120" y="120" width="960" height="56" rx="14" fill="#f4f4f3" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="160" y="210" width="200" height="90" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="380" y="210" width="200" height="90" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="600" y="210" width="200" height="90" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="820" y="210" width="200" height="90" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="160" y="340" width="860" height="34" rx="6" fill="#ededed"/>
+    <rect x="160" y="390" width="860" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="160" y="430" width="860" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="160" y="470" width="860" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="160" y="510" width="860" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 2 · low-fidelity wireframe</div>
+    <h1 class="doc">Cadence cockpit · watch the live cohort</h1>
+    <p class="lede">One volunteer watches one <b>live</b> group of ~25-50 people (a cohort - one set of people who joined around the same time) move along the path: in the door → orientation RSVP → oriented → buddy-escorted first GBM → active. This is a <b>review surface, not a chase surface</b>: it makes dormancy visible at a glance - who has gone quiet, who is sitting longer than people usually do at each step. It deliberately does <b>not</b> claim a leak, and it shows <b>no day-90 number</b>: nobody is lost until day 90, so both the leak and the final "stayed in" verdict are read afterward, on the <b>Cohort review</b> page. It never becomes a per-person to-do queue and it assumes no paid staff - one screen, one read-down.</p>
+    <p class="rule"><b>Dues is read-only.</b> Echo reads the dues fact from Action Network by email and never writes it. There is no "mark as member" control anywhere on this screen. A re-reached lapsed person stays a non-member contact until they pay in Action Network.</p>
+    <p class="rule"><b>An automated reminder is not an escort.</b> The reminders fire on their own for everyone on cadence, so "a reminder went out" is never counted as a real touch. A buddy actually walking someone into their first GBM is held apart from the automation everywhere on the screen - and it is read from <b>both people signing in at the same meeting</b>, not from anyone remembering to log it. The cap, the failure line X, and the retention baseline are owned by the membership body; this screen displays and obeys them, and shows them unset until the body sets them.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== DESKTOP FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Desktop</span>
+        <span class="fb">Organizer · one cohort</span>
+      </div>
+
+      <div class="app">
+        <!-- top bar -->
+        <div class="topbar">
+          <div class="logo">mark</div>
+          <div class="product">Echo</div>
+          <div class="crumb">Warm welcome › <b>Spring cohort · cadence cockpit</b></div>
+          <div class="spacerx"></div>
+          <div class="acct">JR</div>
+        </div>
+
+        <div class="content">
+
+          <!-- in-product thesis · plain language, lead with what the screen is for (legible at a glance, for a dyslexic reviewer) -->
+          <div style="font-size:12.5px;color:var(--ink);line-height:1.5;border:1px solid var(--line-2);border-radius:8px;padding:11px 14px;background:#fff;">
+            <b>What this screen is for.</b> One volunteer can see whether the people who just joined are being reached and kept - cohort by cohort. The screen shows the shape of what is happening; the team decides what to do about it.
+          </div>
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">1</span>Liveness banner <span class="rsub">· the organizer's OWN dormancy is loud, not hidden</span></div>
+            <div class="liveness">
+              <span class="lv-dot"></span>
+              <span class="lv-main">Last reviewed 2 hours ago <span class="lv-sep">·</span> oldest contact not yet seen here: <span class="lv-old">6 days</span> <span class="lv-sep">·</span> GBM sign-in captured for <span class="lv-old">62%</span> of recent first-GBM windows</span>
+              <span class="lv-note">sign-in coverage is data confidence, not a quota: where we have no sign-in, the escort and active numbers below read as floors - it never means the other 38% is undone work</span>
+            </div>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">2</span>Headline metrics <span class="rsub">· every tile is a TRIPLE - number + counter-metric + definition · a bare number is impossible</span></div>
+            <div class="sec-label">Spine indicators</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.45;margin:5px 0 0;">These are for <b style="color:var(--ink);">this one group of 38</b>, never blended with others. They are all <b style="color:var(--ink);">leading signs</b> - RSVP, attendance, reaching the room - the only things observable while a group is still open. There is deliberately <b style="color:var(--ink);">no day-90 number here</b>: it cannot be honest on an open group, so it lives on the Cohort review page. (The demographic slice further down pools several recent groups on purpose, because a single group is too small to read by race - it is labeled where it appears.)</div>
+            <div class="tiles" style="margin-top:12px;grid-template-columns:repeat(3,1fr);">
+              <div class="tile">
+                <div class="t-k">Orientation RSVP</div>
+                <div class="t-num">58%</div>
+                <div class="t-counter">of those in the door</div>
+                <div class="t-def">the share who said yes · leading sign</div>
+              </div>
+              <div class="tile">
+                <div class="t-k">Orientation attendance</div>
+                <div class="t-num">44%</div>
+                <div class="t-counter">of those who RSVPd</div>
+                <div class="t-def">the share who showed · leading sign</div>
+              </div>
+              <div class="tile">
+                <div class="t-k">Reached first GBM · running</div>
+                <div class="t-num">52%</div>
+                <div class="t-counter">of those oriented, so far</div>
+                <div class="t-def">the spine's crux, still moving · the finished rate is read on Cohort review</div>
+              </div>
+            </div>
+
+            <!-- the set-apart pair -->
+            <div class="pair-wrap" style="margin-top:14px;">
+              <div class="pair-head">⎇ Held apart on purpose · a real escort, not an automated reminder</div>
+              <div class="pair">
+                <div class="tile">
+                  <div class="t-k">Escort actually happened</div>
+                  <div class="t-num">64%</div>
+                  <div class="t-counter">7 of the 11 whose first GBM has come</div>
+                  <div class="t-def">the assigned buddy was signed in at the <b>same</b> first GBM - read from both sign-ins, not a manual log</div>
+                </div>
+                <div class="vs">vs</div>
+                <div class="tile" style="background:var(--fill-2);">
+                  <div class="t-k">Automated reminder went out</div>
+                  <div class="t-num" style="font-size:15px;color:var(--muted);line-height:1.15;">every row on cadence</div>
+                  <div class="t-counter" style="color:var(--muted);">always on · not counted</div>
+                  <div class="t-def">shown only to make the difference visible - a reminder firing is never added in as a touch</div>
+                </div>
+              </div>
+              <div class="pair-note">A reminder firing is <b>not</b> a buddy walking someone into the room - and because reminders are automated, "a reminder went out" is true for nearly everyone and means nothing on its own. So Echo counts only the <b>real escort</b>, read from both the buddy and the newcomer signing in at the same first GBM - no one has to remember to log it. The soft spot on the spine is one step earlier: <b>oriented &rarr; first GBM</b>, getting people into the room at all (the running rate above). Coverage caveat: this is read from sign-in, so <b>both</b> the 7 and the 11 depend on it - where sign-in was thin, real escorts (and the GBMs themselves) can go unseen, so read 64% as a rough <b>floor</b>. And co-attendance shows the buddy and newcomer were in the same room, not that a real escort happened - the optional note is where that nuance lives.</div>
+            </div>
+
+            <!-- LIVE STATE - snapshot (furthest step each person reached) + health overlay (moving / stalled / roles) + the stalled detail · NOT a leak (nobody is lost until day 90) -->
+            <div class="leak">
+              <div class="lk-head">Where the group sits today <span class="lk-total">a snapshot of the live cohort · nothing here is final until day 90</span></div>
+
+              <div class="snap-label">Furthest step each person has reached</div>
+              <div class="snap">
+                <div class="st"><div class="sn">8</div><div class="sk">in the door</div></div>
+                <div class="st"><div class="sn">9</div><div class="sk">orientation RSVP</div></div>
+                <div class="st"><div class="sn">10</div><div class="sk">oriented</div></div>
+                <div class="st"><div class="sn">7</div><div class="sk">at first GBM</div></div>
+                <div class="st"><div class="sn">4</div><div class="sk">active now</div></div>
+              </div>
+              <div class="snap-label" style="margin-top:7px;color:var(--muted);font-weight:400;font-style:italic;"><b style="font-style:normal;">In the door</b> means a record exists (any of the four doors) - it does <b style="font-style:normal;">not</b> mean they came to orientation. <b style="font-style:normal;">Active now</b> means engaged past their first GBM right now - a present-tense state, <b style="font-style:normal;">not</b> the day-90 "stayed in" verdict, which is read on Cohort review. The last two steps (<b style="font-style:normal;">at first GBM</b>, <b style="font-style:normal;">active now</b>) lean on GBM sign-in, so where sign-in is thin they read as floors - see coverage in the banner up top.</div>
+
+              <div class="snap-label" style="margin-top:14px;">How the same 38 are moving right now</div>
+              <div class="snap">
+                <div class="st"><div class="sn">26</div><div class="sk">moving on cadence</div></div>
+                <div class="st" style="border-color:var(--warn);"><div class="sn" style="color:var(--warn);">12</div><div class="sk">stalled · sat too long</div></div>
+                <div class="st"><div class="sn">4</div><div class="sk">have taken a role</div></div>
+              </div>
+              <div class="snap-label" style="margin-top:7px;color:var(--muted);font-weight:400;font-style:italic;"><b style="font-style:normal;">Stalled</b> is the at-risk overlay - people sitting longer than people usually do at their step (the "quiet 30 days"). It cuts across every step above and flags <b style="font-style:normal;">risk, not loss</b>. <b style="font-style:normal;">Taken a role</b> is a depth marker, not a quality score: Echo cannot cheaply tell a real role from a quiet title, so it only counts that a role exists.</div>
+
+              <div class="snap-label" style="margin-top:14px;">The 12 stalled, by what each is missing - so the volunteer knows where to look</div>
+              <div class="lk-rows">
+                <div class="lk-row">
+                  <div class="lk-n">6</div>
+                  <div class="lk-cause"><b>No buddy assigned.</b> In the door or oriented, but no human is assigned to escort them - the most common reason people sit. Sitting here is the risk; it is not yet a loss.</div>
+                  <div class="lk-lever">missing: a buddy</div>
+                </div>
+                <div class="lk-row">
+                  <div class="lk-n">3</div>
+                  <div class="lk-cause"><b>Buddy assigned, no shared GBM yet.</b> The buddy and newcomer have not both been signed in at the same meeting - either the newcomer has not reached a GBM, or came without their buddy.</div>
+                  <div class="lk-lever">missing: a first GBM together</div>
+                </div>
+                <div class="lk-row">
+                  <div class="lk-n">2</div>
+                  <div class="lk-cause"><b>Oriented, no first-GBM date.</b> Came to orientation, then quiet before the room.</div>
+                  <div class="lk-lever">missing: a first-GBM date</div>
+                </div>
+                <div class="lk-row">
+                  <div class="lk-n">1</div>
+                  <div class="lk-cause"><b>At a GBM, then quiet.</b> Made it into the room, but no role and no second touch since - the retention edge, past the escort.</div>
+                  <div class="lk-lever">missing: a role</div>
+                </div>
+              </div>
+              <div class="lk-foot">None of these 12 are losses - mid-term, everyone here can still advance, and nothing is final until day 90. This panel is a <b>glance, not a worklist</b>: it shows the shape of who is sitting and what each is missing, so the volunteer knows where to look - it does not hand out tasks. Any actual write still happens in one place: a row's own action in the table below. <b>Where people actually fall off</b> - step by step, as a real leak - can only be read once a group closes; that lives on the <b>Cohort review</b> page. Coverage caveat: "no shared GBM yet" and "quiet" lean on sign-in and logged touches, so a group with thin sign-in reads as <b>blind</b> here, not as failing.</div>
+            </div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">3</span>Demographic view <span class="rsub">· same activation number broken out, never blended · honest about the blind spot</span></div>
+            <div class="panel">
+              <div class="p-title">Where each group sits in the pipeline, by self-reported race · sight for the membership team</div>
+              <div class="p-sub">Each bar is one race group; the segments show what share of that group is currently at each step - so the body can see whether the funnel is carrying every group the same way. Pooled across several recent cohorts for a readable N, separate from this one cohort's 38. This is a present-tense snapshot, never a day-90 leak. <b style="color:var(--warn);">Sample data - the shape of the view, not a real finding</b>; small groups especially are noisy.</div>
+
+              <div class="seg-legend">
+                <div class="lg"><span class="sw seg-s1"></span>in the door</div>
+                <div class="lg"><span class="sw seg-s2"></span>orientation RSVP</div>
+                <div class="lg"><span class="sw seg-s3"></span>oriented</div>
+                <div class="lg"><span class="sw seg-s4"></span>at first GBM</div>
+                <div class="lg"><span class="sw seg-s5"></span>active now</div>
+              </div>
+
+              <div class="segrow"><span class="sl">White</span><span class="segtrack"><span class="seg seg-s1" style="width:18%"></span><span class="seg seg-s2" style="width:22%"></span><span class="seg seg-s3" style="width:28%"></span><span class="seg seg-s4" style="width:18%"></span><span class="seg seg-s5" style="width:14%"></span></span><span class="sn2">n=44</span></div>
+              <div class="segrow"><span class="sl">Latino/a</span><span class="segtrack"><span class="seg seg-s1" style="width:20%"></span><span class="seg seg-s2" style="width:26%"></span><span class="seg seg-s3" style="width:26%"></span><span class="seg seg-s4" style="width:16%"></span><span class="seg seg-s5" style="width:12%"></span></span><span class="sn2">n=31</span></div>
+              <div class="segrow"><span class="sl">Black</span><span class="segtrack"><span class="seg seg-s1" style="width:22%"></span><span class="seg seg-s2" style="width:25%"></span><span class="seg seg-s3" style="width:28%"></span><span class="seg seg-s4" style="width:15%"></span><span class="seg seg-s5" style="width:10%"></span></span><span class="sn2">n=16</span></div>
+              <div class="segrow"><span class="sl">Asian / other</span><span class="segtrack"><span class="seg seg-s1" style="width:19%"></span><span class="seg seg-s2" style="width:23%"></span><span class="seg seg-s3" style="width:27%"></span><span class="seg seg-s4" style="width:18%"></span><span class="seg seg-s5" style="width:13%"></span></span><span class="sn2">n=11</span></div>
+              <div class="segrow" style="opacity:.75;"><span class="sl" style="color:var(--warn);">Not stated</span><span class="segtrack" style="background:repeating-linear-gradient(135deg,#f6f5f4,#f6f5f4 6px,#ececeb 6px,#ececeb 12px);"></span><span class="sn2">n=18</span></div>
+
+              <div class="demo-foot">Read this at the <b>process</b> level - whether the funnel carries every group the same way - never as a cue to target, chase, or sort any group; any response is a change to the process (decided on Cohort review), not a row action on this page. Coverage: <b>102 of 120</b> pooled contacts self-reported race (about <b>85%</b>); <b>18 did not state it</b> - shown as its own bar so the blind spot stays visible, not hidden. Gender is a harder blank: <b>no gender field exists in Action Network</b>, so it cannot be broken out at all yet.</div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">4</span>Cohort parameters <span class="rsub">· owned by the membership body · the screen displays and OBEYS, never fills in</span></div>
+            <div class="params">
+              <div class="param">
+                <div class="pm-k">Cohort cap</div>
+                <div class="pm-v">50</div>
+                <div class="pm-owner">Set by the body. Shown so the organizer works within it.</div>
+              </div>
+              <div class="param">
+                <div class="pm-k">Failure line · X</div>
+                <div class="pm-unset">Unset by body</div>
+                <div class="pm-owner">The drop-off line that counts as failure. The body sets X; this screen never decides it.</div>
+              </div>
+              <div class="param">
+                <div class="pm-k">Retention baseline</div>
+                <div class="pm-unset">Unset by body</div>
+                <div class="pm-owner">What day-90 activation is measured against, over on the Cohort review page. Blank until the body sets it.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">5</span>The cohort <span class="rsub">· ONE read-down table · shows the mix of entry doors · ~10 rows</span></div>
+            <div class="table-head-row" style="margin-bottom:9px;">
+              <span class="th-t">Spring cohort · 38 people</span>
+              <span class="th-meta">the few rows needing a person are grouped up top; the cadence has the rest · the aging panel above is the at-a-glance view</span>
+            </div>
+            <div style="font-size:10.5px;color:var(--muted);margin-bottom:9px;line-height:1.4;"><b style="color:var(--ink);">What happens next</b> reads the machine's voice: <span style="color:var(--muted);">"Auto ·" = the cadence handles it on its own</span>; <span style="color:var(--warn);font-weight:800;">&#9873; Needs a person ·</span> = the cadence is out of moves - the row's own action button is the bounded write. 7 of these 10 sit at "Auto"; only 3 exceptions flag.</div>
+            <table class="ctable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Lane</th>
+                  <th>Stage</th>
+                  <th>Buddy</th>
+                  <th>Day 30</th>
+                  <th>Dues (read-only)</th>
+                  <th>What happens next</th>
+                  <th>Row actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="nm">Kevin D.</td>
+                  <td><span class="tag soft">reach</span></td>
+                  <td><span class="tag">in the door</span></td>
+                  <td><span class="tag nobuddy">no buddy - warm holding</span></td>
+                  <td><span class="tag stalled">stalled · day 30</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-you">Needs a person · no buddy, 30 days quiet</span></td>
+                  <td><div class="rowacts"><span class="ra">Assign buddy</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Rosa P.</td>
+                  <td><span class="tag soft">deep</span></td>
+                  <td><span class="tag">oriented</span></td>
+                  <td>Lia M.</td>
+                  <td><span class="tag stalled">stalled · day 30</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-you">Needs a person · 30 days quiet</span></td>
+                  <td><div class="rowacts"><span class="ra">Re-route off stalled</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Tom B. <span class="sublane">paid-first joiner</span></td>
+                  <td><span class="tag soft">reach</span></td>
+                  <td><span class="tag">in the door</span></td>
+                  <td><span class="tag nobuddy">no buddy - warm holding</span></td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag">current</span></td>
+                  <td class="next-cell"><span class="nx-you">Needs a person · paid, no buddy yet</span></td>
+                  <td><div class="rowacts"><span class="ra">Assign buddy</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Dani R.</td>
+                  <td><span class="tag firstclass">warm</span></td>
+                  <td><span class="tag">first GBM</span></td>
+                  <td>Priya R.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · escort check-in queued</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Elena V.</td>
+                  <td><span class="tag soft">reach</span></td>
+                  <td><span class="tag">oriented</span></td>
+                  <td>Jordan W.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · escort reminder, Thu</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">James O.</td>
+                  <td><span class="tag soft">deep</span></td>
+                  <td><span class="tag">first GBM</span></td>
+                  <td>Devon K.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · post-GBM check-in queued</span></td>
+                  <td><div class="rowacts"><span class="ra">Open role</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Will S.</td>
+                  <td><span class="tag soft">deep</span></td>
+                  <td><span class="tag firstclass">active</span></td>
+                  <td>Sam O.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag">current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · second-touch check-in queued</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Maria L.</td>
+                  <td><span class="tag soft">reach</span></td>
+                  <td><span class="tag">oriented</span></td>
+                  <td>Priya R.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · escort reminder to Priya, Tue</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Aisha N. <span class="sublane">reactivation · first-class</span></td>
+                  <td><span class="tag firstclass">warm</span></td>
+                  <td><span class="tag">orientation RSVP</span></td>
+                  <td>Sam O.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · orientation reminder, Wed</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+                <tr>
+                  <td class="nm">Marcus T.</td>
+                  <td><span class="tag soft">deep</span></td>
+                  <td><span class="tag">orientation RSVP</span></td>
+                  <td>Devon K.</td>
+                  <td><span class="tag oncad">on cadence</span></td>
+                  <td><span class="tag soft">not current</span></td>
+                  <td class="next-cell"><span class="nx-auto">Auto · orientation reminder, Wed</span></td>
+                  <td><div class="rowacts"><span class="ra">Log touch</span></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- REGION 6 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">6</span>Row actions <span class="rsub">· the COMPLETE set of writes this screen allows · nothing else writes</span></div>
+            <div class="writes">
+              <div class="w-t">Every write the cockpit permits</div>
+              <div class="w-d">No "mark as member," no dues write, no bulk chase. These four are the entire write surface. The escort itself is never one of them - it is inferred from sign-in; "Log touch" is just an optional place for a buddy to jot a note.</div>
+              <div class="w-list">
+                <span class="ra">Assign buddy</span>
+                <span class="ra">Open role</span>
+                <span class="ra">Log touch</span>
+                <span class="ra">Re-route off stalled</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">States + ordering decisions</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Frame</span> Two clocks · live vs closed</div>
+        <ul class="points">
+          <li>This screen watches a <span class="em">live</span> cohort. Mid-term you can only see <span class="em">where each person sits</span> and <span class="em">how long they have sat there</span> - a snapshot and an aging signal. You cannot see the leak: nobody is lost until day 90.</li>
+          <li>The <span class="em">leak</span> - who actually fell off, and at which step - is only knowable once the cohort <span class="em">closes</span>. That is a different page: <span class="em">Cohort review</span>, the retrospective. The steering wheel lives there, because that is the only place the data is final.</li>
+          <li>So this page does prioritization (who to look at first) but never diagnosis-of-loss. It hands the wheel to the retrospective.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">State</span> Stalled vs on cadence</div>
+        <ul class="points">
+          <li><span class="em">Stalled · day 30</span> (Rosa, Kevin): no engagement in 30 days. Reads as the loudest tag in its row - dormancy made visible. It flags risk, not a loss; nothing is final until day 90.</li>
+          <li><span class="em">On cadence</span>: dashed, quiet. It is the resting state, not an achievement, so it does not shout.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">State</span> No buddy vs assigned</div>
+        <ul class="points">
+          <li><span class="em">No buddy - warm holding</span> (Tom, Kevin, Elena): honest automated-cadence holding, never a fake promise of a buddy. Next action is "Assign buddy."</li>
+          <li><span class="em">Assigned</span>: shows the buddy's real name. A name here is a relationship promise, not just a reminder.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Data</span> How the escort is known</div>
+        <ul class="points">
+          <li>The escort is <span class="em">inferred from sign-in</span>: when the assigned buddy and their newcomer are both signed in at the same first GBM, the escort happened. No one has to remember to log it.</li>
+          <li>This kills the old footgun where a real-but-unlogged escort looked the same as a no-show. The dependency moves from "did a buddy log it" to "was sign-in captured at that meeting."</li>
+          <li>A buddy can still add an <span class="em">optional note</span> ("Log touch") - convenient for jotting how it went, and the one place to correct the inference when co-presence was not a real escort. It is never the source of truth on its own.</li>
+          <li><span class="em">This assumes the chapter runs a sign-in at GBMs</span> that resolves to the contact record. Echo neither creates nor requires that process - it just reads it where it exists. Low coverage means "we cannot see," never "go run more check-ins."</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">State</span> First-class doors</div>
+        <ul class="points">
+          <li><span class="em">Paid-first</span> (Tom): dues current, stage still "in the door." A paying member can still be un-welcomed and belongs in the cohort.</li>
+          <li><span class="em">Reactivation</span> (Aisha): warm lane, formerly lapsed, walks the same spine <span class="em">when they accept the offer</span>. But the open hand holds: a reactivation contact who declines reads as <span class="em">complete · open hand</span>, never "stalled," and never flags for a person.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Column</span> "What happens next" = the machine's voice</div>
+        <ul class="points">
+          <li><span class="em">Auto ·</span> the automated cadence has it (a reminder, a check-in). You are reading status, not picking up a task.</li>
+          <li><span class="em">&#9873; Needs a person ·</span> the cadence is out of moves - the column states the situation, it does not give an order. The row's own action button is the bounded write (one of four), and the human chooses whether to use it.</li>
+          <li>Most rows sit at Auto. The few flags are grouped up top so dormancy is easy to find; the aging panel above is the real at-a-glance view.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Order</span> Why this sequence</div>
+        <ul class="points">
+          <li>Liveness first so the organizer's own silence is the first thing seen.</li>
+          <li>Triples before the table so no bare number can stand alone.</li>
+          <li>The real escort held apart from the automated reminder - the distinction is the whole argument.</li>
+          <li>The aging panel sits right under the gap it explains: who is parked and what one person could offer - the prospective signal, never a claim of loss. The real leak is retrospective and lives on the Cohort review page.</li>
+          <li>Blind spot shown before the roster so demographics never read as complete.</li>
+          <li>The roster groups the few needs-a-person rows up top but stays mostly "Auto" - a review surface, not a worklist; the aging panel above carries the glance.</li>
+        </ul>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No "mark as member" or any dues write. No blended health score that hides the triples. No per-person chase queue or inbox. Nothing that assumes paid staff or a coaching bench. No demographic chart that implies complete data. No number the screen cannot actually observe - an escort is read from both people signing in at the same GBM, not from a manual log, and a meeting with no sign-in captured reads as blind, not as failure. No per-buddy performance rollup or escort-success scorecard - inferring escorts per (buddy, newcomer) pair makes one computable, and Echo deliberately does not build it: it would surveil volunteers. <b>No day-90 number and no leak claim on a live cohort</b> - both are only real once the cohort closes, so they are read on the Cohort review page, never asserted here.</div>
+      </div>
+    </div>
+
+    <!-- ============================== PHONE FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame B</span>
+        <span class="ft">Phone</span>
+        <span class="fb">Table → stacked cards</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="pscreen">
+          <div class="ptop">Spring cohort · 38 <span class="pmeta">read down · not a queue</span></div>
+
+          <!-- stalled, no-buddy card - surfaced first -->
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Kevin D.</span>
+              <span class="tag stalled">stalled · day 30</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Lane</span><span><span class="tag soft">reach</span></span>
+              <span class="k">Stage</span><span><span class="tag">in the door</span></span>
+              <span class="k">Buddy</span><span><span class="tag nobuddy">no buddy - warm holding</span></span>
+              <span class="k">Dues</span><span><span class="tag soft">not current</span></span>
+              <span class="k">Next</span><span class="nx-you">Needs a person · no buddy</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Assign buddy</span><span class="ra">Re-route off stalled</span></div>
+          </div>
+
+          <!-- paid-first first-class card -->
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Tom B.</span>
+              <span class="tag oncad">on cadence</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Door</span><span style="font-size:9.5px;color:var(--faint);">paid-first · first-class</span>
+              <span class="k">Stage</span><span><span class="tag">in the door</span></span>
+              <span class="k">Buddy</span><span><span class="tag nobuddy">no buddy - warm holding</span></span>
+              <span class="k">Dues</span><span><span class="tag">current</span> <span style="color:var(--faint);font-size:9.5px;">read-only</span></span>
+              <span class="k">Next</span><span class="nx-you">Needs a person · paid, no buddy</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Assign buddy</span></div>
+          </div>
+
+          <!-- reactivation first-class card -->
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Aisha N.</span>
+              <span class="tag oncad">on cadence</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Door</span><span style="font-size:9.5px;color:var(--faint);">reactivation · first-class</span>
+              <span class="k">Lane</span><span><span class="tag firstclass">warm</span></span>
+              <span class="k">Stage</span><span><span class="tag">orientation RSVP</span></span>
+              <span class="k">Buddy</span><span>Sam O.</span>
+              <span class="k">Next</span><span class="nx-auto">Auto · orientation reminder, Wed</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Log touch</span></div>
+          </div>
+
+          <!-- on-cadence assigned-buddy card -->
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Maria L.</span>
+              <span class="tag oncad">on cadence</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Lane</span><span><span class="tag soft">reach</span></span>
+              <span class="k">Stage</span><span><span class="tag">oriented</span></span>
+              <span class="k">Buddy</span><span>Priya R.</span>
+              <span class="k">Dues</span><span><span class="tag soft">not current</span> <span style="color:var(--faint);font-size:9.5px;">read-only</span></span>
+              <span class="k">Next</span><span class="nx-auto">Auto · escort reminder, Tue</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Log touch</span></div>
+          </div>
+
+          <div class="ptop" style="border:none;border-top:1px dashed var(--line-2);padding-top:9px;font-weight:400;color:var(--faint);font-size:10px;">Same columns, one card per person. Each card keeps every column as a key · value pair. Row actions move into the card footer.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

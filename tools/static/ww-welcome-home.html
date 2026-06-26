@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Welcome Home · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY MOBILE WIREFRAME - Welcome Home (page 1 of warm welcome).
+     Grey boxes, hairline borders, system font. No color, no brand.
+     One neutral accent (--mark) ONLY for annotation / "what changes" notes.
+     Frames are phone-width (360px). Desktop = same column, centered.
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { max-width: 1500px; margin: 0 auto; }
+
+  /* ---- document header ---------------------------------------------- */
+  header.doc { margin-bottom: 30px; max-width: 980px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 14px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+
+  /* ---- states legend ------------------------------------------------- */
+  .states { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+  .state-chip { flex: 1 1 220px; background: #fff; border: 1px solid var(--line-2); border-radius: 7px; padding: 10px 12px; }
+  .state-chip .sc-n { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mark); }
+  .state-chip .sc-d { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin-top: 4px; }
+  .state-chip.live { border: 1.5px solid var(--ink); }
+  .state-chip.live .sc-n { color: var(--ink); }
+  .state-chip .sc-tag { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 6px; border-radius: 3px; margin-top: 6px; }
+  .state-chip .sc-tag.note { background: #fff; color: var(--mark); border: 1px solid var(--mark); }
+
+  /* ---- stage that holds the phone frames ---------------------------- */
+  .stage { display: flex; flex-wrap: wrap; gap: 56px; margin-top: 36px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+
+  /* phone shell - wireframe device outline, 360px */
+  .phone { width: 360px; background: #fff; border: 2px solid var(--ink); border-radius: 26px; padding: 12px 12px 16px; position: relative; }
+  .phone .notch { width: 96px; height: 6px; background: var(--line); border-radius: 999px; margin: 2px auto 10px; }
+  .screen { display: flex; flex-direction: column; gap: 12px; }
+
+  /* region wrapper + numbered label
+     Default: label sits ABOVE its box (always on-page, readable at any width).
+     Wide screens (>=1280px): label moves into a left gutter held by the
+     frame-col's OWN padding, so it can never clip off the page edge. */
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 6px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-left: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { display: block; color: var(--faint); font-weight: 400; margin-top: 2px; }
+
+  /* generic wireframe box */
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--fill-3); }
+  .box.plain { background: #fff; }
+
+  /* skeleton bars for "imagery / lower-priority text" */
+  .bar { height: 11px; border-radius: 6px; background: var(--line-2); }
+  .bar.s { width: 55%; }
+  .bar.m { width: 78%; }
+  .bar.l { width: 100%; }
+
+  /* region 1 - mark + welcome line */
+  .mark { width: 40px; height: 40px; border: 1px dashed var(--faint); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 8.5px; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; }
+  .welcome-h { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 10px 0 0; }
+  .welcome-s { font-size: 13px; color: var(--muted); line-height: 1.45; margin: 6px 0 0; }
+
+  /* region 2 - Rose Buddy greeter (the hero element) */
+  .buddy { border: 2px solid var(--ink); border-radius: 10px; padding: 14px; background: #fff; display: flex; gap: 12px; align-items: flex-start; }
+  .avatar { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: var(--ink); background: var(--fill); }
+  .buddy .b-body { flex: 1 1 auto; }
+  .buddy .b-name { font-size: 14px; font-weight: 800; }
+  .buddy .b-line { font-size: 12.5px; color: var(--ink); line-height: 1.5; margin-top: 4px; }
+  .buddy .b-line em { font-style: normal; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+
+  /* region 3 - single dated event */
+  .event { border: 1px solid var(--line); border-radius: 9px; padding: 13px; background: var(--fill-3); }
+  .event .e-k { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .event .e-t { font-size: 15px; font-weight: 700; margin: 5px 0 0; }
+  .event .e-frame { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin: 5px 0 0; }
+  .event .e-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+  .event .e-pill { font-size: 11px; font-weight: 700; color: var(--ink); background: #fff; border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; }
+
+  /* region 4 - the one form + one button */
+  .form { display: flex; flex-direction: column; gap: 10px; }
+  .field label { display: block; font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 5px; }
+  .field .input { height: 42px; border: 1px solid var(--line); border-radius: 8px; background: #fff; display: flex; align-items: center; padding: 0 12px; font-size: 12.5px; }
+  .field .input.empty { color: var(--faint); }
+  .field .input.filled { color: var(--ink); }
+  .field .input .caret { width: 1px; height: 18px; background: var(--ink); margin-left: 1px; }
+  .btn { height: 48px; border-radius: 8px; border: 2px solid var(--ink); background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; letter-spacing: .01em; }
+  .btn-cap { font-size: 10px; color: var(--faint); text-align: center; margin-top: 2px; }
+
+  /* region 5 - why this is our fight (last region) */
+  .why { font-size: 12px; color: var(--muted); line-height: 1.55; padding-top: 4px; border-top: 1px solid var(--line-2); }
+
+  /* submitted-frame specifics */
+  .confirm-mark { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 20px; margin: 4px 0 2px; }
+  .next { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; background: var(--fill-3); }
+  .next .n-k { font-size: 9.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .next .n-d { font-size: 12.5px; color: var(--ink); line-height: 1.5; margin-top: 5px; }
+
+  /* ---- variant-notes column (margin notes) -------------------------- */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 16px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .was { color: var(--faint); }
+  .note .points .now { font-weight: 700; }
+  .note .targets { font-size: 10.5px; color: var(--muted); margin-top: 9px; font-style: italic; }
+
+  /* "absent by design" guardrail card */
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  @media (min-width: 1280px) {
+    /* gutter lives inside each frame column's own padding -> never clips */
+    .frame-col { padding-left: 150px; }
+    .region > .rlabel { position: absolute; left: -150px; top: 0; width: 134px; text-align: right; margin-bottom: 0; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="470" y="120" width="260" height="560" rx="34" fill="#ffffff" stroke="#2b2b2b" stroke-width="6"/>
+    <circle cx="540" cy="250" r="26" fill="#ededed" stroke="#2b2b2b" stroke-width="3"/>
+    <rect x="500" y="300" width="200" height="14" rx="7" fill="#d9d9d9"/>
+    <rect x="500" y="328" width="150" height="14" rx="7" fill="#ededed"/>
+    <rect x="500" y="380" width="200" height="60" rx="8" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="500" y="460" width="200" height="40" rx="8" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="500" y="520" width="200" height="40" rx="8" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="500" y="590" width="200" height="46" rx="8" fill="#2b2b2b"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 1 · low-fidelity wireframe</div>
+    <h1 class="doc">Welcome Home · structure before style</h1>
+    <p class="lede">One narrow centered column for a phone. Its whole job: make a stranger feel <b>personally expected by a specific human</b>, fast, and get them to RSVP to the next orientation. Grey-box and structural only - layout, hierarchy, content order, and states. The region order is the argument; do not reorder it.</p>
+    <p class="rule"><b>Echo surface.</b> Submitting the form writes this person's name and email - phone is optional - to their one Echo Person record, never to Action Network. No login is ever required here. Known people are read in from Action Network by email; this page only confirms, it never writes dues.</p>
+    <p class="rule"><b>No per-person fight data.</b> We do not know why this individual landed here, so every "fight" reference is a shared, collective framing - the common squeeze of rent, utilities, and the cost of getting by, phrased as "us," never "your." Exception: if a QR or link is tied to a specific campaign, that campaign's fight is fair game - it lives on the link, not on the person.</p>
+
+    <div class="states">
+      <div class="state-chip live">
+        <div class="sc-n">Default · net-new capture</div>
+        <div class="sc-d">Self-serve newcomer or tabled contact. Form empty, button reads "Save my spot."</div>
+        <span class="sc-tag">Frame A, below</span>
+      </div>
+      <div class="state-chip live">
+        <div class="sc-n">Submitted · confirmation</div>
+        <div class="sc-d">After save. Re-names the buddy and points at what comes next.</div>
+        <span class="sc-tag">Frame B, below</span>
+      </div>
+      <div class="state-chip">
+        <div class="sc-n">Known person · pre-filled</div>
+        <div class="sc-d">Paid-first or returning member, read in by email. Same page, fields pre-filled, button reads "Confirm my details."</div>
+        <span class="sc-tag note">Margin note →</span>
+      </div>
+      <div class="state-chip">
+        <div class="sc-n">Welcome-back · reactivation</div>
+        <div class="sc-d">Returning lapsed member. An open hand, not a funnel: orientation and buddy are offered, not pushed. Headline and CTA soften.</div>
+        <span class="sc-tag note">Margin note →</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== FRAME A - DEFAULT ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Default</span>
+        <span class="fb">Net-new capture</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel">Mark + welcome line <span class="rnum">1</span><span class="rsub">names the shared fight - "us," not "your" (campaign-link copy may be specific)</span></div>
+            <div class="box plain">
+              <div class="mark">mark</div>
+              <h2 class="welcome-h">Glad we met.</h2>
+              <p class="welcome-s">Neighbors organizing around the squeeze we are all feeling - rent, utilities, the cost of getting by.</p>
+            </div>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel">The human, first <span class="rnum">2</span><span class="rsub">most important element · sits ABOVE the event · a relationship promise</span></div>
+            <div class="buddy">
+              <div class="avatar">PR</div>
+              <div class="b-body">
+                <div class="b-name">Priya is your welcome buddy.</div>
+                <div class="b-line">She will help you find your way in, and she will <em>personally bring you to your first in-person meeting</em> - our monthly gathering of neighbors. She sometimes joins the online orientation too.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel">Exactly one dated event <span class="rnum">3</span><span class="rsub">the next virtual orientation · framed as a welcome, not a training</span></div>
+            <div class="event">
+              <div class="e-k">Your first thing</div>
+              <div class="e-t">Newcomer orientation</div>
+              <div class="e-frame">Meet the folks taking on the rent and utility squeeze with us.</div>
+              <div class="e-meta">
+                <span class="e-pill">Thursday 7:00 PM</span>
+                <span class="e-pill">Online</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel">One primary action <span class="rnum">4</span><span class="rsub">RSVP form IS the capture · email required, phone optional · one button, no competing CTA</span></div>
+            <div class="box">
+              <div class="form">
+                <div class="field">
+                  <label>Your name</label>
+                  <div class="input empty">First and last<span class="caret"></span></div>
+                </div>
+                <div class="field">
+                  <label>Email <span style="color:var(--mark);font-weight:800;">· required</span></label>
+                  <div class="input empty">you@email.com</div>
+                </div>
+                <div class="field">
+                  <label>Phone <span style="color:var(--faint);font-weight:700;">· optional</span></label>
+                  <div class="input empty">Buddy can text you · email works too</div>
+                </div>
+                <div class="btn">Save my spot</div>
+                <div class="btn-cap">single full-width button · thumb-reachable</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel">Why this is our fight <span class="rnum">5</span><span class="rsub">last region on the page · collective stakes</span></div>
+            <p class="why">The cost of rent, utilities, and getting by keeps climbing for all of us. We are neighbors organizing to change that, together. Come see how it works - no experience needed.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">State variants · same page, same warmth</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Note</span> Known person · pre-filled</div>
+        <ul class="points">
+          <li>Link identifies someone Echo already knows (paid-first or returning, read in from Action Network by email).</li>
+          <li>Region 4 arrives <span class="now">pre-filled</span>: name, email, phone already populated.</li>
+          <li>Button label changes: <span class="was">"Save my spot"</span> → <span class="now">"Confirm my details"</span>.</li>
+          <li>Capture becomes confirm, not net-new entry.</li>
+        </ul>
+        <div class="targets">Changes regions 4 only. Same buddy, same orientation, same layout.</div>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Note</span> Welcome-back · the open hand</div>
+        <ul class="points">
+          <li>For a returning lapsed member. Reactivation is an <span class="now">open hand, not a forced funnel</span> - the orientation and the buddy are offered, never pushed (the door-4 rule from the journey map).</li>
+          <li>Region 1 headline softens: <span class="was">"Glad we met."</span> → <span class="now">"Welcome back."</span> Subhead is a missed-you register, not a delinquent-account one - e.g. "We have missed you. Same fight, still a seat for you."</li>
+          <li>Region 3 reframes from "your first thing" to an offer: <span class="now">"There is an orientation Thursday if you want an easy way back in."</span> No pressure.</li>
+          <li>Region 4 button softens from an instruction to an invitation: <span class="was">"Save my spot"</span> → <span class="now">"Come to orientation"</span>, and it is clearly optional.</li>
+          <li>The buddy is offered, not presumed - "a buddy can meet you there if you would like one."</li>
+        </ul>
+        <div class="targets">Changes regions 1, 3, 4 to an offer register. Often combines with pre-filled region 4.</div>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No security or conduct rules. No anonymized "a member" - the buddy is a real named person. No newsletter or "get involved" call. No second competing button. No login wall.</div>
+      </div>
+    </div>
+
+    <!-- ============================== FRAME B - SUBMITTED ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame B</span>
+        <span class="ft">Submitted</span>
+        <span class="fb">Confirmation</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+
+          <!-- confirmation header -->
+          <div class="region">
+            <div class="rlabel">Confirmation <span class="rnum">1</span><span class="rsub">restate the human · point at what comes next</span></div>
+            <div class="box plain">
+              <div class="confirm-mark">✓</div>
+              <h2 class="welcome-h">You are on the list.</h2>
+              <p class="welcome-s">You are on the list for Thursday. We will see you online.</p>
+            </div>
+          </div>
+
+          <!-- re-name the buddy -->
+          <div class="region">
+            <div class="rlabel">The human, restated <span class="rnum">2</span><span class="rsub">does NOT promise the buddy at the online orientation</span></div>
+            <div class="buddy">
+              <div class="avatar">PR</div>
+              <div class="b-body">
+                <div class="b-name">Priya is your buddy.</div>
+                <div class="b-line">She will <em>meet you at your first in-person meeting</em> and walk you in. She may say hello at the online orientation too.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- event recap -->
+          <div class="region">
+            <div class="rlabel">What you saved <span class="rnum">3</span><span class="rsub">the same one event, now confirmed</span></div>
+            <div class="event">
+              <div class="e-k">Saved · newcomer orientation</div>
+              <div class="e-t">Newcomer orientation</div>
+              <div class="e-meta">
+                <span class="e-pill">Thursday 7:00 PM</span>
+                <span class="e-pill">Online</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- what comes next -->
+          <div class="region">
+            <div class="rlabel">What comes next <span class="rnum">4</span><span class="rsub">no competing CTA · just the next step, in words</span></div>
+            <div class="next">
+              <div class="n-k">Next</div>
+              <div class="n-d">We will text or email you a reminder before Thursday. After orientation, Priya brings you to our next monthly meeting - a room of neighbors - and walks you in.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
