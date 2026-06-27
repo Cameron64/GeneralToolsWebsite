@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Echo — Warm welcome journey map · one record, four doors</title>
+<title>Echo · warm welcome journey map · one record, four doors</title>
 
 <style>
   /* =====================================================================
-     LOW-FIDELITY SWIMLANE JOURNEY MAP — grey-box, system font, no brand.
+     LOW-FIDELITY SWIMLANE JOURNEY MAP - grey-box, system font, no brand.
      Single neutral accent (--mark) ONLY to flag screens we design.
      --hole = the loud callout for the paid-first gap (still neutral ink).
      ===================================================================== */
@@ -180,7 +180,7 @@
     <p class="spine"><b>The spine.</b> Every door funnels toward the same recurring <b>virtual orientation</b> ("I belong to a chapter"), framed around the person's actual fight - not bureaucratic onboarding. Their <b>Rose Buddy</b> optionally joins that orientation, but definitely escorts them, in person, to their <b>first GBM</b> - the belonging beat where the warm welcome lands or fails.</p>
     <div class="legend">
       <div class="li"><span class="lg-solid"></span> Main path</div>
-      <div class="li"><span class="lg-dash"></span> Branch / failure path</div>
+      <div class="li"><span class="lg-dash"></span> Branch · exception or failure path</div>
       <div class="li"><span class="lg-mark"></span> Screen we design next</div>
       <div class="li"><span class="lg-beat"></span> Newcomer's emotional beat</div>
       <div class="li"><span class="lg-cap">NUMBER ENTERS</span> Where the phone number is captured</div>
@@ -201,7 +201,7 @@
     <div class="colhead" style="grid-column:7;"><div class="cn">COL 6</div><div class="ct">Staying in / the join ask</div></div>
 
     <!-- ============================================================
-         LANE 1 — THE NEWCOMER
+         LANE 1 - THE NEWCOMER
          ============================================================ -->
     <div class="lane-label" style="grid-row:2; grid-column:1;">
       <div class="ll-t">The newcomer</div>
@@ -316,7 +316,7 @@ The exact same path as Door 1 - linked to Echo, lands on Welcome Home, meets a n
     </div>
 
     <!-- ============================================================
-         LANE 2 — ECHO (app + the one contact record)
+         LANE 2 - ECHO (app + the one contact record)
          ============================================================ -->
     <div class="lane-label" style="grid-row:3; grid-column:1;">
       <div class="ll-t">Echo</div>
@@ -389,59 +389,81 @@ The exact same path as Door 1 - linked to Echo, lands on Welcome Home, meets a n
     </div>
 
     <!-- ============================================================
-         LANE 3 — ORGANIZER + ROSE BUDDY (back of house)
+         LANE 3 - THE ROSE BUDDY (front-line volunteer, walks beside the newcomer)
          ============================================================ -->
     <div class="lane-label" style="grid-row:4; grid-column:1;">
-      <div class="ll-t">Organizer + Rose Buddy</div>
-      <div class="ll-s">Back of house · human actions, run from one operator screen</div>
+      <div class="ll-t">The Rose Buddy</div>
+      <div class="ll-s">Front-line volunteer · one named person, their own two or three · page 4 desk</div>
     </div>
 
-    <!-- cockpit spans cols 1-5 (the operator watches the cohort the whole way) -->
-    <div class="cockpit">
-      <div class="design" style="padding:13px 15px;">
-        <span class="tag">We design this · Screen 2</span>
-        <div class="dt">Cadence cockpit · spans the doors → the first GBM</div>
-        <div class="dd">One operator watches the whole cohort on a single review surface, from capture onward. Every human action below is run from here.</div>
-        <div class="cockpit-inner">
-          <div class="cpcol">
-            <div class="cpw">Col 1 · doors</div>
-            <div class="cpd">Tabler runs quick intake or points at the QR. Membership team pulls the direct-join and reactivation people in from Action Network by email.</div>
-          </div>
-          <div class="cpcol">
-            <div class="cpw">Col 2 · home</div>
-            <div class="cpd">New contact is visible in the cohort review.</div>
-          </div>
-          <div class="cpcol">
-            <div class="cpw">Col 3 · before</div>
-            <div class="cpd">Assign a Rose Buddy.</div>
-            <div class="branch" style="margin-top:8px; padding:7px 9px;">
-              <div class="brt">⎇ Branch · no buddy free</div>
-              <div class="brd">Route to "warm holding" - the automated cadence, honestly labeled. NOT a fake promise of a buddy.</div>
-            </div>
-          </div>
-          <div class="cpcol">
-            <div class="cpw">Col 4 · orientation</div>
-            <div class="cpd">Rose Buddy optionally joins the orientation - a friendly named face in the room.</div>
-          </div>
-          <div class="cpcol">
-            <div class="cpw">Col 5 · first GBM</div>
-            <div class="cpd">Rose Buddy definitely escorts them to the first GBM and logs the real touch.</div>
-            <div class="sub" style="margin-top:7px;"><span class="st">Distinction</span>"Buddy actually showed" is NOT the same as "a nudge was sent."</div>
-          </div>
-        </div>
-        <div class="span-note">The cockpit is a review surface, not a chase queue - it makes dormancy visible without generating per-person to-dos.</div>
+    <!-- COL 1 · auto-assigned at capture (+ pool-full branch) -->
+    <div class="cell" style="grid-row:4; grid-column:2;">
+      <div class="box arrow-next">
+        <div class="bt">Auto-assigned at capture</div>
+        <div class="bd">Ordinary case: the newcomer is auto-matched to an under-cap buddy, load-balanced across the pool. No one picks - it just happens.</div>
+        <div class="bsub">A person steps in only for the exceptions below - never to work a roster of every newcomer.</div>
+      </div>
+      <div class="branch">
+        <div class="brt">⎇ Branch · pool full, no buddy free yet</div>
+        <div class="brd">They wait in a visible, honestly-labeled queue - not a fake promise of a buddy. The signal to recruit more buddies, never to overload the ones we have.</div>
       </div>
     </div>
 
-    <!-- COL 6 · the ask -->
+    <!-- COL 2 · the named face on Welcome Home -->
+    <div class="cell" style="grid-row:4; grid-column:3;">
+      <div class="box arrow-next">
+        <div class="bt">The named face on Welcome Home</div>
+        <div class="bd">Appears by name as the person the newcomer will meet, then opens a first note - who they are, what they are fighting for.</div>
+        <div class="sub" style="margin-top:7px;"><span class="st">Notes</span>Shared org knowledge - they travel with the relationship if the buddy ever changes, and leadership can read them during a re-placement. Shared with the buddy-and-leadership circle, not an org-wide dossier.</div>
+      </div>
+    </div>
+
+    <!-- COL 3 · the human behind the cadence + the two buddy-exit branches -->
+    <div class="cell" style="grid-row:4; grid-column:4;">
+      <div class="box arrow-next">
+        <div class="bt">The human behind the cadence</div>
+        <div class="bd">The reminders are automated. The buddy is the person, not the reminder - a real check-in, not a nudge.</div>
+      </div>
+      <div class="branch">
+        <div class="brt">⎇ Branch · buddy steps away gracefully</div>
+        <div class="brd">A handoff from their own desk - pick a successor or ask the pool to cover, notes and all. Handled at the desk, no escalation.</div>
+      </div>
+      <div class="branch">
+        <div class="brt">⎇ Branch · buddy vanishes (ungraceful)</div>
+        <div class="brd">Ghosts, is removed, or leaves with no handoff. A person re-places them with a new buddy, notes intact - so the newcomer never resets to zero. Continuity of care, not a restart.</div>
+      </div>
+    </div>
+
+    <!-- COL 4 · optionally joins orientation -->
+    <div class="cell" style="grid-row:4; grid-column:5;">
+      <div class="box arrow-next">
+        <div class="bt">Optionally joins orientation</div>
+        <div class="bd">A friendly named face in the virtual room, if they can make it. Optional - not the commitment.</div>
+      </div>
+    </div>
+
+    <!-- COL 5 · first GBM, the hard commitment -->
+    <div class="cell" style="grid-row:4; grid-column:6;">
+      <div class="box milebox arrow-next">
+        <span class="mileflag">◆ The hard commitment</span>
+        <div class="bt">Escorts them to the first GBM, in person</div>
+        <div class="bd">The one thing the buddy definitely does. A room of strangers becomes "someone is here for me."</div>
+        <div class="sub" style="margin-top:7px;"><span class="st">Distinction</span>The escort happens HERE, as a real act. The cockpit only reads it back later from the two of them signing in together - it is not a logged chase task.</div>
+      </div>
+    </div>
+
+    <!-- COL 6 · keeps the relationship -->
     <div class="cell" style="grid-row:4; grid-column:7;">
       <div class="box">
-        <div class="bt">Makes the ask</div>
-        <div class="bd">A human makes the join ask, off the back of belonging - never before.</div>
+        <div class="bt">Keeps the relationship</div>
+        <div class="bd">Supports the in-person join ask off the back of belonging - never before it - and stays the human thread afterward.</div>
+        <div class="bsub">When the person reaches active, the rose rolls off (read from Action Network, never marked by hand) and frees a slot back to the pool.</div>
       </div>
     </div>
 
   </div>
+
+  <p style="font-size:12px; color:var(--muted); font-style:italic; max-width:980px; margin:22px 0 0; line-height:1.55;">Leadership has no lane here by design. It tends the pool and reviews cohorts on its own cadence - not along one newcomer's timeline - so its views live on their own screens: the Cadence cockpit (page 2), Cohort review (page 3), and Pool &amp; program (page 5). The only points where it touches a single person's journey are the two exception branches above - a full pool, and a buddy who leaves without a handoff.</p>
 </div>
 </body>
 </html>

@@ -73,6 +73,14 @@
     <span class="tnum">4</span>
     <span>Cohort review wireframe <span class="tsub">· page 3, the leak retrospective</span></span>
   </button>
+  <button class="tab" role="tab" id="tab-buddy" aria-controls="panel-buddy" aria-selected="false">
+    <span class="tnum">5</span>
+    <span>Rose Buddy desk wireframe <span class="tsub">· page 4, the welcomer's view</span></span>
+  </button>
+  <button class="tab" role="tab" id="tab-pool" aria-controls="panel-pool" aria-selected="false">
+    <span class="tnum">6</span>
+    <span>Pool &amp; program wireframe <span class="tsub">· page 5, the steward's view</span></span>
+  </button>
 </div>
 
 <div class="stage">
@@ -88,6 +96,12 @@
   <div class="panel" id="panel-review" role="tabpanel" aria-labelledby="tab-review">
     <iframe data-src="ww-cohort-review.html" title="Cohort review wireframe"></iframe>
   </div>
+  <div class="panel" id="panel-buddy" role="tabpanel" aria-labelledby="tab-buddy">
+    <iframe data-src="ww-rose-buddy-desk.html" title="Rose Buddy desk wireframe"></iframe>
+  </div>
+  <div class="panel" id="panel-pool" role="tabpanel" aria-labelledby="tab-pool">
+    <iframe data-src="ww-pool-steward.html" title="Pool and program wireframe"></iframe>
+  </div>
 </div>
 
 <script>
@@ -95,7 +109,9 @@
     map:  { tab: document.getElementById('tab-map'),  panel: document.getElementById('panel-map') },
     wire: { tab: document.getElementById('tab-wire'), panel: document.getElementById('panel-wire') },
     cockpit: { tab: document.getElementById('tab-cockpit'), panel: document.getElementById('panel-cockpit') },
-    review: { tab: document.getElementById('tab-review'), panel: document.getElementById('panel-review') }
+    review: { tab: document.getElementById('tab-review'), panel: document.getElementById('panel-review') },
+    buddy: { tab: document.getElementById('tab-buddy'), panel: document.getElementById('panel-buddy') },
+    pool: { tab: document.getElementById('tab-pool'), panel: document.getElementById('panel-pool') }
   };
   const KEY = 'echo-warm-welcome-tab';
 
@@ -118,9 +134,11 @@
   tabs.wire.tab.addEventListener('click', () => select('wire'));
   tabs.cockpit.tab.addEventListener('click', () => select('cockpit'));
   tabs.review.tab.addEventListener('click', () => select('review'));
+  tabs.buddy.tab.addEventListener('click', () => select('buddy'));
+  tabs.pool.tab.addEventListener('click', () => select('pool'));
 
   let start = 'map';
-  try { const s = localStorage.getItem(KEY); if (s === 'map' || s === 'wire' || s === 'cockpit' || s === 'review') start = s; } catch (e) {}
+  try { const s = localStorage.getItem(KEY); if (s === 'map' || s === 'wire' || s === 'cockpit' || s === 'review' || s === 'buddy' || s === 'pool') start = s; } catch (e) {}
   select(start);
 </script>
 </body>
