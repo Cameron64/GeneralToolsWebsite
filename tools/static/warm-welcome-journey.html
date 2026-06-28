@@ -40,6 +40,15 @@
   .panel { position: absolute; inset: 0; display: none; }
   .panel.active { display: block; }
   iframe { width: 100%; height: 100%; border: 0; background: #e9e8e7; display: block; }
+
+  /* phones: let the 6 tabs wrap to a few short rows instead of overflowing
+     sideways (the wide non-wrapping tab row was forcing desktop mode) */
+  @media (max-width: 760px) {
+    .tabbar { flex-wrap: wrap; gap: 5px 6px; padding: 8px 10px 0; }
+    .brand { width: 100%; margin: 0 0 4px; padding: 0; }
+    .tab { padding: 7px 11px; font-size: 12px; }
+    .tab .tsub { display: none; }
+  }
 </style>
 </head>
 <body>

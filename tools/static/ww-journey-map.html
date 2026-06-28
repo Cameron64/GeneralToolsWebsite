@@ -31,7 +31,7 @@
   html, body { margin: 0; background: #e9e8e7; }
   body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
 
-  .wrap { width: 1860px; margin: 0 auto; }
+  .wrap { width: 100%; max-width: 1860px; margin: 0 auto; }
 
   /* ---- title + legend ------------------------------------------------ */
   header.doc { margin-bottom: 26px; }
@@ -53,7 +53,15 @@
   .lg-ansys { width: 16px; height: 16px; border: 1.5px dashed var(--faint); background: var(--fill-3); border-radius: 4px; }
 
   /* ---- grid ---------------------------------------------------------- */
-  .map { display: grid; grid-template-columns: 172px repeat(6, 1fr); gap: 16px 30px; align-items: start; }
+  .map { display: grid; grid-template-columns: 172px repeat(6, 1fr); gap: 16px 30px; align-items: start; min-width: 1400px; }
+  /* the swimlane grid is a wide 2D timeline; on narrow screens it scrolls
+     horizontally inside this box while the page + header prose reflow to fit */
+  .mapscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  @media (max-width: 760px) {
+    body { padding: 14px; }
+    h1.doc { font-size: 24px; }
+    .mapscroll { margin: 0 -14px; padding: 4px 14px 14px; }
+  }
 
   .corner { grid-row: 1; grid-column: 1; }
   .colhead { grid-row: 1; align-self: end; padding: 0 2px 8px; border-bottom: 2px solid var(--ink); }
@@ -189,6 +197,7 @@
     </div>
   </header>
 
+  <div class="mapscroll">
   <div class="map">
 
     <!-- ===== column headers ===== -->
@@ -461,6 +470,7 @@ The exact same path as Door 1 - linked to Echo, lands on Welcome Home, meets a n
       </div>
     </div>
 
+  </div>
   </div>
 
   <p style="font-size:12px; color:var(--muted); font-style:italic; max-width:980px; margin:22px 0 0; line-height:1.55;">Leadership has no lane here by design. It tends the pool and reviews cohorts on its own cadence - not along one newcomer's timeline - so its views live on their own screens: the Cadence cockpit (page 2), Cohort review (page 3), and Pool &amp; program (page 5). The only points where it touches a single person's journey are the two exception branches above - a full pool, and a buddy who leaves without a handoff.</p>

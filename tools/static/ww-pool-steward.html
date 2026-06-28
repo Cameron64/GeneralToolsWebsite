@@ -193,6 +193,14 @@
     .rrow { grid-template-columns: 30px 1fr auto; row-gap: 8px; }
     .rrow .rr-load, .rrow .rr-acts { grid-column: 2 / -1; justify-content: flex-start; }
   }
+  @media (max-width: 640px) {
+    body { padding: 13px; }
+    h1.doc { font-size: 23px; }
+    .stage { gap: 22px; }
+    .notes-col { width: 100%; }
+    .tiles { grid-template-columns: 1fr 1fr; }
+    .pol-row { grid-template-columns: 1fr; row-gap: 6px; }
+  }
 </style>
 </head>
 <body>
