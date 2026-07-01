@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Neighborhoods · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY WIREFRAME - Neighborhoods (the organizing spine).
+     Same grey-box vocabulary as the cadence cockpit: hairline borders,
+     system font, no color as meaning. --mark = annotation accent only;
+     --warn = loud neutral ink for risk / thin chamber / blind spot.
+     The neighborhood is a CONTAINER (durable, houses people); the cohort
+     is an INSTRUMENT (a clock, observes). This screen reads chamber HEALTH
+     so a dead chamber cannot leak silently. Sight, never direction.
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --warn:   #1d1d1d;   /* loud neutral ink for risk / thin chamber / blind spot */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+  .wrap { max-width: 1660px; margin: 0 auto; }
+
+  /* ---- document header (matches the cockpit) ----------------------- */
+  header.doc { margin-bottom: 28px; max-width: 1040px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 13px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+  .rule.warnrule { border-left-color: var(--warn); }
+  .rule.warnrule b { color: var(--warn); }
+
+  /* ---- stage / frames ---------------------------------------------- */
+  .stage { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 34px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 7px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-right: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { color: var(--faint); font-weight: 400; }
+
+  /* ---- desktop app shell (matches the cockpit) --------------------- */
+  .app { width: 1180px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--fill-2); }
+  .topbar .logo { width: 22px; height: 22px; border: 1px dashed var(--faint); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--faint); text-transform: uppercase; }
+  .topbar .product { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .crumb b { color: var(--ink); font-weight: 700; }
+  .topbar .spacerx { flex: 1 1 auto; }
+  .topbar .acct { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--muted); }
+  .content { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  .sec-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: -6px; }
+  .panel { border: 1px solid var(--line); border-radius: 9px; padding: 14px; background: #fff; }
+  .panel .p-title { font-size: 13px; font-weight: 800; }
+  .panel .p-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+  /* in-product thesis line */
+  .thesis { font-size: 12.5px; color: var(--ink); line-height: 1.5; border: 1px solid var(--line-2); border-radius: 8px; padding: 11px 14px; background: #fff; }
+  .thesis b { font-weight: 800; }
+
+  /* illustrative-data caption (header) */
+  .datanote { font-size: 12px; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+  .datanote b { color: var(--warn); }
+
+  /* ---- phase coding: the ask vs where it grows next ---------------- */
+  .phaseline { border: 1px solid var(--line); border-radius: 9px; background: var(--fill-2); padding: 13px 15px; display: flex; flex-direction: column; gap: 9px; }
+  .phaseline .pl-t { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+  .phaseline .pl-row { display: flex; gap: 11px; align-items: baseline; font-size: 11.5px; color: var(--ink); line-height: 1.45; }
+  .phaseline .pl-row .txt { flex: 1 1 auto; }
+  .phaseline .pl-row b { font-weight: 800; }
+  .phase { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; white-space: nowrap; flex: 0 0 auto; }
+  .phase.p1 { color: #fff; background: var(--ink); }
+  .phase.next { color: var(--muted); background: #fff; border: 1px dashed var(--faint); }
+  .rlabel .phase { margin-left: 8px; vertical-align: middle; }
+  .frame-head .phase { margin-left: 2px; }
+
+  /* ---- region 1: the four chambers --------------------------------- */
+  .chambers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .chamber { border: 1px solid var(--line); border-radius: 9px; padding: 13px 14px; background: var(--fill-3); display: flex; flex-direction: column; gap: 9px; }
+  .chamber.thin { border: 1.5px solid var(--warn); background: repeating-linear-gradient(135deg, #f6f5f4, #f6f5f4 8px, #efeeed 8px, #efeeed 16px); }
+  .ch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .ch-name { font-size: 15px; font-weight: 800; }
+  .ch-bound { font-size: 10px; color: var(--faint); font-weight: 700; letter-spacing: .02em; }
+  .ch-state { font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+  .ch-state.ok { color: #fff; background: var(--ink); }
+  .ch-state.risk { color: var(--warn); border: 1.5px solid var(--warn); background: #fff; }
+  .ch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 11px; }
+  .ch-row { display: flex; flex-direction: column; gap: 2px; }
+  .ch-k { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .ch-v { font-size: 12.5px; font-weight: 700; }
+  .ch-v.warnv { color: var(--warn); }
+  .ch-v small { font-weight: 400; color: var(--muted); font-size: 10.5px; }
+  .ch-read { font-size: 11px; color: var(--ink); line-height: 1.4; border-top: 1px solid var(--line-2); padding-top: 8px; }
+  .ch-read b { font-weight: 800; }
+  .ch-read.warnread b { color: var(--warn); }
+
+  /* small capacity bar reused for chamber load */
+  .barrow { display: flex; align-items: center; gap: 9px; margin-top: 9px; font-size: 11px; }
+  .barrow .bl { width: 92px; color: var(--ink); flex: 0 0 auto; font-weight: 700; }
+  .barrow .track { flex: 1 1 auto; height: 14px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--fill-2); overflow: hidden; position: relative; }
+  .barrow .fillb { height: 100%; background: var(--line); }
+  .barrow .fillb.over { background: repeating-linear-gradient(135deg, #b9b9b9, #b9b9b9 5px, #9a9a9a 5px, #9a9a9a 10px); }
+  .barrow .cap { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--warn); }
+  .barrow .bn { width: 116px; text-align: right; color: var(--muted); flex: 0 0 auto; font-size: 10.5px; }
+  .barrow .bn b { color: var(--ink); }
+  .barrow .bn .warnv { color: var(--warn); font-weight: 800; }
+
+  /* ---- region 3: escort -> rooting handoff flow -------------------- */
+  .flow { display: grid; grid-template-columns: 1fr 30px 1fr 30px 1fr; gap: 8px; align-items: stretch; margin-top: 12px; }
+  .flow .step { border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px; background: var(--fill-3); }
+  .flow .step.rooted { border: 1.5px solid var(--ink); background: #fff; }
+  .flow .step .fs-k { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .flow .step .fs-t { font-size: 13px; font-weight: 800; margin-top: 4px; }
+  .flow .step .fs-geo { font-size: 9px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; display: inline-block; margin-top: 7px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); background: #fff; }
+  .flow .step .fs-geo.bound { color: var(--warn); border-color: var(--warn); border-style: dashed; }
+  .flow .step .fs-d { font-size: 10.5px; color: var(--muted); line-height: 1.4; margin-top: 7px; }
+  .flow .arrow { display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: var(--faint); }
+  .flow .arrow .hk { font-size: 8px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--warn); }
+  .flow-foot { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .flow-foot b { color: var(--warn); }
+
+  /* ---- region 4: cohort x neighborhood cross matrix ---------------- */
+  .xtable { width: 100%; border-collapse: collapse; font-size: 11.5px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-top: 4px; }
+  .xtable th { text-align: center; font-size: 9.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); padding: 9px 8px; background: var(--fill-2); border-bottom: 1px solid var(--line); }
+  .xtable th.rowhead, .xtable td.rowhead { text-align: left; font-weight: 800; color: var(--ink); }
+  .xtable td { padding: 9px 8px; border-bottom: 1px solid var(--line-2); text-align: center; vertical-align: middle; }
+  .xtable tr:last-child td { border-bottom: none; }
+  .xcell { font-weight: 800; font-size: 13px; }
+  .xcell .xs { display: block; font-size: 9px; font-weight: 700; color: var(--faint); margin-top: 1px; }
+  .xcell.low { color: var(--warn); }
+  .xcell.blind { color: var(--faint); font-weight: 700; font-size: 11px; }
+
+  /* ---- region 5: the resolution's data home ------------------------ */
+  .record { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 4px; }
+  .rec { border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: var(--fill-3); }
+  .rec .rc-k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .rec .rc-mandate { font-size: 8.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--mark); border: 1px solid #cfd6e0; border-radius: 3px; padding: 1px 5px; background: var(--mark-bg); white-space: nowrap; }
+  .rec .rc-body { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 8px; }
+  .rec .rc-body .li { display: flex; gap: 7px; margin-top: 4px; }
+  .rec .rc-body .li::before { content: "·"; font-weight: 800; color: var(--faint); }
+  .rec .rc-access { font-size: 10.5px; color: var(--muted); margin-top: 9px; border-top: 1px solid var(--line-2); padding-top: 8px; font-style: italic; }
+  .rec .rc-access b { color: var(--warn); font-style: normal; }
+
+  .tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: #fff; white-space: nowrap; }
+  .tag.soft { color: var(--muted); background: var(--fill-2); border-color: var(--line-2); }
+  .tag.warn { color: var(--warn); border: 1px dashed var(--warn); }
+
+  /* ---- absent-by-design ------------------------------------------- */
+  .writes { border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; padding: 12px 14px; background: var(--fill-3); }
+  .writes .w-t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .writes .w-d { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+
+  /* ---- margin notes column (matches the cockpit) ------------------- */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 15px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .em { font-weight: 700; }
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  /* ---- phone frame (the local contact's rooting inbox) ------------- */
+  .phone { width: 340px; background: #fff; border: 2px solid var(--ink); border-radius: 26px; padding: 12px 12px 16px; }
+  .phone .notch { width: 92px; height: 6px; background: var(--line); border-radius: 999px; margin: 2px auto 12px; }
+  .pscreen { display: flex; flex-direction: column; gap: 11px; }
+  .ptop { font-size: 12px; font-weight: 800; padding: 0 2px 8px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .ptop .pmeta { font-size: 10px; color: var(--faint); font-weight: 400; }
+  .pcard { border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px; background: var(--fill-3); }
+  .pcard .pc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .pcard .pc-nm { font-size: 13px; font-weight: 800; }
+  .pcard .pc-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; margin-top: 9px; font-size: 11px; }
+  .pcard .pc-grid .k { color: var(--faint); font-weight: 700; font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; align-self: center; }
+  .pcard .pc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+  .ra { font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 3px 7px; color: var(--ink); white-space: nowrap; }
+
+  @media (max-width: 1280px) {
+    body { padding: 22px; }
+    .app { width: 100%; min-width: 0; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 13px; }
+    h1.doc { font-size: 23px; }
+    .stage { gap: 22px; }
+    .phone { width: 100%; max-width: 360px; }
+    .notes-col { width: 100%; }
+    .chambers, .record { grid-template-columns: 1fr; }
+    .flow { grid-template-columns: 1fr; }
+    .flow .arrow { transform: rotate(90deg); height: 24px; }
+    .ch-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="120" y="120" width="960" height="560" rx="14" fill="#ffffff" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="120" y="120" width="960" height="56" rx="14" fill="#f4f4f3" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="160" y="210" width="410" height="180" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="630" y="210" width="410" height="180" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="160" y="420" width="410" height="180" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="630" y="420" width="410" height="180" rx="9" fill="#f6f5f4" stroke="#1d1d1d" stroke-width="4" stroke-dasharray="10 8"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 6 · low-fidelity wireframe</div>
+    <h1 class="doc">Neighborhoods · where members get rooted</h1>
+    <p class="lede">After orientation and a first citywide GBM, a member needs a <b>local, lower-stakes home</b> - their Neighborhood Group. This screen is the <b>organizing spine</b>: the four neighborhoods the chapter voted to stand up in <b>R2026-05-01</b>, each shown by its <b>health</b> - members assigned, whether it has a recognized steering committee, recent events, and local capacity. A neighborhood is a <b>container</b> (it houses people, with no clock); the cohort is the <b>instrument</b> (a clock, used to measure). They share one record, so the same data reads either way.</p>
+    <p class="rule"><b>The secure home the resolution already requires.</b> R2026-05-01 orders the chapter to build neighborhood rolls, a steering-committee contact directory, documentarian event logs, and access rights that rotate yearly - and to "establish rules on proper and secure handling of member data." Today that would live as open Google Drive sheets. Echo holds it on a <b>chapter-controlled store off Google</b> (a DigitalOcean-hosted or self-hosted database, in line with the chapter's divestment), access-controlled and audited. Those four data jobs are <b>not new scope - the chapter already voted for them</b>; the capacity, escort and rooting views below are where the same store could grow next.</p>
+    <p class="rule warnrule"><b>Sight, not direction - and access-scoped on purpose.</b> There is no neighborhood leaderboard; a thin chamber reads as a <b>risk to staff</b>, never a failing grade. A central map of where members live is genuinely sensitive, so it is <b>scoped to that neighborhood's own stewards</b> and logged. The rolls and the map are <b>mandated either way</b> by the resolution - the real choice is an open Google Sheet (or no safe map at all) versus an access-scoped, audited store with <b>fewer</b> eyes. This is the more private option, not a new exposure.</p>
+    <p class="datanote"><b>Every name, count and percentage on this screen is illustrative</b> - sample data to show the shape of the view, not real members or real readings.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== DESKTOP FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Desktop</span>
+        <span class="fb">MEC / NGIC · all four neighborhoods</span>
+      </div>
+
+      <div class="app">
+        <div class="topbar">
+          <div class="logo">mark</div>
+          <div class="product">Echo</div>
+          <div class="crumb">Warm welcome › <b>Neighborhoods · health overview</b></div>
+          <div class="spacerx"></div>
+          <div class="acct">RK</div>
+        </div>
+
+        <div class="content">
+
+          <div class="thesis">
+            <b>What this screen is for.</b> See whether each Neighborhood Group is alive enough to actually hold the members assigned to it - before it strands anyone. Capacity here is <b>local and not interchangeable</b>: a buddy in North cannot easily escort a newcomer in Really South. A chamber can be starved even when the chapter total looks fine.
+          </div>
+
+          <!-- PHASE LEGEND: the ask vs where it grows -->
+          <div class="phaseline">
+            <div class="pl-t">What this leadership decision funds - vs. where it grows next</div>
+            <div class="pl-row"><span class="phase p1">Phase 1 · the ask</span><span class="txt">The custody wedge: a <b>secure member record</b> off Google Drive, <b>members assigned</b> to a neighborhood, and <b>per-chamber health + retention read by cohort × neighborhood</b>. This is all the decision in front of you funds.</span></div>
+            <div class="pl-row"><span class="phase next">Grows next</span><span class="txt">The belonging machine the resolution points toward - local capacity tracking, the escort → rooting handoff, a local contact's rooting inbox, and the full directory / event-log / rotating-access data jobs. Shown so the floor's payoff is visible; <b>not</b> part of this ask.</span></div>
+          </div>
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">1</span>The four chambers <span class="phase p1">Phase 1 · the ask</span> <span class="rsub">· per-neighborhood health · one is shown thin on purpose - a dead chamber is worse than the old single GBM</span></div>
+            <div class="chambers">
+
+              <!-- North - thriving -->
+              <div class="chamber">
+                <div class="ch-head">
+                  <div><span class="ch-name">North</span> <span class="ch-bound">· to the Colorado River</span></div>
+                  <span class="ch-state ok">Recognized</span>
+                </div>
+                <div class="ch-grid">
+                  <div class="ch-row"><span class="ch-k">Members assigned</span><span class="ch-v">478 <small>· geocoded</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Steering committee</span><span class="ch-v">3 of 3 <small>· incl. documentarian</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Events logged · 60 days</span><span class="ch-v">5</span></div>
+                  <div class="ch-row"><span class="ch-k">Local buddies</span><span class="ch-v">9 <small>· capacity 22</small></span></div>
+                </div>
+                <div class="ch-read"><b>Alive.</b> Recognized committee, regular events, buddy capacity above incoming. New members here land somewhere real.</div>
+              </div>
+
+              <!-- Really North - recognized but capacity-starved -->
+              <div class="chamber">
+                <div class="ch-head">
+                  <div><span class="ch-name">Really North</span> <span class="ch-bound">· N of 183 / 290</span></div>
+                  <span class="ch-state ok">Recognized</span>
+                </div>
+                <div class="ch-grid">
+                  <div class="ch-row"><span class="ch-k">Members assigned</span><span class="ch-v">307 <small>· geocoded</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Steering committee</span><span class="ch-v">3 of 3</span></div>
+                  <div class="ch-row"><span class="ch-k">Events logged · 60 days</span><span class="ch-v">3</span></div>
+                  <div class="ch-row"><span class="ch-k">Local buddies</span><span class="ch-v warnv">2 <small>· capacity 5</small></span></div>
+                </div>
+                <div class="ch-read warnread">Recognized, but <b>capacity-starved</b>: more newcomers arriving than two local buddies can root. The fix is grow the local pool here - not ship a North buddy across town.</div>
+              </div>
+
+              <!-- South - moderate -->
+              <div class="chamber">
+                <div class="ch-head">
+                  <div><span class="ch-name">South</span> <span class="ch-bound">· to 71</span></div>
+                  <span class="ch-state ok">Recognized</span>
+                </div>
+                <div class="ch-grid">
+                  <div class="ch-row"><span class="ch-k">Members assigned</span><span class="ch-v">392 <small>· geocoded</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Steering committee</span><span class="ch-v">3 of 3</span></div>
+                  <div class="ch-row"><span class="ch-k">Events logged · 60 days</span><span class="ch-v">4</span></div>
+                  <div class="ch-row"><span class="ch-k">Local buddies</span><span class="ch-v">6 <small>· capacity 14</small></span></div>
+                </div>
+                <div class="ch-read"><b>Alive.</b> Steady events and headroom. Watch only that buddy count keeps pace as members are assigned in.</div>
+              </div>
+
+              <!-- Really South - dormant / dead chamber -->
+              <div class="chamber thin">
+                <div class="ch-head">
+                  <div><span class="ch-name">Really South</span> <span class="ch-bound">· S of 71</span></div>
+                  <span class="ch-state risk">Not recognized</span>
+                </div>
+                <div class="ch-grid">
+                  <div class="ch-row"><span class="ch-k">Members assigned</span><span class="ch-v">331 <small>· geocoded</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Steering committee</span><span class="ch-v warnv">0 of 3 <small>· dormant</small></span></div>
+                  <div class="ch-row"><span class="ch-k">Events logged · 60 days</span><span class="ch-v warnv">0</span></div>
+                  <div class="ch-row"><span class="ch-k">Local buddies</span><span class="ch-v warnv">0</span></div>
+                </div>
+                <div class="ch-read warnread"><b>Dead chamber - the honest risk.</b> 331 members assigned, but no committee, no events, no local buddies. Routing newcomers here would <b>strand</b> them - worse than the old single citywide GBM. First job: stand up a steering committee before assigning anyone to root here.</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">2</span>Capacity is local, not interchangeable <span class="phase next">Grows next</span> <span class="rsub">· incoming newcomers vs local rooting capacity, per chamber · the mark is the cap</span></div>
+            <div class="panel">
+              <div class="p-title">Newcomers to root this cycle vs local buddy capacity</div>
+              <div class="p-sub">Each bar is one neighborhood's own load. The notch (<span style="color:var(--warn);font-weight:800;">|</span>) is local capacity - the sum of what that chamber's own buddies each set for themselves, never a ceiling leadership imposes. Past it, the chamber is over its own ceiling - which the chapter total can completely hide. <b style="color:var(--warn);">Sample data - the shape of the view, not a real reading.</b></div>
+
+              <div class="barrow"><span class="bl">North</span><span class="track"><span class="fillb" style="width:55%"></span><span class="cap" style="left:78%"></span></span><span class="bn">12 incoming · <b>cap 22</b></span></div>
+              <div class="barrow"><span class="bl">Really North</span><span class="track"><span class="fillb over" style="width:100%"></span><span class="cap" style="left:42%"></span></span><span class="bn"><span class="warnv">14 incoming</span> · cap 5</span></div>
+              <div class="barrow"><span class="bl">South</span><span class="track"><span class="fillb" style="width:60%"></span><span class="cap" style="left:88%"></span></span><span class="bn">9 incoming · <b>cap 14</b></span></div>
+              <div class="barrow"><span class="bl">Really South</span><span class="track"><span class="fillb over" style="width:100%"></span><span class="cap" style="left:3%"></span></span><span class="bn"><span class="warnv">10 incoming</span> · cap 0</span></div>
+
+              <div class="ch-read" style="margin-top:13px;">Chapter total looks fine - 45 incoming, 41 capacity. But two chambers are <b>over their own ceiling</b> while two have headroom, and the slack <b>cannot be moved</b>: rooting is geography-bound. The alarm is "grow the pool <em>here</em>," never "grind the buddies who are showing up."</div>
+            </div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">3</span>Escort → rooting <span class="phase next">Grows next</span> <span class="rsub">· the buddy system gains a stage, it does not break · this resolves the cross-town collision</span></div>
+            <div class="panel">
+              <div class="p-title">Two jobs, split on purpose</div>
+              <div class="p-sub">A buddy and a newcomer can live on opposite sides of the city. That only becomes chaos if one buddy is made responsible for a destination across town. Splitting the job dissolves it.</div>
+              <div class="flow">
+                <div class="step">
+                  <div class="fs-k">Stage 1 · escort</div>
+                  <div class="fs-t">Orientation + first GBM</div>
+                  <span class="fs-geo">geography-free</span>
+                  <div class="fs-d">Virtual orientation and one citywide GBM. A cross-town buddy escorting you to these is fine - no collision.</div>
+                </div>
+                <div class="arrow"><div style="text-align:center;">→<div class="hk">handoff</div></div></div>
+                <div class="step">
+                  <div class="fs-k">Stage 2 · handoff</div>
+                  <div class="fs-t">Introduce to a local contact</div>
+                  <span class="fs-geo bound">geography-bound</span>
+                  <div class="fs-d">The escort hands the member to a <b>local</b> neighborhood contact in their own chamber. Echo holds both relationships.</div>
+                </div>
+                <div class="arrow"><div style="text-align:center;">→<div class="hk">rooted</div></div></div>
+                <div class="step rooted">
+                  <div class="fs-k">Stage 3 · rooted</div>
+                  <div class="fs-t">Neighborhood meeting + role</div>
+                  <span class="fs-geo bound">geography-bound</span>
+                  <div class="fs-d">A nearby, lower-stakes home: local meetings, local relationships, a first role. This is what "stayed in" looks like.</div>
+                </div>
+              </div>
+              <div class="flow-foot">The collision a buddy and newcomer on opposite sides of the city was never an argument against neighborhoods - it was a <b>design question answered on purpose</b>: the escort follows the <em>person</em> to the citywide ritual; rooting belongs to the <em>place</em>. Both/and with the GBM, not either/or - the resolution calls neighborhoods a "lower-stakes entry point," not a replacement for the GBM.</div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">4</span>Cohort × neighborhood <span class="phase p1">Phase 1 · the ask</span> <span class="rsub">· the question worth asking · only possible because both read off one record</span></div>
+            <div class="panel">
+              <div class="p-title">Did getting people rooted actually keep them - and was it even across neighborhoods?</div>
+              <div class="p-sub">Rows are closed cohorts (the instrument's clock); columns are the neighborhoods (the container). Each cell is "stayed in by day 90," read <b>retrospectively</b> on a finished cohort - the two-clocks rule: a live cohort shows no day-90 number. This cross is the most valuable view, and it only exists because the neighborhood views and the cohort instrument share <b>one substrate</b>. <b style="color:var(--warn);">Sample data.</b></div>
+              <table class="xtable">
+                <thead>
+                  <tr>
+                    <th class="rowhead">Cohort (closed)</th>
+                    <th>Really North</th>
+                    <th>North</th>
+                    <th>South</th>
+                    <th>Really South</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="rowhead">Fall '25</td>
+                    <td><span class="xcell">41%<span class="xs">n=22</span></span></td>
+                    <td><span class="xcell">58%<span class="xs">n=29</span></span></td>
+                    <td><span class="xcell">52%<span class="xs">n=26</span></span></td>
+                    <td><span class="xcell low">19%<span class="xs">n=21</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="rowhead">Winter '26</td>
+                    <td><span class="xcell">44%<span class="xs">n=18</span></span></td>
+                    <td><span class="xcell">61%<span class="xs">n=31</span></span></td>
+                    <td><span class="xcell">54%<span class="xs">n=24</span></span></td>
+                    <td><span class="xcell low">17%<span class="xs">n=19</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="rowhead">Spring '26</td>
+                    <td><span class="xcell blind">live · n/a</span></td>
+                    <td><span class="xcell blind">live · n/a</span></td>
+                    <td><span class="xcell blind">live · n/a</span></td>
+                    <td><span class="xcell blind">live · n/a</span></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="ch-read" style="margin-top:12px;">The pattern names itself: members stay where the chamber is <b>alive</b> (North), and leak where it is dead (Really South - the dormant chamber from above). That is a process finding about <b>where to invest</b> - stand up Really South's committee - never a cue to chase the people who left. The live Spring cohort shows <b>no number</b>: nothing is final until day 90.</div>
+            </div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">5</span>The neighborhood record <span class="phase p1">Phase 1 · the secure store</span> <span class="rsub">· North, expanded · the secure store is the wedge; the roll lands first, the other three data jobs are R2026-05-01-mandated and grow into the same store</span></div>
+            <div class="record">
+              <div class="rec">
+                <div class="rc-k"><span>Good-standing roll</span><span class="rc-mandate">R2026-05-01</span></div>
+                <div class="rc-body">478 members assigned by geocoded address; <b>402</b> currently in good standing (dues read from Action Network, never written here). Used to gate neighborhood votes.</div>
+                <div class="rc-access">Access: <b>North stewards + MEC</b>. Every read is logged.</div>
+              </div>
+              <div class="rec">
+                <div class="rc-k"><span>Steering-committee directory</span><span class="rc-mandate">R2026-05-01</span></div>
+                <div class="rc-body">3 members, 1-year terms, one documentarian. Contact info kept current within one month of any change, visible to members in good standing.</div>
+                <div class="rc-access">Access: <b>members in good standing</b> (contact only); edit by MEC.</div>
+              </div>
+              <div class="rec">
+                <div class="rc-k"><span>Documentarian event log</span><span class="rc-mandate">R2026-05-01</span></div>
+                <div class="rc-body">5 events logged in 60 days, in the record the chapter provides. This is also what powers the "events logged" health read up top.</div>
+                <div class="rc-access">Access: <b>North stewards + MEC</b>; documentarian writes.</div>
+              </div>
+              <div class="rec">
+                <div class="rc-k"><span>Rotating access rights</span><span class="rc-mandate">R2026-05-01</span></div>
+                <div class="rc-body">When the steering committee turns over each year, access transfers with the role - granted on election, revoked on roll-off. The access/audit layer the resolution asks for, made literal.</div>
+                <div class="rc-access">Procedure owned by MEC; <b>all grants/revokes audited</b>.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 6 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">6</span>Absent by design <span class="rsub">· what this screen deliberately does not do</span></div>
+            <div class="writes">
+              <div class="w-t">Held back on purpose</div>
+              <div class="w-d">No neighborhood leaderboard or ranking. No "assign every member to a chamber and walk away" - a dead chamber is flagged as a risk before anyone is routed into it. No forcing a buddy's capacity up; leadership can ask, only the buddy raises their own ceiling. No member-level map exposed beyond a neighborhood's own stewards. No "mark as member" - good standing is read from Action Network. No day-90 number on a live cohort.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">Why it is shaped this way</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Frame</span> Container vs instrument</div>
+        <ul class="points">
+          <li>A <span class="em">neighborhood</span> houses people - it is durable and has no clock. A <span class="em">cohort</span> observes - it has a clock and ages out. This screen is the container; the cockpit and cohort review are the instrument.</li>
+          <li>They are <span class="em">not</span> two ways to slice one list. Treating them as interchangeable is the category error to avoid: the neighborhood must not inherit the cohort's clock, and the cohort must not try to be a home.</li>
+          <li>But they share <span class="em">one record</span>, which is what makes Region 4's cross-query possible.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Risk</span> A dead chamber is worse</div>
+        <ul class="points">
+          <li>Neighborhoods are <span class="em">not free retention</span>. An understaffed chamber absorbs a newcomer and then strands them - worse than the old single GBM, which at least existed.</li>
+          <li>So the screen's <span class="em">first job</span> is to make per-chamber health visible (Really South, shown thin) - never to quietly route people into a dead end.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Rule</span> Capacity is non-fungible</div>
+        <ul class="points">
+          <li>Once the destination is "your neighborhood meeting," the cup is <span class="em">four pools</span>, not one. You cannot ship a North buddy to root a Really South newcomer.</li>
+          <li>So capacity is read <span class="em">per chamber</span> (Region 2). A starved chamber can hide inside a healthy chapter total.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Design</span> Escort vs rooting</div>
+        <ul class="points">
+          <li>The buddy's two jobs split: <span class="em">escort</span> (geography-free - orientation + first GBM) and <span class="em">rooting</span> (geography-bound - handoff to a local contact).</li>
+          <li>The buddy system <span class="em">gains a stage</span> rather than breaking. Echo holds both relationships on the record.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Answer</span> The surveillance question</div>
+        <ul class="points">
+          <li>A central map of where members live is <span class="em">genuinely sensitive</span>. Do not wave it away.</li>
+          <li>The honest answer: the rolls and map are mandated <span class="em">either way</span> by the resolution - the only choice is open Google Sheets vs an access-scoped, audited store with <span class="em">fewer</span> eyes. This is the more private option.</li>
+        </ul>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No leaderboard ranking the four neighborhoods against each other. No chase queue of people who left a thin chamber - the response is a process change (stand up the committee), never a row action. No member-level location data outside a neighborhood's own stewards. No blended "neighborhood score" that hides the honest thin-chamber flag. No day-90 verdict on a live cohort.</div>
+      </div>
+    </div>
+
+    <!-- ============================== PHONE FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame B</span>
+        <span class="ft">Phone</span>
+        <span class="fb">Local contact · rooting inbox</span>
+        <span class="phase next">Grows next</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="pscreen">
+          <div class="ptop">North · root these 3 <span class="pmeta">illustrative · handed off to me</span></div>
+
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Elena V.</span>
+              <span class="tag">just handed off</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Escorted by</span><span>Jordan W. <span style="color:var(--faint);font-size:9.5px;">(South)</span></span>
+              <span class="k">First GBM</span><span>done · Jun 18</span>
+              <span class="k">Next</span><span>invite to North meeting, Jul 2</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Invite to meeting</span><span class="ra">Intro by text</span></div>
+          </div>
+
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Marcus T.</span>
+              <span class="tag soft">rooting</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Escorted by</span><span>Devon K.</span>
+              <span class="k">Came to</span><span>1 North meeting</span>
+              <span class="k">Next</span><span>nudge toward a first role</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Suggest a role</span><span class="ra">Log touch</span></div>
+          </div>
+
+          <div class="pcard">
+            <div class="pc-top">
+              <span class="pc-nm">Priya S.</span>
+              <span class="tag soft">rooted</span>
+            </div>
+            <div class="pc-grid">
+              <span class="k">Came to</span><span>3 meetings</span>
+              <span class="k">Role</span><span>flyering team</span>
+              <span class="k">Next</span><span>none · she is home</span>
+            </div>
+            <div class="pc-acts"><span class="ra">Log touch</span></div>
+          </div>
+
+          <div class="ptop" style="border:none;border-top:1px dashed var(--line-2);padding-top:9px;font-weight:400;color:var(--faint);font-size:10px;">Only my own neighborhood, only the few handed to me. No rates, no other chamber's roster. Capacity is mine to set.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

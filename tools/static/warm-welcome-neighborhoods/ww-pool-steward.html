@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Pool &amp; program · the steward's view · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY WIREFRAME - Pool & program, the steward's view (page 5,
+     leadership/admin). The third leadership screen, and the one with
+     controls. Cockpit = is the welcome working (live, aggregate, no people).
+     Cohort review = where did it leak (retrospective). This = is the
+     welcoming MACHINE staffed and flowing (capacity + ops). The hard line
+     it must hold: management controls that tend the SYSTEM (pool, flow,
+     exceptions) without ever directing or grading the VOLUNTEERS. Same
+     grey-box system as the cockpit and the desk so it sits as a sibling tab.
+     Desktop-first, because a steward works at a desk - the inverse of the
+     phone-first buddy desk. One neutral accent (--mark) for annotation only.
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --warn:   #1d1d1d;   /* loud neutral ink for an alarm / paused / blind spot */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { max-width: 1660px; margin: 0 auto; }
+
+  /* ---- document header ---------------------------------------------- */
+  header.doc { margin-bottom: 28px; max-width: 1040px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 13px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+
+  /* ---- frames + region label gutter --------------------------------- */
+  .stage { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 34px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+  .frame-head .fb.hero { background: var(--mark); }
+
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 7px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-right: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { color: var(--faint); font-weight: 400; }
+
+  /* ---- desktop app shell -------------------------------------------- */
+  .app { width: 1040px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--fill-2); }
+  .topbar .logo { width: 22px; height: 22px; border: 1px dashed var(--faint); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--faint); text-transform: uppercase; }
+  .topbar .product { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .crumb b { color: var(--ink); font-weight: 700; }
+  .topbar .spacerx { flex: 1 1 auto; }
+  .topbar .acct { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .topbar .acct .av { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--muted); }
+  .content { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  .thesis { font-size: 12.5px; color: var(--ink); line-height: 1.5; border: 1px solid var(--line-2); border-radius: 8px; padding: 11px 14px; background: #fff; }
+  .thesis b { font-weight: 800; }
+
+  /* region 1 - pool at a glance: tiles + flow (borrowed from the cockpit) */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 9px; padding: 13px; background: var(--fill-3); display: flex; flex-direction: column; gap: 6px; }
+  .tile.alarm { border-left: 3px solid var(--warn); }
+  .tile .t-k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .tile .t-num { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+  .tile .t-num.warnn { color: var(--warn); }
+  .tile .t-def { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .flowline { margin-top: 12px; border: 1px solid var(--line-2); border-radius: 8px; background: #fff; padding: 11px 13px; }
+  .flowline .fl-nums { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; align-items: baseline; }
+  .flowline .fl-nums b { font-weight: 800; font-size: 15px; }
+  .flowline .fl-nums .u { color: var(--muted); }
+  .flowline .fl-nums .sep { color: var(--faint); }
+  .flowline .fl-read { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: 9px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .flowline .fl-read b { color: var(--ink); }
+
+  /* region 2 - the attention lane (the entire manual surface) */
+  .lane { display: flex; flex-direction: column; gap: 14px; }
+  .lane-block { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 13px 14px; }
+  .lane-block.warn-l { border-left: 3px solid var(--warn); }
+  .lane-block.neu-l  { border-left: 3px solid var(--mark); }
+  .lb-head { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+  .lb-head .lb-n { font-size: 14px; }
+  .lb-head .lb-n.warnn { color: var(--warn); }
+  .lb-head .lb-sub { font-size: 10.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
+  .acard { border: 1px solid var(--line-2); border-radius: 8px; background: var(--fill-3); padding: 11px 12px; margin-top: 10px; }
+  .acard .ac-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .acard .ac-id { display: flex; gap: 10px; align-items: center; }
+  .acard .ac-av { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--fill); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+  .acard .ac-nm { font-size: 13px; font-weight: 800; }
+  .acard .ac-meta { font-size: 10px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+  .acard .ac-why { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 9px; }
+  .acard .ac-why b { font-weight: 800; }
+  .acard .ac-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+  .lb-more { font-size: 10.5px; color: var(--faint); font-style: italic; margin-top: 10px; }
+
+  /* region 3 - the pool roster (availability + load only, never a score) */
+  .poolwrap { border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; }
+  .roster { display: flex; flex-direction: column; }
+  .rrow { display: grid; grid-template-columns: 34px minmax(150px, 1.5fr) 96px auto 1fr; gap: 13px; align-items: center; padding: 10px 13px; border-bottom: 1px solid var(--line-2); }
+  .rrow:last-child { border-bottom: none; }
+  .rrow .rr-av { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--fill); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: var(--muted); }
+  .rrow .rr-nm { font-size: 13px; font-weight: 800; }
+  .rrow .rr-meta { font-size: 10px; color: var(--faint); margin-top: 1px; }
+  .rrow .rr-load { display: flex; align-items: center; gap: 7px; }
+  .rrow .rr-load .cap-t { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .rrow .rr-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .rrow.out { background: var(--fill-2); }
+  .pool-head { display: flex; justify-content: space-between; align-items: center; padding: 11px 13px; background: var(--fill-2); border-bottom: 1px solid var(--line); }
+  .pool-head .ph-t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .pool-foot { padding: 10px 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--fill-2); border-top: 1px solid var(--line-2); }
+  .pool-foot .pf-note { font-size: 11px; color: var(--muted); font-style: italic; }
+
+  .cap { display: flex; align-items: center; gap: 8px; }
+  .cap .pips { display: flex; gap: 5px; }
+  .cap .pip { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink); }
+  .cap .pip.full { background: var(--ink); }
+  .cap .pip.open { background: #fff; border-style: dashed; border-color: var(--faint); }
+
+  /* state pills */
+  .tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: #fff; white-space: nowrap; }
+  .tag.soft { color: var(--muted); background: var(--fill-2); border-color: var(--line-2); }
+  .tag.mark { color: var(--mark); border-color: #b9c3d2; background: var(--mark-bg); }
+  .tag.warnt { color: var(--warn); border: 1.5px solid var(--warn); font-weight: 800; }
+  .tag.inpool { color: var(--mark); border-color: #b9c3d2; background: var(--mark-bg); }
+  .tag.paused { color: var(--warn); border: 1.5px solid var(--warn); font-weight: 800; }
+  .tag.out { color: var(--faint); border-style: dashed; }
+
+  /* region 4 - capacity & matching policy */
+  .policy { border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; background: var(--fill-3); padding: 2px 14px; }
+  .pol-row { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+  .pol-row:last-child { border-bottom: none; }
+  .pol-row .pr-k { font-size: 12.5px; font-weight: 800; }
+  .pol-row .pr-d { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 3px; }
+  .pol-row .pr-d b { color: var(--ink); }
+  .pol-row .pr-v { font-size: 12px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+
+  /* region 5 - reach the pool */
+  .reach { display: flex; gap: 10px; flex-wrap: wrap; }
+  .reach .rch { flex: 1 1 220px; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: var(--fill-3); }
+  .reach .rch.alarm { border-left: 3px solid var(--warn); }
+  .reach .rch .rc-k { font-size: 12px; font-weight: 800; }
+  .reach .rch .rc-d { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 4px; }
+  .reach .rch .ra { margin-top: 9px; }
+
+  /* buttons */
+  .ra { font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 4px 9px; color: var(--ink); white-space: nowrap; }
+  .ra.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* region 6 - the complete write set legend */
+  .writes { border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; padding: 12px 14px; background: var(--fill-3); }
+  .writes .w-t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .writes .w-d { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  .writes .w-d b { color: var(--ink); }
+  .writes .w-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .writes .w-list .ra { font-size: 10.5px; padding: 5px 10px; }
+
+  /* ---- margin notes column ------------------------------------------ */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 15px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .em { font-weight: 700; }
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  @media (max-width: 1280px) {
+    body { padding: 22px; }
+    .app { width: 100%; min-width: 0; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .rrow { grid-template-columns: 30px 1fr auto; row-gap: 8px; }
+    .rrow .rr-load, .rrow .rr-acts { grid-column: 2 / -1; justify-content: flex-start; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 13px; }
+    h1.doc { font-size: 23px; }
+    .stage { gap: 22px; }
+    .notes-col { width: 100%; }
+    .tiles { grid-template-columns: 1fr 1fr; }
+    .pol-row { grid-template-columns: 1fr; row-gap: 6px; }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="150" y="120" width="900" height="560" rx="16" fill="#ffffff" stroke="#2b2b2b" stroke-width="7"/>
+    <rect x="150" y="120" width="900" height="60" rx="0" fill="#f4f4f3" stroke="#2b2b2b" stroke-width="0"/>
+    <rect x="190" y="220" width="180" height="90" rx="10" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="400" y="220" width="180" height="90" rx="10" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="610" y="220" width="180" height="90" rx="10" fill="#fafafa" stroke="#1d1d1d" stroke-width="4"/>
+    <rect x="820" y="220" width="180" height="90" rx="10" fill="#fafafa" stroke="#1d1d1d" stroke-width="4"/>
+    <rect x="190" y="350" width="810" height="70" rx="9" fill="#ffffff" stroke="#1d1d1d" stroke-width="3"/>
+    <rect x="190" y="440" width="810" height="46" rx="7" fill="#fafafa" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="190" y="500" width="810" height="46" rx="7" fill="#fafafa" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="190" y="560" width="810" height="46" rx="7" fill="#fafafa" stroke="#d9d9d9" stroke-width="2"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 5 · low-fidelity wireframe</div>
+    <h1 class="doc">Pool &amp; program · the steward's view</h1>
+    <p class="lede">This is the third leadership screen, and the one that finally has <b>controls</b>. The <b>Cadence cockpit</b> shows leadership whether the welcome is working; the <b>Cohort review</b> shows where it leaked; this panel is the operator's station for the welcoming <b>machine itself</b> - who is in the buddy pool, who has room, who is waiting, and the few exceptions a human has to place by hand. It sits under the <b>same permission as the cockpit</b>, held by several admins, so any steward can act and every action is attributable. Most of the work here is already automatic: ordinary arrivals are matched to a buddy without anyone lifting a finger. What is left for a person is the pool, the capacity, and the exceptions.</p>
+    <p class="rule"><b>Tend the system, not the volunteers.</b> "Sight, not direction" never meant leadership has no controls - it meant two narrower things: do not turn newcomers into a chase list, and do not rank or surveil the buddies. Both still hold here. Every control on this page tends the <b>pool and the flow</b>; the unit of attention is the machine's health, never one buddy's performance. There is no leaderboard, and a reassignment is an act of <b>care for a newcomer</b>, not a mark against a buddy.</p>
+    <p class="rule"><b>Auto by default, hands only on exceptions.</b> Ordinary arrivals auto-assign to an available under-cap buddy, load-balanced. A steward only steps in on what the algorithm cannot do alone: place someone the full pool left waiting, re-home a newcomer whose buddy left without a handoff, or check on a pairing that has stalled. Manual assign and reassign live in <b>one small attention lane</b> - never a roster of every newcomer to work through.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== DESKTOP FRAME (HERO) ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Desktop</span>
+        <span class="fb hero">Where a steward works</span>
+      </div>
+
+      <div class="app">
+        <!-- top bar -->
+        <div class="topbar">
+          <div class="logo">mark</div>
+          <div class="product">Echo</div>
+          <div class="crumb">Warm welcome › <b>Pool &amp; program</b></div>
+          <div class="spacerx"></div>
+          <div class="acct"><span>Pool steward · Admin</span><span class="av">AD</span></div>
+        </div>
+
+        <div class="content">
+
+          <div class="thesis"><b>What this screen is for.</b> You hold the admin permission, so you can both watch cohort health on the cockpit and operate the buddy program here. This panel keeps the welcoming machine staffed and flowing: it tells you whether there are enough buddies for who is arriving, hands you the handful of cases the auto-assigner cannot resolve, and lets you manage the pool and its capacity. It never scores a buddy, and it never hands you the whole cohort as a to-do list.</div>
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">1</span>Pool at a glance <span class="rsub">· the only question that matters up here - can we welcome everyone who is arriving?</span></div>
+            <div class="tiles">
+              <div class="tile">
+                <div class="t-k">In the pool</div>
+                <div class="t-num">14</div>
+                <div class="t-def">+2 paused · 16 buddies enrolled</div>
+              </div>
+              <div class="tile alarm">
+                <div class="t-k">Open slots</div>
+                <div class="t-num warnn">0</div>
+                <div class="t-def">of 38 total · the pool is full</div>
+              </div>
+              <div class="tile alarm">
+                <div class="t-k">Waiting for a buddy</div>
+                <div class="t-num warnn">5</div>
+                <div class="t-def">unassigned · Saturday's tabling burst</div>
+              </div>
+              <div class="tile alarm">
+                <div class="t-k">Needs re-placement</div>
+                <div class="t-num warnn">2</div>
+                <div class="t-def">a buddy stepped out without a handoff</div>
+              </div>
+            </div>
+            <div class="flowline">
+              <div class="fl-nums">
+                <span class="u">This week</span>
+                <span class="sep">·</span>
+                <span><b>13</b> arrived</span>
+                <span class="sep">·</span>
+                <span><b>8</b> auto-assigned</span>
+                <span class="sep">·</span>
+                <span><b>5</b> waiting</span>
+                <span class="sep">·</span>
+                <span><b>3</b> rolled off to active <span class="u">(slots recycled)</span></span>
+              </div>
+              <div class="fl-read">A slot only opens when a rose reaches active and rolls off a buddy's roster. Right now <b>arrivals are outrunning roll-offs</b> and the pool is full - so five people are waiting. That is a <b>grow-the-pool</b> signal, not a grind-the-buddies one. The fix lives in region 5, not in raising anyone's cap.</div>
+            </div>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">2</span>The attention lane <span class="rsub">· the entire manual surface - only what the auto-assigner handed back to a human, never a list of everyone</span></div>
+            <div class="lane">
+
+              <!-- waiting / unassigned queue -->
+              <div class="lane-block neu-l">
+                <div class="lb-head"><span>Waiting for a buddy</span><span class="lb-n warnn">5</span><span class="lb-sub">the pool is full - these are queued, not lost</span></div>
+
+                <div class="acard">
+                  <div class="ac-top">
+                    <div class="ac-id">
+                      <span class="ac-av">CM</span>
+                      <span>
+                        <span class="ac-nm">Carlos M.</span>
+                        <div class="ac-meta">came in <b style="color:var(--muted)">at Saturday's tabling</b> · here about <b style="color:var(--muted)">wages</b> · waiting 2 days</div>
+                      </span>
+                    </div>
+                    <span class="tag mark">queued</span>
+                  </div>
+                  <div class="ac-why">No buddy was free when he arrived. He keeps his place in line; the moment a slot opens he is auto-assigned. You can place him now if you have just recruited someone.</div>
+                  <div class="ac-acts"><span class="ra primary">Assign a buddy</span><span class="ra">View who's free</span></div>
+                </div>
+
+                <div class="acard">
+                  <div class="ac-top">
+                    <div class="ac-id">
+                      <span class="ac-av">AT</span>
+                      <span>
+                        <span class="ac-nm">Aisha T.</span>
+                        <div class="ac-meta">came in <b style="color:var(--muted)">by QR code</b> · prefers a <b style="color:var(--muted)">Spanish-speaking</b> buddy · waiting 1 day</div>
+                      </span>
+                    </div>
+                    <span class="tag mark">queued · affinity</span>
+                  </div>
+                  <div class="ac-why">The auto-assigner respects a hard match (language) and holds rather than mis-match. Our Spanish-speaking buddies are at capacity - <b>place her by hand</b> when one frees up, or recruit for that gap specifically.</div>
+                  <div class="ac-acts"><span class="ra primary">Assign a buddy</span><span class="ra">View who's free</span></div>
+                </div>
+
+                <div class="lb-more">+3 more waiting. Affinity matching is by hand for now; tagging buddies (language, area, interest) is a later layer.</div>
+              </div>
+
+              <!-- orphans / re-placement -->
+              <div class="lane-block warn-l">
+                <div class="lb-head"><span>Needs re-placement</span><span class="lb-n warnn">2</span><span class="lb-sub">a buddy left without handing off - these have history, so a human places them</span></div>
+
+                <div class="acard">
+                  <div class="ac-top">
+                    <div class="ac-id">
+                      <span class="ac-av">JP</span>
+                      <span>
+                        <span class="ac-nm">Jordan P.</span>
+                        <div class="ac-meta">was with <b style="color:var(--muted)">Sam K.</b> (stepped out) · oriented · 3 weeks of history</div>
+                      </span>
+                    </div>
+                    <span class="tag warnt">re-place with care</span>
+                  </div>
+                  <div class="ac-why">Sam left the pool without a warm handoff, so Jordan did not get to choose a goodbye. <b>His notes are attached and travel with him.</b> Pick someone who already crossed paths with him if you can - re-placing is continuity, not a fresh start.</div>
+                  <div class="ac-acts"><span class="ra primary">Re-place Jordan</span><span class="ra">Read his notes</span><span class="ra">Suggest a fit</span></div>
+                </div>
+
+                <div class="acard">
+                  <div class="ac-top">
+                    <div class="ac-id">
+                      <span class="ac-av">NH</span>
+                      <span>
+                        <span class="ac-nm">Nina H.</span>
+                        <div class="ac-meta">was with <b style="color:var(--muted)">Sam K.</b> (stepped out) · made one GBM · notes attached</div>
+                      </span>
+                    </div>
+                    <span class="tag warnt">re-place with care</span>
+                  </div>
+                  <div class="ac-why">Same exit. A graceful step-out would have routed both of these through the buddy's own handoff and never reached you - this lane only ever catches the ungraceful exits.</div>
+                  <div class="ac-acts"><span class="ra primary">Re-place Nina</span><span class="ra">Read her notes</span><span class="ra">Suggest a fit</span></div>
+                </div>
+              </div>
+
+              <!-- flagged pairing -->
+              <div class="lane-block warn-l">
+                <div class="lb-head"><span>Pairing flagged</span><span class="lb-n warnn">1</span><span class="lb-sub">a rose is stalled and the buddy has gone quiet - reach the buddy first</span></div>
+
+                <div class="acard">
+                  <div class="ac-top">
+                    <div class="ac-id">
+                      <span class="ac-av">DW</span>
+                      <span>
+                        <span class="ac-nm">Devon W.</span>
+                        <div class="ac-meta">buddy <b style="color:var(--muted)">Ray L.</b> · no progress 18 days · Ray hasn't opened his desk in 2 weeks</div>
+                      </span>
+                    </div>
+                    <span class="tag warnt">check in</span>
+                  </div>
+                  <div class="ac-why">This is the only place a buddy's quiet shows up, and it shows up <b>as a newcomer at risk</b>, not as a demerit. Ray may be swamped or may have drifted. <b>Reach Ray first</b> - "everything OK, want us to take some off your plate?" - and reassign only if there is no answer.</div>
+                  <div class="ac-acts"><span class="ra primary">Message Ray</span><span class="ra">Reassign Devon</span><span class="ra">Snooze 3 days</span></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">3</span>The pool <span class="rsub">· availability and current load only · never a success rate, never a ranking</span></div>
+            <div class="poolwrap">
+              <div class="pool-head">
+                <span class="ph-t">Buddy &nbsp;·&nbsp; state &nbsp;·&nbsp; load &nbsp;·&nbsp; manage</span>
+                <span class="ra primary">+ Add a buddy to the pool</span>
+              </div>
+              <div class="roster">
+
+                <div class="rrow">
+                  <span class="rr-av">PR</span>
+                  <span><div class="rr-nm">Priya R.</div><div class="rr-meta">in the pool since March</div></span>
+                  <span><span class="tag inpool">In pool</span></span>
+                  <span class="rr-load"><span class="cap"><span class="pips"><span class="pip full"></span><span class="pip full"></span><span class="pip full"></span></span></span><span class="cap-t">3 / 3 full</span></span>
+                  <span class="rr-acts"><span class="ra">Adjust cap</span><span class="ra">Message</span></span>
+                </div>
+
+                <div class="rrow">
+                  <span class="rr-av">RL</span>
+                  <span><div class="rr-nm">Ray L.</div><div class="rr-meta">flagged in the lane above</div></span>
+                  <span><span class="tag inpool">In pool</span></span>
+                  <span class="rr-load"><span class="cap"><span class="pips"><span class="pip full"></span><span class="pip full"></span><span class="pip open"></span></span></span><span class="cap-t">2 / 3</span></span>
+                  <span class="rr-acts"><span class="ra">Adjust cap</span><span class="ra">Message</span></span>
+                </div>
+
+                <div class="rrow">
+                  <span class="rr-av">AN</span>
+                  <span><div class="rr-nm">Alex N.</div><div class="rr-meta">new buddy · started straight in</div></span>
+                  <span><span class="tag inpool">In pool</span></span>
+                  <span class="rr-load"><span class="cap"><span class="pips"><span class="pip full"></span><span class="pip full"></span></span></span><span class="cap-t">2 / 2 · cap set low</span></span>
+                  <span class="rr-acts"><span class="ra">Adjust cap</span><span class="ra">Message</span></span>
+                </div>
+
+                <div class="rrow">
+                  <span class="rr-av">JS</span>
+                  <span><div class="rr-nm">Jamie S.</div><div class="rr-meta">paused herself this month</div></span>
+                  <span><span class="tag paused">Paused</span></span>
+                  <span class="rr-load"><span class="cap"><span class="pips"><span class="pip full"></span></span></span><span class="cap-t">1 kept · no new</span></span>
+                  <span class="rr-acts"><span class="ra">Adjust cap</span><span class="ra">Message</span></span>
+                </div>
+
+                <div class="rrow out">
+                  <span class="rr-av">SK</span>
+                  <span><div class="rr-nm">Sam K.</div><div class="rr-meta">stepped out without handing off · 2 roses in re-placement</div></span>
+                  <span><span class="tag out">Out</span></span>
+                  <span class="rr-load"><span class="cap-t">—</span></span>
+                  <span class="rr-acts"><span class="ra">Re-place his roses</span><span class="ra">Message</span></span>
+                </div>
+
+              </div>
+              <div class="pool-foot">
+                <span class="pf-note">+11 more in the pool, all currently full. Sorted by who has room. No column here is a score.</span>
+                <span><span class="ra">Sort by availability</span> <span class="ra">Export roster</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">4</span>Capacity &amp; matching policy <span class="rsub">· program-level dials · the labor ceiling stays the buddy's to raise</span></div>
+            <div class="policy">
+              <div class="pol-row">
+                <span>
+                  <div class="pr-k">Default cap for a new buddy</div>
+                  <div class="pr-d">What a buddy starts at when they join the pool. They can raise their own ceiling from their desk; you set the starting point.</div>
+                </span>
+                <span class="pr-v">2 <span class="ra">Change</span></span>
+              </div>
+              <div class="pol-row">
+                <span>
+                  <div class="pr-k">Per-buddy capacity</div>
+                  <div class="pr-d">You can <b>lower</b> someone's effective cap (a new or swamped buddy) or <b>request</b> a raise. You cannot force a cap up - only the buddy raises their own ceiling. That is the whole labor-protection guarantee, kept even with admin controls.</div>
+                </span>
+                <span class="pr-v"><span class="ra">Lower a cap</span><span class="ra">Request a raise</span></span>
+              </div>
+              <div class="pol-row">
+                <span>
+                  <div class="pr-k">Matching rule</div>
+                  <div class="pr-d">How an arrival picks a buddy. <b>Load-balanced</b> sends each new person to whoever has the fewest roses. Hard constraints (language) are always respected; soft affinity is by hand today.</div>
+                </span>
+                <span class="pr-v">Load-balanced <span class="ra">Change</span></span>
+              </div>
+              <div class="pol-row">
+                <span>
+                  <div class="pr-k">Surge handling</div>
+                  <div class="pr-d">When a burst outruns the pool, extras <b>wait in the queue</b> rather than overload anyone. Optionally invite buddies to opt into a temporary +1 - consent-based, never imposed.</div>
+                </span>
+                <span class="pr-v">Queue + opt-in <span class="ra">Change</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">5</span>Reach the pool <span class="rsub">· support and recruit · the answer to a full pool lives here, not in raising caps</span></div>
+            <div class="reach">
+              <div class="rch">
+                <div class="rc-k">Message a buddy</div>
+                <div class="rc-d">Check in, offer to take some off their plate, talk through a handoff. A human, one to one.</div>
+                <span class="ra">Pick a buddy</span>
+              </div>
+              <div class="rch alarm">
+                <div class="rc-k">Call for more buddies</div>
+                <div class="rc-d">Five are waiting and the pool is full. This is the real fix - message members, or post a call to grow the pool.</div>
+                <span class="ra primary">Recruit buddies</span>
+              </div>
+              <div class="rch">
+                <div class="rc-k">Message the whole pool</div>
+                <div class="rc-d">A thank-you, a heads-up about a tabling surge, an ask for a specific-language buddy. Sparingly.</div>
+                <span class="ra">Message pool</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 6 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">6</span>Every write this panel permits <span class="rsub">· the COMPLETE steward write surface · nothing else writes</span></div>
+            <div class="writes">
+              <div class="w-t">Everything a steward can change here</div>
+              <div class="w-d">All of it tends the pool, the flow, or an exception. <b>No success score and no leaderboard. No forcing a cap up. No "mark as member" and no dues write - active is read from Action Network, never set by hand. No citywide list of newcomers to work through</b> - the only individuals on this page are the queue (awaiting placement) and flagged pairings (exceptions). The cohort stays aggregate, on the cockpit.</div>
+              <div class="w-list">
+                <span class="ra">Add / remove a buddy</span>
+                <span class="ra">Set default cap + policy</span>
+                <span class="ra">Lower a cap / request a raise</span>
+                <span class="ra">Assign from the queue</span>
+                <span class="ra">Reassign / re-place</span>
+                <span class="ra">Message a buddy or the pool</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">Audience + design decisions</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Who</span> The operator of the machine</div>
+        <ul class="points">
+          <li>Audience is <span class="em">leadership/admin</span> - the same permission that opens the cockpit, granted to several people. The three leadership screens split by <span class="em">job</span>, not by person.</li>
+          <li>Cockpit asks "is our welcome working?" This asks "is our welcoming machine <span class="em">staffed and flowing?</span>" Different hat, same admin.</li>
+          <li>The pool is <span class="em">shared</span>, not owned by one coordinator. Several stewards can act, so every assign and reassign is attributable.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Why OK</span> Tend the system, not the volunteers</div>
+        <ul class="points">
+          <li>Management controls and "sight, not direction" only conflict if you read the rule too widely. It forbids <span class="em">chasing newcomers</span> and <span class="em">grading buddies</span> - not operating the pool.</li>
+          <li>Every control here acts on the <span class="em">pool and the flow</span>. The page never answers "who is the best buddy," and a reassign is framed as care for a newcomer.</li>
+          <li>That is the whole reason this can have controls and the cockpit cannot: it steers the <span class="em">machine</span>, not the people inside it.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Ceiling</span> Capacity is policy and reduce, never conscription</div>
+        <ul class="points">
+          <li>Leadership sets the <span class="em">default</span> cap, can <span class="em">lower</span> an individual's effective cap, and can <span class="em">request</span> a raise.</li>
+          <li>It can never <span class="em">force</span> a cap up. Only the buddy raises their own ceiling, from their desk. The labor ceiling survives even with an admin panel.</li>
+          <li>So a full pool is solved by <span class="em">recruiting</span> (region 5), never by quietly cranking everyone's number up.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Flow</span> Auto by default, the queue is the pressure valve</div>
+        <ul class="points">
+          <li>Ordinary arrivals auto-assign, load-balanced, with no one lifting a finger. Manual is the <span class="em">exception</span>, kept to one lane.</li>
+          <li>When the pool is full, arrivals <span class="em">wait visibly</span> in the queue instead of silently overloading buddies.</li>
+          <li>Queue depth is the headline number and the <span class="em">grow-the-pool alarm</span>. The system is designed to make a shortage loud, not to absorb it onto the people already volunteering.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Exits</span> Graceful departures never reach here</div>
+        <ul class="points">
+          <li>A buddy who steps out <span class="em">warmly</span> uses their desk's handoff - picks a successor or asks the pool to cover. Leadership never touches it.</li>
+          <li>Only an <span class="em">ungraceful</span> exit - ghosting, removal, or leaving with no handoff - orphans a rose into the re-placement lane.</li>
+          <li>Those get a <span class="em">human</span>, by your call, because they carry history. The easy 90% stays automatic.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Memory</span> Notes are shared, and they travel</div>
+        <ul class="points">
+          <li>A buddy's notes are <span class="em">org knowledge</span>, not a private file - freely transferable, readable by whoever holds the relationship and by a steward.</li>
+          <li>A steward reads them <span class="em">right here</span>, during a re-placement, so a newcomer never resets to zero when their buddy leaves.</li>
+          <li>The cockpit itself stays people-free; notes surface only where individuals are actually being handled - this page and the buddy's desk.</li>
+        </ul>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No per-buddy success rate, no escort scorecard, no ranking - the roster shows availability and load only. No forcing a cap up. No reassign-as-discipline; the framing is always continuity of care. No dues write and no "mark as member" - active is read from Action Network. And no citywide list of individual newcomers as a leadership to-do: the only people on this page are the queue (waiting to be placed) and flagged pairings (a stalled exception). The cohort lives as an aggregate on the cockpit, never as a chase list here.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Rose Buddy desk · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY WIREFRAME - Rose Buddy desk (page 4, frontline volunteer).
+     The exact inverse of the Cadence cockpit: same underlying data, opposite
+     slice. The cockpit has NO individual people (anti-chase); this desk is
+     ONLY people - but just the two or three who are yours. Phone-first: a
+     buddy lives on their phone, walking into a meeting. To-do surface, never
+     a metrics surface. Shares the cockpit's grey-box system so it sits as a
+     sibling tab. One neutral accent (--mark) for annotation only.
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --warn:   #1d1d1d;   /* loud neutral ink for a poke / paused / blind spot */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { max-width: 1660px; margin: 0 auto; }
+
+  /* ---- document header ---------------------------------------------- */
+  header.doc { margin-bottom: 28px; max-width: 1040px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 13px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+
+  /* ---- frames + region label gutter --------------------------------- */
+  .stage { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 34px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+  .frame-head .fb.hero { background: var(--mark); }
+
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 7px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-right: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { color: var(--faint); font-weight: 400; }
+
+  /* ---- desktop app shell -------------------------------------------- */
+  .app { width: 1040px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--fill-2); }
+  .topbar .logo { width: 22px; height: 22px; border: 1px dashed var(--faint); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--faint); text-transform: uppercase; }
+  .topbar .product { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .crumb b { color: var(--ink); font-weight: 700; }
+  .topbar .spacerx { flex: 1 1 auto; }
+  .topbar .acct { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .topbar .acct .av { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--muted); }
+  .content { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  .thesis { font-size: 12.5px; color: var(--ink); line-height: 1.5; border: 1px solid var(--line-2); border-radius: 8px; padding: 11px 14px; background: #fff; }
+
+  /* region 1 - you + your availability (the labor ceiling, made a control) */
+  .avail { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; padding: 12px 14px; background: var(--fill-3); }
+  .avail .me { display: flex; align-items: center; gap: 10px; }
+  .avail .me .av { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--muted); }
+  .avail .me .who { font-size: 13px; font-weight: 800; }
+  .avail .me .who .role { display: block; font-size: 10px; font-weight: 700; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; margin-top: 1px; }
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .toggle .opt { padding: 6px 13px; font-size: 11px; font-weight: 800; color: var(--muted); background: #fff; border: none; }
+  .toggle .opt.on { background: var(--ink); color: #fff; }
+  .toggle .opt.on.paused { background: var(--warn); }
+  .cap { display: flex; align-items: center; gap: 8px; }
+  .cap .pips { display: flex; gap: 5px; }
+  .cap .pip { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink); }
+  .cap .pip.full { background: var(--ink); }
+  .cap .pip.open { background: #fff; border-style: dashed; border-color: var(--faint); }
+  .cap .cap-t { font-size: 11.5px; font-weight: 700; }
+  .cap .cap-t span { color: var(--muted); font-weight: 400; }
+  .avail .av-acts { display: flex; gap: 6px; margin-left: auto; }
+  .avail-note { font-size: 11px; color: var(--muted); font-style: italic; line-height: 1.45; margin: 8px 0 0; }
+  .avail-note b { color: var(--ink); font-style: normal; }
+
+  /* region 2 - the roster of roses (people, not rates) */
+  .roses { display: flex; flex-direction: column; gap: 11px; }
+  .rose { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; background: var(--fill-3); }
+  .rose.poke { border-left: 3px solid var(--warn); }
+  .rose.fresh { border-left: 3px solid var(--mark); }
+  .rose .r-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .rose .r-id { display: flex; gap: 11px; align-items: center; }
+  .rose .r-av { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--fill); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
+  .rose .r-nm { font-size: 14px; font-weight: 800; }
+  .rose .r-meta { font-size: 10.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+  .rose .r-meta b { color: var(--muted); font-weight: 700; }
+  .rose .r-stage { text-align: right; flex: 0 0 auto; }
+  .r-next { font-size: 12.5px; color: var(--ink); line-height: 1.45; margin-top: 11px; background: #fff; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; }
+  .r-next .when { font-weight: 800; }
+  .r-next .where { color: var(--muted); }
+  .r-next.is-poke { border-color: var(--warn); }
+  .r-next .k { display: block; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .r-next .k.warnk { color: var(--warn); }
+  .rose .r-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+  .rolled { font-size: 11px; color: var(--faint); font-style: italic; line-height: 1.45; border: 1px dashed var(--line-2); border-radius: 8px; padding: 9px 12px; background: var(--fill-2); }
+  .rolled b { color: var(--muted); font-style: normal; }
+
+  /* the per-person arc strip */
+  .steps { display: flex; gap: 4px; }
+  .steps .step { flex: 1 1 0; text-align: center; font-size: 8.5px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--faint); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 3px; background: #fff; line-height: 1.2; }
+  .steps .step.done { background: var(--fill); color: var(--muted); border-color: var(--line); }
+  .steps .step.here { border: 1.5px solid var(--mark); color: var(--mark); background: var(--mark-bg); }
+  .steps .step.here::after { content: " ◂ now"; font-weight: 800; }
+
+  /* region 3 - one rose, expanded (detail behind a card tap) */
+  .detail { border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: #fff; }
+  .detail .d-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .detail .d-nm { font-size: 16px; font-weight: 800; }
+  .detail .d-sub { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  .d-field .df-k { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .d-field .df-v { font-size: 12px; color: var(--ink); line-height: 1.5; }
+  .notesbox { border: 1px solid var(--line-2); border-radius: 8px; background: var(--fill-3); padding: 11px 12px; }
+  .notesbox .nb-k { font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  .notesbox .nb-k .nb-edit { font-size: 9px; color: var(--mark); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; background: #fff; }
+  .notesbox .nb-body { font-size: 12px; color: var(--ink); line-height: 1.55; }
+  .notesbox .nb-foot { font-size: 10px; color: var(--faint); font-style: italic; margin-top: 8px; border-top: 1px solid var(--line-2); padding-top: 7px; }
+  .contactrow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+  .chan { font-size: 10.5px; font-weight: 700; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 10px; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+  .chan .pref { font-size: 8px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 1px 5px; border-radius: 3px; }
+
+  /* region 4 - handoff sheet */
+  .handoff { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; background: #fff; }
+  .handoff .ho-head { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+  .handoff .ho-sub { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  .ho-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 13px; }
+  .ho-opt { border: 1px solid var(--line); border-radius: 9px; padding: 12px; background: var(--fill-3); }
+  .ho-opt .ho-k { font-size: 12px; font-weight: 800; }
+  .ho-opt .ho-d { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 5px; }
+  .ho-opt .ra { margin-top: 10px; }
+  .ho-foot { font-size: 11px; color: var(--ink); line-height: 1.45; margin-top: 12px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .ho-foot b { color: var(--mark); }
+
+  /* region 5 - reach people */
+  .reach { display: flex; gap: 10px; flex-wrap: wrap; }
+  .reach .rch { flex: 1 1 220px; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: var(--fill-3); }
+  .reach .rch .rc-k { font-size: 12px; font-weight: 800; }
+  .reach .rch .rc-d { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 4px; }
+  .reach .rch .ra { margin-top: 9px; }
+
+  /* small shared bits */
+  .tag { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: #fff; white-space: nowrap; }
+  .tag.soft { color: var(--muted); background: var(--fill-2); border-color: var(--line-2); }
+  .tag.warnt { color: var(--warn); border: 1.5px solid var(--warn); font-weight: 800; }
+  .tag.mark { color: var(--mark); border-color: #b9c3d2; background: var(--mark-bg); }
+  .ra { font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 4px 9px; color: var(--ink); white-space: nowrap; }
+  .ra.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* region 6 - the complete write set legend */
+  .writes { border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: 8px; padding: 12px 14px; background: var(--fill-3); }
+  .writes .w-t { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .writes .w-d { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+  .writes .w-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .writes .w-list .ra { font-size: 10.5px; padding: 5px 10px; }
+
+  /* ---- phone frame (the real daily driver) -------------------------- */
+  .phone { width: 340px; background: #fff; border: 2px solid var(--ink); border-radius: 26px; padding: 12px 12px 16px; }
+  .phone .notch { width: 92px; height: 6px; background: var(--line); border-radius: 999px; margin: 2px auto 12px; }
+  .pscreen { display: flex; flex-direction: column; gap: 11px; }
+  .ptop { font-size: 13px; font-weight: 800; padding: 0 2px 8px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .ptop .pmeta { font-size: 10px; color: var(--faint); font-weight: 400; }
+  .pavail { display: flex; align-items: center; gap: 9px; font-size: 11px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; background: var(--fill-3); }
+  .pavail .cap .cap-t { font-size: 11px; }
+  .pcard { border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: var(--fill-3); }
+  .pcard.poke { border-left: 3px solid var(--warn); }
+  .pcard.fresh { border-left: 3px solid var(--mark); }
+  .pcard .pc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .pcard .pc-nm { font-size: 13.5px; font-weight: 800; }
+  .pcard .pc-meta { font-size: 9.5px; color: var(--faint); margin-top: 2px; }
+  .pcard .pc-next { font-size: 11.5px; color: var(--ink); line-height: 1.4; margin-top: 9px; background: #fff; border: 1px solid var(--line-2); border-radius: 7px; padding: 8px 10px; }
+  .pcard .pc-next .when { font-weight: 800; }
+  .pcard.poke .pc-next { border-color: var(--warn); }
+  .pcard .pc-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; border-top: 1px solid var(--line-2); padding-top: 9px; }
+  .pfoot { font-size: 10px; color: var(--faint); font-weight: 400; border: none; border-top: 1px dashed var(--line-2); padding-top: 9px; line-height: 1.4; }
+
+  /* ---- margin notes column ------------------------------------------ */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 15px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .em { font-weight: 700; }
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  @media (max-width: 1280px) {
+    body { padding: 22px; }
+    .app { width: 100%; min-width: 0; }
+    .d-grid, .ho-opts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 13px; }
+    h1.doc { font-size: 23px; }
+    .stage { gap: 22px; }
+    .phone { width: 100%; max-width: 360px; }
+    .notes-col { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="460" y="110" width="280" height="600" rx="34" fill="#ffffff" stroke="#2b2b2b" stroke-width="7"/>
+    <rect x="540" y="140" width="120" height="9" rx="4" fill="#c4c4c4"/>
+    <rect x="490" y="180" width="220" height="40" rx="8" fill="#41526b"/>
+    <circle cx="515" cy="270" r="20" fill="#ededed" stroke="#2b2b2b" stroke-width="3"/>
+    <rect x="490" y="250" width="220" height="120" rx="10" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="505" y="320" width="190" height="34" rx="6" fill="#ffffff" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="490" y="390" width="220" height="120" rx="10" fill="#fafafa" stroke="#1d1d1d" stroke-width="3"/>
+    <rect x="505" y="460" width="190" height="34" rx="6" fill="#ffffff" stroke="#1d1d1d" stroke-width="2"/>
+    <rect x="490" y="530" width="220" height="120" rx="10" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 4 · low-fidelity wireframe</div>
+    <h1 class="doc">Rose Buddy desk · your own few</h1>
+    <p class="lede">This is the <b>exact inverse of the Cadence cockpit</b>. Same underlying data, opposite slice. The cockpit deliberately shows leadership <b>no individual people</b> - that was the whole anti-chase-queue discipline. This desk is <b>nothing but people</b>, but only the two or three who are <b>yours</b>. A Rose Buddy is a volunteer welcomer; this screen tells them <b>who to meet, when and where, and what they know about them</b> - and lets them jot a note, hand someone off when life happens, and step in and out of the pool. It is <b>phone-first</b>: a buddy reads it walking into a meeting. There are <b>no rates and no percentages anywhere</b>, and a buddy never sees anyone else's roster.</p>
+    <p class="rule"><b>Your few, never everyone.</b> This desk is scoped to the people assigned to you. There is no leaderboard, no comparison to other buddies, and no score of how you are doing. It is a person's own short to-do list, not a manager's dashboard - which is exactly why it can be all-people without becoming a citywide chase queue.</p>
+    <p class="rule"><b>You set your own capacity, and the escort happens here.</b> Members sit in a pool; a new arrival is auto-assigned to an available buddy who is under their own cap, so the chapter can never silently over-assign. And when you walk a rose into their first GBM and you both sign in, that <b>is</b> the escort the cockpit reads - this desk is where it actually happens; the cockpit only reads it back later.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== PHONE FRAME (HERO) ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Phone</span>
+        <span class="fb hero">Where a buddy actually lives</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="pscreen">
+          <div class="ptop">Your roses <span class="pmeta">Priya R. · 3 of 3</span></div>
+
+          <div class="pavail">
+            <span class="toggle"><span class="opt on">In the pool</span><span class="opt">Pause</span></span>
+            <span class="cap"><span class="pips"><span class="pip full"></span><span class="pip full"></span><span class="pip full"></span></span><span class="cap-t">full <span>· no new for now</span></span></span>
+          </div>
+
+          <!-- the active escort - the one with a date -->
+          <div class="pcard">
+            <div class="pc-top">
+              <span><span class="pc-nm">Maria L.</span><span class="pc-meta">tabler · rent · oriented</span></span>
+              <span class="tag mark">escort next</span>
+            </div>
+            <div class="pc-next"><span class="when">Thu · June GBM · 7pm</span> <span class="where">· Twin Oaks library</span><br>Walk in together - you are both signed up to be there.</div>
+            <div class="pc-acts"><span class="ra primary">Message Maria</span><span class="ra">Notes</span><span class="ra">Hand off</span></div>
+          </div>
+
+          <!-- gone a little quiet - a poke, not a task -->
+          <div class="pcard poke">
+            <div class="pc-top">
+              <span><span class="pc-nm">Dani R.</span><span class="pc-meta">QR · made it to a GBM · quiet 12 days</span></span>
+              <span class="tag warnt">give a poke</span>
+            </div>
+            <div class="pc-next">She came once, then went quiet. No pressure - just a "good to see you, coming Thursday?" keeps the door open.</div>
+            <div class="pc-acts"><span class="ra primary">Message Dani</span><span class="ra">Notes</span></div>
+          </div>
+
+          <!-- newly assigned - say hi -->
+          <div class="pcard fresh">
+            <div class="pc-top">
+              <span><span class="pc-nm">Tom B.</span><span class="pc-meta">paid-first · just assigned to you</span></span>
+              <span class="tag mark">new · say hi</span>
+            </div>
+            <div class="pc-next">Auto-assigned 2 days ago when a slot opened. He has not met anyone yet - introduce yourself and point him at orientation.</div>
+            <div class="pc-acts"><span class="ra primary">Say hi to Tom</span><span class="ra">Notes</span></div>
+          </div>
+
+          <div class="ptop pfoot">Tap a rose to open who they are, your notes, and how to reach them. "Hand off" asks the pool to cover - your notes travel with them. Need cover for Thursday? It is one tap on any card.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">Audience + design decisions</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Who</span> The cockpit's inverse</div>
+        <ul class="points">
+          <li>Two audiences, two screens. <span class="em">Leadership</span> gets the cockpit: aggregate funnel health, no individual people, never a chase list.</li>
+          <li><span class="em">A Rose Buddy</span> gets this desk: only people, only their own few, no rates. Same data, opposite slice.</li>
+          <li>That split is what lets both stay honest at once - process without surveillance up top, people without a citywide queue down here.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Why OK</span> Self-scoped, so not a chase queue</div>
+        <ul class="points">
+          <li>This desk <span class="em">is</span> per-person tracking - the thing we exiled from the cockpit. That is fine, because it is <span class="em">self-scoped and self-chosen</span>: your own short list, capped by you.</li>
+          <li>The line we hold: no view ever ranks buddies against each other, and no leadership view ever becomes a per-newcomer list. Individuals live in exactly one place - their own buddy's desk.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Ceiling</span> Availability is the labor ceiling, enforced</div>
+        <ul class="points">
+          <li>You set your own cap. The pool can <span class="em">never</span> assign past what each buddy declares, so over-assignment is impossible by construction, not by good intentions.</li>
+          <li><span class="em">Pause</span> stops new assignments and keeps your current roses. <span class="em">Step out</span> prompts you to hand them off. Either is one tap.</li>
+          <li>When the whole pool is full, new arrivals wait in an unassigned queue the coordinator sees - the signal to <span class="em">grow the pool</span>, never to grind the buddies already in it.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Flow</span> How a rose lands on your desk</div>
+        <ul class="points">
+          <li>A new arrival (in the door, any of the four entry doors) is <span class="em">auto-assigned</span> to an available buddy who is under cap - load-balanced to whoever has the fewest.</li>
+          <li>You can also <span class="em">self-assign</span> someone you already know, or <span class="em">release</span> one you cannot serve.</li>
+          <li>A rose <span class="em">rolls off</span> your roster once they reach active - that frees a slot, which is how Tom's slot opened when Elena went active.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Memory</span> Notes travel on handoff</div>
+        <ul class="points">
+          <li>What you learn - skills, background, what they want from the org - is the warm intel that later helps place them into the right work.</li>
+          <li>It <span class="em">travels with the person</span> on a handoff, so a buddy going quiet never resets a newcomer to zero. Churn-proof by design.</li>
+          <li>Scope stays tight: you, the next buddy, maybe the coordinator. It is supportive and operational - <span class="em">not</span> an org-wide dossier.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Link</span> The escort happens here, is read there</div>
+        <ul class="points">
+          <li>This desk is the <span class="em">prospective</span> side: "you and Maria are both going Thursday - walk in together."</li>
+          <li>The cockpit reads the escort <span class="em">retrospectively</span>, inferred from you both signing in. The optional "log a touch" note the cockpit demoted is written <span class="em">here</span>.</li>
+        </ul>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No percentages, rates, or funnel numbers - that is the cockpit's job, not a buddy's. No other buddy's roster, ever. No score of how you are doing, no escort-success scorecard pointed at you - co-attendance makes one computable, and Echo refuses to build it, because it would surveil volunteers. No dues write and no "mark as member" - dues stays read-only from Action Network. No way to assign yourself past your own cap. No citywide list of everyone unwelcomed - that pressure belongs to growing the pool, not to one buddy's screen.</div>
+      </div>
+    </div>
+
+    <!-- ============================== DESKTOP FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame B</span>
+        <span class="ft">Desktop</span>
+        <span class="fb">The same desk, roomy</span>
+      </div>
+
+      <div class="app">
+        <!-- top bar -->
+        <div class="topbar">
+          <div class="logo">mark</div>
+          <div class="product">Echo</div>
+          <div class="crumb">Warm welcome › <b>My roses</b></div>
+          <div class="spacerx"></div>
+          <div class="acct"><span>Priya R. · Rose Buddy</span><span class="av">PR</span></div>
+        </div>
+
+        <div class="content">
+
+          <div class="thesis"><b>What this screen is for.</b> You are a Rose Buddy. This is your own short list - the two or three newcomers you are walking in. It tells you who to meet, when and where, and what you know about them. It never shows you rates, and it never shows you anyone else's people.</div>
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">1</span>You + your availability <span class="rsub">· the labor ceiling, made a control you hold - not a thing leadership hopes you respect</span></div>
+            <div class="avail">
+              <div class="me">
+                <span class="av">PR</span>
+                <span class="who">Priya R.<span class="role">Rose Buddy · in the pool</span></span>
+              </div>
+              <span class="toggle"><span class="opt on">In the pool</span><span class="opt">Pause new</span></span>
+              <span class="cap">
+                <span class="pips"><span class="pip full"></span><span class="pip full"></span><span class="pip full"></span></span>
+                <span class="cap-t">3 of 3 <span>· full, auto-assignment paused until a slot opens</span></span>
+              </span>
+              <span class="av-acts"><span class="ra">Raise my cap</span><span class="ra">Step out of the pool</span></span>
+            </div>
+            <p class="avail-note"><b>Pause new</b> keeps your current roses but stops new assignments. <b>Step out</b> walks you through handing your current roses to the pool first - it never silently drops anyone. Your cap is yours to set; nothing assigns past it.</p>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">2</span>My roses <span class="rsub">· people, not rates · each card is who + the one next thing + how to reach them</span></div>
+            <div class="roses">
+
+              <!-- active escort -->
+              <div class="rose">
+                <div class="r-top">
+                  <div class="r-id">
+                    <span class="r-av">ML</span>
+                    <span>
+                      <div class="r-nm">Maria L.</div>
+                      <div class="r-meta">came in <b>at a tabling shift</b> · here about <b>rent</b> · with you 9 days</div>
+                    </span>
+                  </div>
+                  <div class="r-stage"><span class="tag mark">escort next</span></div>
+                </div>
+                <div class="r-next">
+                  <span class="k">Your next thing</span>
+                  <span class="when">Thursday · June GBM · 7pm</span> <span class="where">· Twin Oaks library, side room</span><br>
+                  She is oriented and signed up to be there. Walk in together so she does not stand by the snacks alone - that is the whole job.
+                </div>
+                <div class="r-acts"><span class="ra primary">Message Maria</span><span class="ra">Open notes</span><span class="ra">Can't make it - get cover</span><span class="ra">Hand off</span></div>
+              </div>
+
+              <!-- poke -->
+              <div class="rose poke">
+                <div class="r-top">
+                  <div class="r-id">
+                    <span class="r-av">DR</span>
+                    <span>
+                      <div class="r-nm">Dani R.</div>
+                      <div class="r-meta">came in <b>by QR code</b> · here about <b>tenant organizing</b> · made it to one GBM</div>
+                    </span>
+                  </div>
+                  <div class="r-stage"><span class="tag warnt">give a poke</span></div>
+                </div>
+                <div class="r-next is-poke">
+                  <span class="k warnk">Gone quiet · 12 days</span>
+                  She came once and then went quiet - the retention edge, just past the escort. No pressure: a "good to see you, coming Thursday?" keeps the door open. This is a nudge, not a task you owe anyone.
+                </div>
+                <div class="r-acts"><span class="ra primary">Message Dani</span><span class="ra">Open notes</span><span class="ra">Hand off</span></div>
+              </div>
+
+              <!-- newly assigned -->
+              <div class="rose fresh">
+                <div class="r-top">
+                  <div class="r-id">
+                    <span class="r-av">TB</span>
+                    <span>
+                      <div class="r-nm">Tom B.</div>
+                      <div class="r-meta"><b>paid-first</b> joiner · dues current <span class="tag soft">read-only</span> · auto-assigned 2 days ago</div>
+                    </span>
+                  </div>
+                  <div class="r-stage"><span class="tag mark">new · say hi</span></div>
+                </div>
+                <div class="r-next">
+                  <span class="k">Your next thing</span>
+                  He paid and joined but no one has welcomed him yet - the quiet gap a paying member can fall into. Introduce yourself, find out what brought him, and point him at the next orientation.
+                </div>
+                <div class="r-acts"><span class="ra primary">Say hi to Tom</span><span class="ra">Open notes</span></div>
+              </div>
+
+              <div class="rolled">Recently rolled off: <b>Elena V.</b> reached active last week and left your roster - that is the slot Tom just filled. Roses roll off at active so your list stays your live few.</div>
+
+            </div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">3</span>One rose, opened <span class="rsub">· who they are, the arc, your notes, how to reach them - behind a card tap</span></div>
+            <div class="detail">
+              <div class="d-head">
+                <span>
+                  <div class="d-nm">Maria L.</div>
+                  <div class="d-sub">came in at a tabling shift · with you since June 17</div>
+                </span>
+                <span class="tag mark">escort next · Thursday</span>
+              </div>
+
+              <div class="steps">
+                <span class="step done">in the door</span>
+                <span class="step done">orientation RSVP</span>
+                <span class="step here">oriented</span>
+                <span class="step">first GBM</span>
+                <span class="step">active</span>
+              </div>
+
+              <div class="d-grid">
+                <div class="d-field">
+                  <div class="df-k">What brought her</div>
+                  <div class="df-v">Rent. Her building got a 20% increase notice; a tabler talked with her about the tenant union and she gave her number.</div>
+                </div>
+                <div class="d-field">
+                  <div class="df-k">How to reach her</div>
+                  <div class="df-v">
+                    <div class="contactrow">
+                      <span class="chan"><span class="pref">prefers</span> Signal</span>
+                      <span class="chan">Text</span>
+                      <span class="chan">Email</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="notesbox" style="margin-top:14px;">
+                <div class="nb-k"><span>Your notes on Maria</span><span class="nb-edit">Edit</span></div>
+                <div class="nb-body">RN at Dell Seton, works nights some weeks - evenings are easier. Sharp on tenant law already, could co-lead a know-your-rights session down the line. Has a 4-year-old; needs childcare or an evening that runs short. Nervous about "being political at work."</div>
+                <div class="nb-foot">Travels with Maria if you hand her off - so a new buddy never starts cold. Visible to you, the next buddy, and the coordinator only.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">4</span>Handoff <span class="rsub">· life happens · first-class, because a design that assumes perfect attendance drops people</span></div>
+            <div class="handoff">
+              <div class="ho-head">Can't make it, or can't keep them?</div>
+              <div class="ho-sub">Two different things, both one tap. Neither ever drops the rose - they go back to the pool with everything you know about them attached.</div>
+              <div class="ho-opts">
+                <div class="ho-opt">
+                  <div class="ho-k">Cover this one meeting</div>
+                  <div class="ho-d">You keep Maria, but you cannot make Thursday. Ask the pool for someone to walk her in this once. Temporary - she comes back to you after.</div>
+                  <span class="ra">Ask the pool to cover Thursday</span>
+                </div>
+                <div class="ho-opt">
+                  <div class="ho-k">Hand off for good</div>
+                  <div class="ho-d">Life changed and you cannot keep her. Reassign permanently - the pool picks up an available buddy, or you pick one you trust.</div>
+                  <span class="ra">Hand Maria off</span>
+                </div>
+              </div>
+              <div class="ho-foot">By default a handoff <b>asks the pool</b> and the auto-assigner picks an available buddy under cap - you do not have to know who is free. You <b>can</b> name a specific buddy if you want. Either way, your notes go with her.</div>
+            </div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">5</span>Reach people <span class="rsub">· your roses, your coordinator, the pool - not a broadcast tool</span></div>
+            <div class="reach">
+              <div class="rch">
+                <div class="rc-k">Message a rose</div>
+                <div class="rc-d">Reach Maria, Dani, or Tom on the channel they chose. Quiet, one to one.</div>
+                <span class="ra">Pick a rose</span>
+              </div>
+              <div class="rch">
+                <div class="rc-k">Ask the pool for cover</div>
+                <div class="rc-d">Going to be out? Put a single meeting up for any free buddy to grab.</div>
+                <span class="ra">Request cover</span>
+              </div>
+              <div class="rch">
+                <div class="rc-k">Message the coordinator</div>
+                <div class="rc-d">Stuck, worried about a rose, or want to talk through a handoff. A human, not a form.</div>
+                <span class="ra">Message coordinator</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGION 6 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">6</span>Every write this desk permits <span class="rsub">· the COMPLETE write surface · nothing else writes</span></div>
+            <div class="writes">
+              <div class="w-t">Everything a buddy can change here</div>
+              <div class="w-d">No dues write, no "mark as member," no touching anyone outside your own roster. Setting your availability, managing your own roses, a note, a message, and a handoff are the entire write surface.</div>
+              <div class="w-list">
+                <span class="ra">Set availability + cap</span>
+                <span class="ra">Self-assign / release</span>
+                <span class="ra">Write a note</span>
+                <span class="ra">Message a rose</span>
+                <span class="ra">Request cover</span>
+                <span class="ra">Hand off</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

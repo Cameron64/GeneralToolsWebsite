@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo - Cohort review · low-fidelity wireframe</title>
+<style>
+  /* =====================================================================
+     LOW-FIDELITY WIREFRAME - Cohort review (page 3, retrospective).
+     The steering wheel. Reads CLOSED cohorts, where the leak is final.
+     Same grey-box language as the Cadence cockpit so they read as one system.
+       --warn = the binding constraint / unset / honesty flag (louder ink)
+     ===================================================================== */
+  :root {
+    --ink:    #2b2b2b;
+    --muted:  #6f6f6f;
+    --faint:  #9a9a9a;
+    --line:   #c4c4c4;
+    --line-2: #d9d9d9;
+    --fill:   #ededed;
+    --fill-2: #f4f4f3;
+    --fill-3: #fafafa;
+    --mark:   #41526b;   /* annotation accent - not part of the design */
+    --mark-bg:#eef1f5;
+    --warn:   #1d1d1d;   /* loud neutral ink for the binding constraint / unset */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e9e8e7; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; padding: 40px; }
+
+  .wrap { max-width: 1660px; margin: 0 auto; }
+
+  /* ---- document header ---------------------------------------------- */
+  header.doc { margin-bottom: 28px; max-width: 1040px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mark); }
+  h1.doc { font-size: 30px; font-weight: 800; letter-spacing: -.01em; margin: 7px 0 0; }
+  .lede { font-size: 14px; color: var(--muted); margin: 9px 0 0; line-height: 1.55; }
+  .lede b { color: var(--ink); }
+  .rule { font-size: 13px; color: var(--ink); margin: 13px 0 0; line-height: 1.5; background: var(--fill-2); border: 1px solid var(--line-2); border-left: 3px solid var(--mark); border-radius: 6px; padding: 10px 13px; }
+  .rule b { color: var(--mark); }
+
+  /* ---- region label gutter ------------------------------------------ */
+  .stage { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 34px; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-head { display: flex; align-items: baseline; gap: 10px; }
+  .frame-head .fn { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .frame-head .ft { font-size: 15px; font-weight: 800; }
+  .frame-head .fb { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 2px 7px; border-radius: 3px; }
+
+  .region { position: relative; }
+  .region > .rlabel { display: block; margin-bottom: 7px; font-size: 10px; line-height: 1.35; color: var(--mark); font-weight: 700; letter-spacing: .02em; }
+  .region > .rlabel .rnum { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.5px solid var(--mark); border-radius: 50%; font-size: 10px; margin-right: 5px; vertical-align: middle; }
+  .region > .rlabel .rsub { color: var(--faint); font-weight: 400; }
+
+  /* ---- desktop app shell -------------------------------------------- */
+  .app { width: 1180px; background: #fff; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--fill-2); }
+  .topbar .logo { width: 22px; height: 22px; border: 1px dashed var(--faint); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 7.5px; color: var(--faint); text-transform: uppercase; }
+  .topbar .product { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+  .topbar .crumb { font-size: 12px; color: var(--muted); }
+  .topbar .crumb b { color: var(--ink); font-weight: 700; }
+  .topbar .spacerx { flex: 1 1 auto; }
+  .topbar .acct { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--muted); }
+  .content { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
+
+  .sec-label { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: -6px; }
+  .panel { border: 1px solid var(--line); border-radius: 9px; padding: 14px; background: #fff; }
+  .panel .p-title { font-size: 13px; font-weight: 800; }
+  .panel .p-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+  /* region 1 - cohort selector / eligibility */
+  .cohsel { display: flex; gap: 9px; flex-wrap: wrap; align-items: stretch; }
+  .coh { border: 1px solid var(--line); border-radius: 8px; padding: 10px 13px; background: var(--fill-3); min-width: 150px; }
+  .coh.sel { border: 2px solid var(--ink); background: #fff; }
+  .coh.open { background: repeating-linear-gradient(135deg, #f3f2f1, #f3f2f1 7px, #ececeb 7px, #ececeb 14px); border-style: dashed; }
+  .coh .ch-n { font-size: 12.5px; font-weight: 800; }
+  .coh .ch-s { font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
+  .coh.open .ch-s { color: var(--warn); }
+  .coh .ch-m { font-size: 10.5px; color: var(--faint); margin-top: 4px; }
+  .cohsel-note { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 10px; line-height: 1.45; }
+  .cohsel-note b { color: var(--warn); font-style: normal; }
+
+  /* region 2 - the funnel on closed cohorts */
+  .funnel { display: flex; align-items: stretch; gap: 0; margin-top: 12px; }
+  .fstep { flex: 1 1 0; border: 1px solid var(--line); border-radius: 9px; padding: 13px 11px; background: var(--fill-3); text-align: center; position: relative; z-index: 1; }
+  .fstep.bind { border: 2px solid var(--warn); background: #fff; }
+  .fstep .fn-n { font-size: 27px; font-weight: 800; line-height: 1; }
+  .fstep .fn-k { font-size: 10px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: var(--faint); margin-top: 6px; line-height: 1.25; }
+  .fstep .fn-c { font-size: 10.5px; color: var(--muted); margin-top: 6px; }
+  .fstep .fn-c b { color: var(--ink); font-weight: 800; }
+  .fconn { flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; z-index: 0; }
+  .fconn .drop { font-size: 11px; font-weight: 800; color: var(--warn); }
+  .fconn .lost { font-size: 9px; color: var(--faint); letter-spacing: .02em; text-transform: uppercase; }
+  .fconn .arr { color: var(--line); font-size: 15px; line-height: 1; }
+  .fconn.bigdrop .drop { font-size: 13px; }
+  .funnel-foot { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 12px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+  .funnel-foot b { color: var(--warn); }
+
+  /* binding-constraint callout */
+  .bind-call { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 9px; padding: 14px 15px; background: var(--fill-3); }
+  .bind-call .bc-k { font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--warn); }
+  .bind-call .bc-h { font-size: 17px; font-weight: 800; margin-top: 6px; letter-spacing: -.01em; }
+  .bind-call .bc-trip { font-size: 12px; color: var(--ink); margin-top: 8px; line-height: 1.5; }
+  .bind-call .bc-trip b { font-weight: 800; }
+  .bind-call .bc-trip .t-pending { color: var(--warn); font-weight: 700; border: 1px dashed var(--warn); border-radius: 4px; padding: 1px 6px; display: inline-block; font-size: 10px; letter-spacing: .03em; text-transform: uppercase; }
+  .bind-call .bc-note { font-size: 11.5px; color: var(--muted); margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 9px; line-height: 1.5; }
+  .bind-call .bc-note b { color: var(--warn); }
+
+  /* region 4 - trend table */
+  .trend { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .trend th { text-align: left; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); padding: 9px 11px; background: var(--fill-2); border-bottom: 1px solid var(--line); }
+  .trend td { padding: 10px 11px; border-bottom: 1px solid var(--line-2); }
+  .trend tr:last-child td { border-bottom: none; }
+  .trend .tc-coh { font-weight: 800; }
+  .trend .tc-open { color: var(--warn); font-weight: 700; }
+  .trend .up { font-weight: 800; }
+  .trend .up::after { content: " \2191"; color: var(--ink); }
+  .trend .pend { color: var(--warn); font-style: italic; }
+  .trend-foot { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 9px; line-height: 1.45; }
+
+  /* region 5 - learning ledger */
+  .ledger { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }
+  .led-row { display: grid; grid-template-columns: 1fr 70px 1fr; gap: 12px; align-items: center; border: 1px solid var(--line-2); border-radius: 8px; padding: 11px 13px; background: var(--fill-3); }
+  .led-change { font-size: 11.5px; color: var(--ink); line-height: 1.4; }
+  .led-change .lc-k { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 3px; }
+  .led-arrow { text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: .03em; text-transform: uppercase; line-height: 1.3; }
+  .led-moved { font-size: 11.5px; color: var(--ink); line-height: 1.4; text-align: right; }
+  .led-moved .lm-k { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 3px; }
+  .led-moved b { font-weight: 800; }
+  .ledger-foot { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 11px; border-top: 1px solid var(--line-2); padding-top: 10px; }
+  .ledger-foot b { color: var(--warn); }
+
+  /* region 6 - set by the body / params */
+  .params { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .param { border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: var(--fill-3); }
+  .param .pm-k { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .param .pm-unset { font-size: 12px; font-weight: 800; color: var(--warn); margin-top: 7px; border: 1px dashed var(--warn); border-radius: 5px; padding: 4px 8px; display: inline-block; letter-spacing: .03em; text-transform: uppercase; }
+  .param .pm-owner { font-size: 10.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+  /* ---- phone frame (funnel collapsed to stacked step cards) --------- */
+  .phone { width: 340px; background: #fff; border: 2px solid var(--ink); border-radius: 26px; padding: 12px 12px 16px; }
+  .phone .notch { width: 92px; height: 6px; background: var(--line); border-radius: 999px; margin: 2px auto 12px; }
+  .pscreen { display: flex; flex-direction: column; gap: 9px; }
+  .ptop { font-size: 12px; font-weight: 800; padding: 0 2px 8px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .ptop .pmeta { font-size: 10px; color: var(--faint); font-weight: 400; }
+  .pstep { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; background: var(--fill-3); display: flex; justify-content: space-between; align-items: center; }
+  .pstep.bind { border: 2px solid var(--warn); background: #fff; }
+  .pstep .ps-k { font-size: 11px; font-weight: 800; }
+  .pstep .ps-sub { font-size: 9.5px; color: var(--faint); margin-top: 2px; }
+  .pstep .ps-n { font-size: 18px; font-weight: 800; }
+  .pdrop { text-align: center; font-size: 10px; font-weight: 800; color: var(--warn); }
+
+  /* ---- margin notes column ------------------------------------------ */
+  .notes-col { width: 320px; display: flex; flex-direction: column; gap: 15px; }
+  .notes-col .nc-head { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding-bottom: 7px; }
+  .note { background: var(--mark-bg); border: 1px solid #cfd6e0; border-left: 3px solid var(--mark); border-radius: 7px; padding: 12px 13px; }
+  .note .nt { font-size: 12.5px; font-weight: 800; color: var(--mark); display: flex; align-items: center; gap: 7px; }
+  .note .nt .nbadge { font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #fff; background: var(--mark); padding: 2px 6px; border-radius: 3px; }
+  .note .points { font-size: 12px; color: var(--ink); line-height: 1.5; margin: 8px 0 0; padding: 0; list-style: none; }
+  .note .points li { position: relative; padding-left: 15px; margin-top: 6px; }
+  .note .points li::before { content: "·"; position: absolute; left: 4px; font-weight: 800; }
+  .note .points .em { font-weight: 700; }
+  .absent { background: repeating-linear-gradient(135deg, #f1efee, #f1efee 7px, #eae8e7 7px, #eae8e7 14px); border: 1px solid var(--line-2); border-radius: 7px; padding: 12px 13px; }
+  .absent .at { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+  .absent .ad { font-size: 11.5px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+
+  @media (max-width: 1280px) {
+    body { padding: 22px; }
+    .app { width: 100%; min-width: 0; }
+    .funnel { flex-direction: column; gap: 0; }
+    .fconn { flex-basis: auto; flex-direction: row; gap: 8px; padding: 6px 0; }
+    .fconn .arr { transform: rotate(90deg); }
+    .params { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 13px; }
+    h1.doc { font-size: 23px; }
+    .stage { gap: 22px; }
+    .phone { width: 100%; max-width: 360px; }
+    .notes-col { width: 100%; }
+    .led-row { grid-template-columns: 1fr; }
+    .coh { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail" data-bg-color="#e9e8e7">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="120" y="120" width="960" height="560" rx="14" fill="#ffffff" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="120" y="120" width="960" height="56" rx="14" fill="#f4f4f3" stroke="#2b2b2b" stroke-width="6"/>
+    <rect x="160" y="250" width="150" height="150" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="350" y="270" width="150" height="130" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="540" y="285" width="150" height="115" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="730" y="320" width="150" height="80" rx="9" fill="#ffffff" stroke="#1d1d1d" stroke-width="6"/>
+    <rect x="920" y="330" width="120" height="70" rx="9" fill="#fafafa" stroke="#c4c4c4" stroke-width="3"/>
+    <rect x="160" y="470" width="880" height="34" rx="6" fill="#ededed"/>
+    <rect x="160" y="520" width="880" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+    <rect x="160" y="560" width="880" height="30" rx="6" fill="#f4f4f3" stroke="#d9d9d9" stroke-width="2"/>
+  </svg>
+</template>
+
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Echo · warm welcome · page 3 · low-fidelity wireframe</div>
+    <h1 class="doc">Cohort review · where the leak actually is</h1>
+    <p class="lede">A <b>cohort</b> is one group of people who joined around the same time - a time-based lens, not the chapter's organizing structure (that is the <b>Neighborhood Group</b> a person lands in afterward; see the <b>Neighborhoods</b> page). The cockpit (page 2) watches a group while it is still moving - and cannot see the leak yet, because nobody is lost until day 90. This page looks back at groups that have <b>finished</b>, where the loss is real and final: the path step by step, and the same steps group over group. This is <b>what the body looks at when deciding what to change for the next group</b> - it shapes the decision, it does not make it. There are no individual people on this page at all, by design.</p>
+    <p class="rule"><b>Sight, not direction.</b> This page shows where the chapter loses people and whether that is getting better. It records what the body changed and what moved next to it. It never says "do this." Reading the shape and deciding the next move belongs to the membership body.</p>
+    <p class="rule"><b>Finished groups only.</b> The leak is a final fact, so it is only drawn for groups past day 90. A group that is still live appears here greyed and unreadable - its numbers are not final and would lie if charted as a leak.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- ============================== DESKTOP FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame A</span>
+        <span class="ft">Desktop</span>
+        <span class="fb">Membership body · looking back</span>
+      </div>
+
+      <div class="app">
+        <!-- top bar -->
+        <div class="topbar">
+          <div class="logo">mark</div>
+          <div class="product">Echo</div>
+          <div class="crumb">Warm welcome › <b>Cohort review</b></div>
+          <div class="spacerx"></div>
+          <div class="acct">MEC</div>
+        </div>
+
+        <div class="content">
+
+          <!-- in-product thesis · plain language, legible at a glance for a dyslexic reviewer -->
+          <div style="font-size:12.5px;color:var(--ink);line-height:1.5;border:1px solid var(--line-2);border-radius:8px;padding:11px 14px;background:#fff;">
+            <b>What this page is for.</b> Looking back at groups that have finished, you can see exactly where people fell off, and whether each new group is doing better than the last. It shows you the single biggest drop-off. The body decides what to change; this page shows the shape and remembers what moved.
+          </div>
+
+          <!-- REGION 1 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">1</span>Which groups can be read <span class="rsub">· the leak is only final on a FINISHED group · a live one is greyed, not chartable</span></div>
+            <div class="cohsel">
+              <div class="coh sel">
+                <div class="ch-n">Fall</div>
+                <div class="ch-s">closed · day 90</div>
+                <div class="ch-m">42 entered · reading now</div>
+              </div>
+              <div class="coh">
+                <div class="ch-n">Summer</div>
+                <div class="ch-s">closed · day 90</div>
+                <div class="ch-m">39 entered</div>
+              </div>
+              <div class="coh">
+                <div class="ch-n">Winter</div>
+                <div class="ch-s">closed · day 90</div>
+                <div class="ch-m">35 entered</div>
+              </div>
+              <div class="coh open">
+                <div class="ch-n">Spring</div>
+                <div class="ch-s">open · not final</div>
+                <div class="ch-m">38 so far · watched in the cockpit</div>
+              </div>
+            </div>
+            <div class="cohsel-note">The live <b>Spring</b> group is greyed because its leak does not exist yet - anyone in it can still advance. It is watched on the <b>cadence cockpit</b> (page 2) as a snapshot, never read here as a leak.</div>
+          </div>
+
+          <!-- REGION 2 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">2</span>The funnel on this finished group <span class="rsub">· the path step by step · the biggest single drop is flagged</span></div>
+            <div class="sec-label">Fall group · 42 joined · finished at day 90</div>
+            <div class="funnel">
+              <div class="fstep">
+                <div class="fn-n">42</div>
+                <div class="fn-k">in the door</div>
+                <div class="fn-c">came in the door</div>
+              </div>
+              <div class="fconn"><span class="drop">-24%</span><span class="lost">10 lost</span><span class="arr">&rarr;</span></div>
+              <div class="fstep">
+                <div class="fn-n">32</div>
+                <div class="fn-k">orientation RSVP</div>
+                <div class="fn-c"><b>76%</b> of those in the door</div>
+              </div>
+              <div class="fconn"><span class="drop">-25%</span><span class="lost">8 lost</span><span class="arr">&rarr;</span></div>
+              <div class="fstep">
+                <div class="fn-n">24</div>
+                <div class="fn-k">oriented</div>
+                <div class="fn-c"><b>75%</b> of RSVP</div>
+              </div>
+              <div class="fconn bigdrop"><span class="drop">-46%</span><span class="lost">11 lost</span><span class="arr">&rarr;</span></div>
+              <div class="fstep bind">
+                <div class="fn-n">13</div>
+                <div class="fn-k">first GBM · escorted</div>
+                <div class="fn-c"><b>54%</b> of oriented</div>
+              </div>
+              <div class="fconn"><span class="drop">-23%</span><span class="lost">3 lost</span><span class="arr">&rarr;</span></div>
+              <div class="fstep">
+                <div class="fn-n">10</div>
+                <div class="fn-k">staying in · day 90</div>
+                <div class="fn-c"><b>77%</b> of first GBM</div>
+              </div>
+            </div>
+            <div class="funnel-foot">Read left to right: of 42 who came in the door, 10 are still in a named role at day 90 (a role counted as <b>existing</b>, not judged for quality - Echo cannot cheaply tell a real role from a quiet title) - so <b>24% stayed in</b>, counting everyone who entered (this is the capture-based number, not the dues-based 90-day activation in the trend below). The biggest single drop, by both the number of people (<b>11</b>) and the rate (<b>46%</b>), is <b>oriented &rarr; first GBM</b> - people who came to orientation and never made it into the room. That is the step the buddy escort exists to carry.</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.45;margin-top:9px;">Two honesty notes. <b>What 24% counts:</b> everyone who entered (came in the door) - most of whom are not yet dues-paying members. The chapter's headline <b>"90-day activation"</b> is a different, narrower number that counts only those who crossed the dues line into membership, and it is the one measured against the body's baseline. <b>The open hand:</b> reactivation contacts who were offered re-entry and declined are not counted as drops here - a declined open hand is not a leak.</div>
+          </div>
+
+          <!-- REGION 3 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">3</span>The biggest drop, named <span class="rsub">· the one step the data points to · stated as a triple, handed to the body</span></div>
+            <div class="bind-call">
+              <div class="bc-k">⊟ The biggest drop-off · last 3 finished groups</div>
+              <div class="bc-h">Oriented &rarr; first GBM is where the chapter loses the most people.</div>
+              <div class="bc-trip"><b>Count:</b> across Winter, Summer and Fall, this step lost more people than any other - by both headcount and rate - the escort step, the hard weeks after orientation before a newcomer has made a friend. <b>Counter-metric:</b> it is also the step improving fastest (40% &rarr; 47% &rarr; 54%), so it is worth more attention, not less. <b>Measured against:</b> the body's failure line X <span class="t-pending">unset by body</span>.</div>
+              <div class="bc-note">This is the step the data points to. Whether to act on it - and how (more buddies, a different orientation night, slower intake) - is the <b>body's call</b>. Echo shows that this is the step and remembers what happens when you act; it does not say what to do. And "biggest drop" is not the same as "easiest to move."</div>
+            </div>
+          </div>
+
+          <!-- REGION 4 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">4</span>The same step, group over group <span class="rsub">· is the leak getting better or worse · never blended into one score</span></div>
+            <table class="trend">
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Entered</th>
+                  <th>Stayed in by day 90 <span style="text-transform:none;letter-spacing:0;font-weight:400;">(of all who entered)</span></th>
+                  <th>90-day activation <span style="text-transform:none;letter-spacing:0;font-weight:400;">(of those who paid dues)</span></th>
+                  <th>Oriented &rarr; first GBM <span style="text-transform:none;letter-spacing:0;font-weight:400;">(the biggest drop)</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="tc-coh">Winter</td>
+                  <td>35</td>
+                  <td>14%</td>
+                  <td>38%</td>
+                  <td>40%</td>
+                </tr>
+                <tr>
+                  <td class="tc-coh">Summer</td>
+                  <td>39</td>
+                  <td class="up">18%</td>
+                  <td class="up">44%</td>
+                  <td class="up">47%</td>
+                </tr>
+                <tr>
+                  <td class="tc-coh">Fall</td>
+                  <td>42</td>
+                  <td class="up">24%</td>
+                  <td class="up">52%</td>
+                  <td class="up">54%</td>
+                </tr>
+                <tr>
+                  <td class="tc-coh tc-open">Spring</td>
+                  <td>38 so far</td>
+                  <td class="tc-open">open · not final</td>
+                  <td class="tc-open">open · not final</td>
+                  <td class="tc-open">open · not final</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="trend-foot">This is the home of the chapter's <b style="color:var(--ink);">90-day activation</b> number - it can never sit on the live cockpit, only here once a group is finished. Two different "how many made it" numbers sit side by side on purpose: <b style="color:var(--ink);">stayed in</b> counts everyone who entered (most never paid dues), while <b style="color:var(--ink);">90-day activation</b> counts only those who crossed the dues line - the chapter's headline retention number, and the one the body's baseline applies to. Neither is stamped pass or fail until the body sets that baseline. Never folded into a single health score; the biggest drop is also the step moving most.</div>
+          </div>
+
+          <!-- REGION 5 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">5</span>What changed, and what moved <span class="rsub">· the learning ledger · the body's changes beside the step that shifted · correlation, not proof</span></div>
+            <div class="panel">
+              <div class="p-title">The learning ledger</div>
+              <div class="p-sub">Echo records what the body changed between groups and what moved next to it. It does not claim the change caused the lift - that read belongs to the body.</div>
+              <div class="ledger">
+                <div class="led-row">
+                  <div class="led-change"><span class="lc-k">Winter &rarr; Summer · the body changed</span>Recruited 3 more buddies. Began assigning a buddy at RSVP instead of after orientation.</div>
+                  <div class="led-arrow">in the same window</div>
+                  <div class="led-moved"><span class="lm-k">what moved</span>Biggest drop <b>40% &rarr; 47%</b>. Stayed in <b>14% &rarr; 18%</b>.</div>
+                </div>
+                <div class="led-row">
+                  <div class="led-change"><span class="lc-k">Summer &rarr; Fall · the body changed</span>Moved orientation to a weeknight. Buddy now texts the escort plan the day before the GBM.</div>
+                  <div class="led-arrow">in the same window</div>
+                  <div class="led-moved"><span class="lm-k">what moved</span>Biggest drop <b>47% &rarr; 54%</b>. Stayed in <b>18% &rarr; 24%</b>.</div>
+                </div>
+              </div>
+              <div class="ledger-foot"><b>These sit side by side; the page does not say one caused the other.</b> Echo lines up what the body changed with what moved, and stops there. Whether the change is what helped is the body's read. The ledger also records changes that moved nothing, or moved the wrong way - it is an honest log, not a highlight reel. Correlation, written down honestly - not proof.</div>
+            </div>
+          </div>
+
+          <!-- REGION 6 -->
+          <div class="region">
+            <div class="rlabel"><span class="rnum">6</span>Set by the body <span class="rsub">· this page measures against these · it never fills them in or recommends</span></div>
+            <div class="params">
+              <div class="param">
+                <div class="pm-k">Failure line · X</div>
+                <div class="pm-unset">Unset by body</div>
+                <div class="pm-owner">The drop-off line that counts as failure for a step. Until the body sets X, the funnel shows the shape but never stamps a step "failing."</div>
+              </div>
+              <div class="param">
+                <div class="pm-k">Retention baseline</div>
+                <div class="pm-unset">Unset by body</div>
+                <div class="pm-owner">What day-90 activation is measured against. Blank until the body sets it - until then neither retention number in the trend above is stamped pass or fail.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== MARGIN NOTES ============================== -->
+    <div class="notes-col">
+      <div class="nc-head">Why this page exists</div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Frame</span> Two clocks · this is the closed clock</div>
+        <ul class="points">
+          <li>The cockpit reads a <span class="em">live</span> group: a snapshot and an aging signal, no leak. This page reads <span class="em">finished</span> groups, where the leak is a final fact.</li>
+          <li>That split is the answer to "where is the steering wheel." It was never on the live page - the live page can't see the leak. It is here, on the looking-back page, and it shapes the <span class="em">next</span> group.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Design</span> No people on this page</div>
+        <ul class="points">
+          <li>Every row here is a <span class="em">step or a group</span>, never a person. There is nothing to click that touches an individual.</li>
+          <li>That is what keeps it from becoming a chase queue. It steers process, so it structurally <span class="em">cannot</span> manufacture per-person follow-up. Person-level work stays bounded on the cockpit's four writes.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Guardrail</span> Sight, not direction</div>
+        <ul class="points">
+          <li>The page names the biggest drop and shows the trend. It does <span class="em">not</span> say "recruit buddies this week."</li>
+          <li>The learning ledger is the strongest steering element and the easiest to over-read: it is <span class="em">correlation recorded</span>, not causation claimed. The body reads it and decides.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <div class="nt"><span class="nbadge">Order</span> Why this sequence</div>
+        <ul class="points">
+          <li>Eligibility first, so it is impossible to mistake a live group for a readable leak.</li>
+          <li>The funnel, then the one step named - so the biggest drop is earned from the picture, not asserted.</li>
+          <li>Trend, then the ledger - the leak's direction before the changes that might explain it.</li>
+          <li>Body-owned params last - the thresholds the whole page measures against, shown unset.</li>
+        </ul>
+      </div>
+
+      <div class="absent">
+        <div class="at">Absent by design</div>
+        <div class="ad">No "do this next" or any recommendation - the page names the step and stops. No per-person row, queue, or inbox anywhere. No causal claim drawn from the ledger's correlation. No leak on a live group. No blended health score that hides the three numbers per group. No "mark as member" - dues stays read-only from Action Network everywhere in Echo.</div>
+      </div>
+    </div>
+
+    <!-- ============================== PHONE FRAME ============================== -->
+    <div class="frame-col">
+      <div class="frame-head">
+        <span class="fn">Frame B</span>
+        <span class="ft">Phone</span>
+        <span class="fb">Funnel → stacked steps</span>
+      </div>
+
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="pscreen">
+          <div class="ptop">Fall group · finished <span class="pmeta">42 joined · day 90</span></div>
+
+          <div class="pstep">
+            <div><div class="ps-k">In the door</div><div class="ps-sub">came in the door</div></div>
+            <div class="ps-n">42</div>
+          </div>
+          <div class="pdrop">&darr; -24% · 10 lost</div>
+          <div class="pstep">
+            <div><div class="ps-k">Orientation RSVP</div><div class="ps-sub">76% of those in the door</div></div>
+            <div class="ps-n">32</div>
+          </div>
+          <div class="pdrop">&darr; -25% · 8 lost</div>
+          <div class="pstep">
+            <div><div class="ps-k">Oriented</div><div class="ps-sub">75% of RSVP</div></div>
+            <div class="ps-n">24</div>
+          </div>
+          <div class="pdrop">&darr; -46% · 11 lost · biggest</div>
+          <div class="pstep bind">
+            <div><div class="ps-k">First GBM · escorted</div><div class="ps-sub">54% of oriented · biggest drop</div></div>
+            <div class="ps-n">13</div>
+          </div>
+          <div class="pdrop">&darr; -23% · 3 lost</div>
+          <div class="pstep">
+            <div><div class="ps-k">Staying in · day 90</div><div class="ps-sub">77% of first GBM</div></div>
+            <div class="ps-n">10</div>
+          </div>
+
+          <div class="ptop" style="border:none;border-top:1px dashed var(--line-2);padding-top:9px;font-weight:400;color:var(--faint);font-size:10px;">Same steps, stacked top to bottom. The biggest drop stays flagged. Trend and ledger follow below on a phone, one block each.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
