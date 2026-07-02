@@ -155,6 +155,7 @@
   .twoup .col{ max-width: 22ch; text-align:left; }
   .twoup .h{ font-family:var(--serif); font-weight:700; font-size: clamp(1.17rem,2.4vw,1.4rem); margin:0 0 .5rem; }
   .twoup .col.cost .h{ color: var(--amber); }
+  .twoup .col.cost .cost-line{ margin: 0 0 .45rem; }
   .twoup .col.safe .h{ color: var(--rose); }
   .twoup p{ margin:0; font-size: clamp(.95rem,2vw,1.12rem); line-height:1.45; color: var(--dusk); }
   .twoup .src{ margin-top:.6rem; font-size: clamp(.72rem,1.5vw,.84rem); color: var(--faint); }
@@ -400,11 +401,13 @@
   <!-- 9. COST -->
   <section class="slide" data-lit="0.82" data-glow="0.85">
     <div class="eyebrow">Cost and risk</div>
-    <h2>The light bill: about $15 a month.</h2>
+    <h2>The light bill: about $27 a month.</h2>
     <div class="twoup">
       <div class="col cost">
-        <p class="h">$15.15 / month</p>
-        <p>The database - daily backups, point-in-time recovery, encryption included. Add a real home for Echo, the chapter's app - today it runs on a volunteer's laptop - and it's roughly $320 to $330 a year all-in. Comfortably under $500.</p>
+        <p class="h">$27 / month, all-in</p>
+        <p class="cost-line"><strong>$15.15</strong> - the database: daily backups, point-in-time recovery, encryption included.</p>
+        <p class="cost-line"><strong>$11 to $12</strong> - a real home for Echo, the chapter's app. Today it runs on a volunteer's laptop.</p>
+        <p>Roughly $320 to $330 a year all-in. Comfortably under $500.</p>
         <p class="src"><a href="https://www.digitalocean.com/pricing/managed-databases" target="_blank" rel="noopener">Source: DigitalOcean Managed Databases, entry PostgreSQL plan</a></p>
       </div>
       <div class="col safe">
