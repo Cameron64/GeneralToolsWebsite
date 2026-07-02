@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Presenter - Turn the lights on</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='72' font-size='72' text-anchor='middle'%3E%F0%9F%92%A1%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --night:#10141c; --night-2:#151b26; --night-3:#1a2130;
+    --paper:#f3efe6; --dusk:#a9b2c0; --faint:#8b95a6;
+    --amber:#ffb84d; --halo:#f7d489;
+    --rose:#ec1f27; --rose-deep:#c4151c;
+    --line:rgba(243,239,230,.16);
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family: var(--sans);
+    color: var(--paper);
+    background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 58%, var(--night-3) 100%);
+    min-height:100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  a{ color: var(--amber); }
+  button{ font-family: inherit; cursor:pointer; }
+
+  #app{ display:grid; grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr auto; min-height:100vh; }
+
+  /* top bar */
+  #topbar{
+    grid-column: 1 / -1;
+    display:flex; align-items:center; gap:1.4rem; flex-wrap:wrap;
+    padding: .9rem 1.4rem;
+    border-bottom: 1px solid var(--line);
+    background: rgba(16,20,28,.55);
+  }
+  #timer{
+    font-family: var(--serif); font-weight:700; font-variant-numeric: tabular-nums;
+    font-size: 2rem; color: var(--paper); min-width: 4.5ch;
+  }
+  #timer.amber{ color: var(--amber); }
+  #timer.rose{ color: var(--rose); }
+  #stopPos{ font-size: 1.1rem; color: var(--dusk); }
+  #stopPos strong{ color: var(--paper); }
+  #targetTime{ font-size: .95rem; color: var(--faint); }
+  #connDot{
+    margin-left:auto; display:flex; align-items:center; gap:.55rem;
+    font-size: .95rem; color: var(--dusk);
+  }
+  #connDot .dot{ width:.7rem; height:.7rem; border-radius:50%; background: var(--faint); flex:0 0 auto; }
+  #connDot.linked .dot{ background:#3ecf6e; }
+  #connDot.unlinked .dot{ background: var(--amber); }
+
+  /* left rail */
+  #rail{
+    padding: 1.2rem; border-right: 1px solid var(--line);
+    display:flex; flex-direction:column; gap: 1rem;
+    overflow-y:auto;
+  }
+  .bigbtns{ display:flex; gap:.6rem; }
+  .bigbtn{
+    flex:1; padding: 1rem .5rem; font-size:1.15rem; font-weight:700;
+    border-radius: 10px; border: 1px solid var(--line);
+    background: var(--night-3); color: var(--paper);
+  }
+  .bigbtn:hover{ background:#232c40; }
+  .bigbtn:active{ background:#2c3750; }
+  #openDeckBtn{
+    padding: .85rem .6rem; font-size:1rem; font-weight:600;
+    border-radius: 10px; border: 1px solid var(--amber);
+    background: transparent; color: var(--amber);
+  }
+  #openDeckBtn:hover{ background: rgba(255,184,77,.12); }
+
+  #stopList{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+  #stopList li{
+    border-radius:8px; padding:.55rem .7rem; cursor:pointer;
+    border:1px solid transparent;
+    font-size: .95rem; line-height:1.35; color: var(--dusk);
+  }
+  #stopList li:hover{ background: rgba(243,239,230,.06); }
+  #stopList li.current{
+    background: rgba(255,184,77,.14); border-color: var(--amber); color: var(--paper);
+  }
+  #stopList .stopNum{ font-variant-numeric: tabular-nums; color: var(--faint); margin-right:.5rem; }
+  #stopList .stopTime{ float:right; font-variant-numeric: tabular-nums; color: var(--faint); font-size:.85rem; }
+
+  /* main column */
+  #main{ padding: 2.2rem 3rem; display:flex; flex-direction:column; gap:1.6rem; overflow-y:auto; }
+  #stopTitle{
+    font-family: var(--serif); font-weight:700; color: var(--paper);
+    font-size: clamp(1.4rem, 2.6vw, 2rem); margin:0;
+  }
+  #script{ font-size: 1.35rem; line-height: 1.65; color: var(--paper); max-width: 62ch; }
+  #script p{ margin: 0 0 1.1rem; }
+  #script p:last-child{ margin-bottom:0; }
+  #script p.stage-direction{ color: var(--dusk); font-style: italic; font-size: 1rem; }
+  #nextPreview{ color: var(--faint); font-size: 1.02rem; max-width: 62ch; }
+  #nextPreview strong{ color: var(--dusk); }
+
+  /* bottom strip */
+  #numbers{
+    grid-column: 1 / -1;
+    display:flex; gap: 1.6rem; flex-wrap:wrap;
+    padding: .85rem 1.4rem;
+    border-top: 1px solid var(--line);
+    background: rgba(16,20,28,.55);
+    font-size: .95rem; color: var(--dusk);
+  }
+  #numbers .chip{ white-space:nowrap; }
+  #numbers .chip strong{ color: var(--amber); font-variant-numeric: tabular-nums; }
+
+  /* drawers */
+  .drawer{ border: 1px solid var(--line); border-radius: 10px; overflow:hidden; }
+  .drawer summary{
+    padding: .7rem 1rem; cursor:pointer; font-weight:700; color: var(--paper);
+    background: rgba(243,239,230,.04); list-style:none;
+  }
+  .drawer summary::-webkit-details-marker{ display:none; }
+  .drawer summary::before{ content:"+ "; color: var(--amber); }
+  .drawer[open] summary::before{ content:"- "; }
+  .drawer .body{ padding: .9rem 1.1rem 1.1rem; font-size: 1rem; line-height:1.5; color: var(--dusk); }
+  .drawer ol{ margin:0; padding-left:1.3rem; }
+  .drawer li{ margin-bottom:.7rem; }
+  .drawer li strong{ color: var(--paper); }
+  .drawer .qa{ margin-bottom: 1rem; }
+  .drawer .qa .q{ color: var(--paper); font-weight:700; margin:0 0 .3rem; }
+  .drawer .qa .a{ margin:0; }
+  .drawer blockquote{ margin:.4rem 0 0; padding-left:.9rem; border-left:3px solid var(--amber); color: var(--paper); }
+
+  @media (max-width: 900px){
+    #app{ grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    #rail{ border-right:none; border-bottom:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <div id="timer" data-seconds="0">0:00</div>
+    <div id="stopPos">stop <strong id="stopNum">1</strong> of 12 - <span id="stopTitleInline"></span></div>
+    <div id="targetTime">target by end: <span id="targetLabel"></span></div>
+    <div id="connDot" class="unlinked"><span class="dot"></span><span id="connLabel">deck not found - use Open deck</span></div>
+  </div>
+
+  <div id="rail">
+    <div class="bigbtns">
+      <button class="bigbtn" id="prevBtn" aria-label="Previous stop">&larr; Prev</button>
+      <button class="bigbtn" id="nextBtn" aria-label="Next stop">Next &rarr;</button>
+    </div>
+    <button id="openDeckBtn">Open deck</button>
+    <ol id="stopList"></ol>
+  </div>
+
+  <div id="main">
+    <h1 id="stopTitle"></h1>
+    <div id="script"></div>
+    <div id="nextPreview"></div>
+  </div>
+
+  <div id="numbers">
+    <span class="chip"><strong>~1,500</strong> in good standing</span>
+    <span class="chip"><strong>~1,800</strong> lapsed - found once, by hand</span>
+    <span class="chip"><strong>$15.15/mo</strong> &asymp; $182/yr DB</span>
+    <span class="chip"><strong>~$320-330</strong> all-in</span>
+    <span class="chip"><strong>$500</strong> ceiling</span>
+  </div>
+
+  <div style="grid-column: 1 / -1; padding: 1.2rem 1.4rem 2rem; display:flex; flex-direction:column; gap: .8rem;">
+    <details class="drawer" id="asksDrawer">
+      <summary>The three asks</summary>
+      <div class="body">
+        <ol>
+          <li><strong>IT ownership:</strong> &quot;Yes - and properly, that means restarting the IT Sub-Committee. I&#39;ll stand for co-chair and recruit a couple of computing folks so it&#39;s not a bus-factor of one.&quot;</li>
+          <li><strong>The small infra step:</strong> infrastructure, not a prototype - a reversible step, current estimate ~$320-330/yr, with headroom up to the $500/yr ceiling, to unlock and segment the data the resolution already requires. If they want budget mechanics confirmed, that&#39;s the next step, not a no.</li>
+          <li><strong>Their input:</strong> &quot;If you could see anything about our membership, what would move a decision?&quot;</li>
+        </ol>
+      </div>
+    </details>
+    <details class="drawer" id="objectionsDrawer">
+      <summary>Objections (only if raised)</summary>
+      <div class="body">
+        <div class="qa">
+          <p class="q">&quot;Why not just use Action Network?&quot;</p>
+          <p class="a">&quot;Keeps AN as the foundation. AN can&#39;t sort members into the four neighborhoods, hold the event logs, keep a per-neighborhood roll, or manage access that rotates yearly. Today that&#39;s headed for Google Drive. This is one secure, access-logged place to use the data AN already holds.&quot;</p>
+        </div>
+        <div class="qa">
+          <p class="q">AI / surveillance</p>
+          <p class="a">&quot;No AI in the product - AI is just a tool I build with, like an IDE. This is the opposite of surveillance: it takes member data off Google, access-logged, with fewer people able to see it than today. Data sovereignty. The lists get built either way - the only question is secure-and-audited vs open Google Sheets.&quot;</p>
+        </div>
+      </div>
+    </details>
+    <details class="drawer" id="costDrawer">
+      <summary>Cost - exact words</summary>
+      <div class="body">
+        <blockquote>&quot;The database is $15.15 a month, about $182 a year - daily backups, point-in-time recovery, and encryption included. Move the web app over too and it&#39;s another $11 to $12 a month, plus Echo&#39;s own hosting - which turns out to have never had a real home, it&#39;s been running on a volunteer&#39;s laptop - so all-in roughly $320 to $330 a year, still comfortably under the $500 we talked about. It&#39;s mostly net-new, but it makes our tech ops more secure and transferable at the same time.&quot;</blockquote>
+      </div>
+    </details>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var DECK_URL = "https://web-production-f9f03.up.railway.app/static/lc-lights-m7q4c/index.html";
+  var CHANNEL_NAME = 'lc-lights-sync';
+
+  var STOPS = [
+  {
+    "n": 1,
+    "slide": 0,
+    "beat": 0,
+    "title": "The hall is full. The lights are off.",
+    "targetSec": 30,
+    "script": "<p>&quot;We are good at the front door. This meeting is about the rest of the hall.&quot;</p>",
+    "targetLabel": "0:30"
+  },
+  {
+    "n": 2,
+    "slide": 1,
+    "beat": 0,
+    "title": "The front door works",
+    "targetSec": 75,
+    "script": "<p>&quot;About fifteen hundred members in good standing today - and every raid and every election brings more. The front door genuinely works.&quot;</p>",
+    "targetLabel": "1:15"
+  },
+  {
+    "n": 3,
+    "slide": 2,
+    "beat": 0,
+    "title": "The only light we have",
+    "targetSec": 120,
+    "script": "<p>&quot;Everything we know about our own membership is one hand-kept number. Ask &#39;of those who joined 90 days ago, how many are still active?&#39; - nobody can answer.&quot;</p>",
+    "targetLabel": "2:00"
+  },
+  {
+    "n": 4,
+    "slide": 3,
+    "beat": 0,
+    "title": "What the dark costs",
+    "targetSec": 180,
+    "script": "<p>&quot;The one time anyone looked closer, Garrigan counted by hand - about eighteen hundred people had joined and let dues lapse over the years. If someone asks how more can be lapsed than we have on the rolls: different accounting - the eighteen hundred is everyone who ever drifted out across the years, the fifteen hundred is who is current today. Both are real. The point is it took one volunteer, once, and it has never been repeated.&quot;</p>",
+    "targetLabel": "3:00"
+  },
+  {
+    "n": 5,
+    "slide": 4,
+    "beat": 0,
+    "title": "The fix - light our own hall",
+    "targetSec": 240,
+    "script": "<p>&quot;The store already exists as a monthly email - it just lands in Drive spreadsheets today. Managed, encrypted, every read logged. Action Network stays the system of record; we never write back.&quot;</p>",
+    "targetLabel": "4:00"
+  },
+  {
+    "n": 6,
+    "slide": 4,
+    "beat": 1,
+    "title": "The fix - the same idea, as wiring",
+    "targetSec": 300,
+    "script": "<p>&quot;Same picture, as wiring - for the engineers in the room.&quot;</p>",
+    "targetLabel": "5:00"
+  },
+  {
+    "n": 7,
+    "slide": 5,
+    "beat": 0,
+    "title": "Not new scope",
+    "targetSec": 390,
+    "script": "<p>Say the names out loud; the slide deliberately doesn&#39;t:</p><p>&quot;Peter - your resolution asks for member rolls, event logs, and rotating access, in those words. Garrigan - the secure home for member data is the goal you wrote. Rachel - &#39;are we keeping the members we win&#39; is the question MEC already works by hand.&quot;</p>",
+    "targetLabel": "6:30"
+  },
+  {
+    "n": 8,
+    "slide": 6,
+    "beat": 0,
+    "title": "What I want to do",
+    "targetSec": 450,
+    "script": "<p>&quot;Three switches, one at a time. Stop after any of them and Action Network never moved.&quot;</p>",
+    "targetLabel": "7:30"
+  },
+  {
+    "n": 9,
+    "slide": 7,
+    "beat": 0,
+    "title": "The light (demo moment)",
+    "targetSec": 600,
+    "script": "<p>&quot;Live screens show drift in the aggregate - one count tells you a number, two counts tell you a direction. The verdicts, like whether the buddy system helped, wait for the look-back.&quot;</p><p class=\"stage-direction\">Then the handoff, as the bulbs snap on:</p><p>&quot;Let me turn one on.&quot;</p><p class=\"stage-direction\">Switch to the wireframe.</p>",
+    "targetLabel": "10:00"
+  },
+  {
+    "n": 10,
+    "slide": 8,
+    "beat": 0,
+    "title": "The light bill",
+    "targetSec": 690,
+    "script": "<p>&quot;The light bill is fifteen dollars and fifteen cents a month. All-in with app hosting, roughly three hundred twenty to three thirty a year - comfortably under the five hundred ceiling. And it is the opposite of surveillance: off Google, fewer hands than today, every look logged, no AI in the product.&quot;</p>",
+    "targetLabel": "11:30"
+  },
+  {
+    "n": 11,
+    "slide": 9,
+    "beat": 0,
+    "title": "Three things",
+    "targetSec": 780,
+    "script": "<p>&quot;Three things. Restart the IT Sub-Committee - I will stand for co-chair; no hall should have one electrician. Bless the data tier. And tell me what you would want to see.&quot;</p>",
+    "targetLabel": "13:00"
+  },
+  {
+    "n": 12,
+    "slide": 10,
+    "beat": 0,
+    "title": "Close",
+    "targetSec": 840,
+    "script": "<p class=\"stage-direction\">Let the full string sit for a beat, then:</p><p>&quot;If you could see anything about our membership, what would move a decision?&quot;</p>",
+    "targetLabel": "14:00"
+  }
+];
+
+  var current = 0; // index into STOPS
+  var linked = false;
+  var lastStateTs = 0;
+  var startedAt = null;
+  var timerInterval = null;
+
+  var bc = null;
+  try { bc = new BroadcastChannel(CHANNEL_NAME); } catch (e) { bc = null; }
+
+  var els = {
+    timer: document.getElementById('timer'),
+    stopNum: document.getElementById('stopNum'),
+    stopTitleInline: document.getElementById('stopTitleInline'),
+    targetLabel: document.getElementById('targetLabel'),
+    connDot: document.getElementById('connDot'),
+    connLabel: document.getElementById('connLabel'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    openDeckBtn: document.getElementById('openDeckBtn'),
+    stopList: document.getElementById('stopList'),
+    stopTitle: document.getElementById('stopTitle'),
+    script: document.getElementById('script'),
+    nextPreview: document.getElementById('nextPreview')
+  };
+
+  function mmss(totalSec){
+    var m = Math.floor(totalSec/60), s = totalSec%60;
+    return m + ':' + (s<10?'0':'') + s;
+  }
+
+  function buildStopList(){
+    els.stopList.innerHTML = '';
+    STOPS.forEach(function(stop, i){
+      var li = document.createElement('li');
+      li.dataset.index = i;
+      li.innerHTML = '<span class="stopTime">' + stop.targetLabel + '</span>' +
+        '<span class="stopNum">' + stop.n + '.</span>' + stop.title;
+      li.addEventListener('click', function(){ gotoStop(i, true); });
+      els.stopList.appendChild(li);
+    });
+  }
+
+  function render(){
+    var stop = STOPS[current];
+    els.stopNum.textContent = stop.n;
+    els.stopTitleInline.textContent = stop.title;
+    els.targetLabel.textContent = stop.targetLabel;
+    els.stopTitle.textContent = stop.title;
+    els.script.innerHTML = stop.script;
+    var nxt = STOPS[current+1];
+    els.nextPreview.innerHTML = nxt ? ('Next: <strong>' + nxt.title + '</strong>') : 'Last stop.';
+    Array.prototype.forEach.call(els.stopList.children, function(li, i){
+      li.classList.toggle('current', i === current);
+    });
+    var cur = els.stopList.children[current];
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+  }
+
+  function setLinked(isLinked){
+    linked = isLinked;
+    els.connDot.className = isLinked ? 'linked' : 'unlinked';
+    els.connLabel.textContent = isLinked ? 'deck linked' : 'deck not found - use Open deck';
+  }
+
+  function stopIndexFromSlideBeat(slide, beat){
+    for (var i=0;i<STOPS.length;i++){
+      if (STOPS[i].slide === slide && STOPS[i].beat === beat) return i;
+    }
+    return null;
+  }
+
+  function adoptDeckState(msg){
+    var idx = stopIndexFromSlideBeat(msg.slide, msg.beat);
+    if (idx === null) return;
+    current = idx;
+    render();
+    ensureTimerStarted();
+  }
+
+  function handleMessage(msg){
+    if (!msg || !msg.type) return;
+    if (msg.ts && msg.ts <= lastStateTs && msg.type === 'state') return;
+    if (msg.type === 'state') {
+      lastStateTs = msg.ts || Date.now();
+      setLinked(true);
+      adoptDeckState(msg);
+    }
+  }
+
+  if (bc) {
+    bc.onmessage = function(ev){ handleMessage(ev.data); };
+  }
+  window.addEventListener('storage', function(ev){
+    if (ev.key !== CHANNEL_NAME || !ev.newValue) return;
+    try { handleMessage(JSON.parse(ev.newValue)); } catch (e) {}
+  });
+
+  function send(msg){
+    msg.ts = Date.now();
+    if (bc) { try { bc.postMessage(msg); } catch (e) {} }
+    try { localStorage.setItem(CHANNEL_NAME, JSON.stringify(msg)); } catch (e) {}
+  }
+
+  function sayHello(){ send({ type: 'hello' }); }
+
+  // If we haven't heard from a deck in a while, mark unlinked (standalone mode).
+  setInterval(function(){
+    if (Date.now() - lastStateTs > 7000) { setLinked(false); }
+  }, 2000);
+  setInterval(sayHello, 5000);
+  sayHello();
+
+  function gotoStop(idx, sendCmd){
+    current = Math.max(0, Math.min(STOPS.length-1, idx));
+    render();
+    ensureTimerStarted();
+    if (sendCmd) {
+      var stop = STOPS[current];
+      send({ type: 'cmd', cmd: 'goto', slide: stop.slide, beat: stop.beat });
+    }
+  }
+
+  function next(){
+    if (linked) {
+      send({ type: 'cmd', cmd: 'next' });
+      // Optimistically advance locally too; deck state message will correct us if wrong.
+      if (current < STOPS.length-1) { current++; render(); }
+    } else {
+      gotoStop(current+1, false);
+    }
+    ensureTimerStarted();
+  }
+  function prev(){
+    if (linked) {
+      send({ type: 'cmd', cmd: 'prev' });
+      if (current > 0) { current--; render(); }
+    } else {
+      gotoStop(current-1, false);
+    }
+  }
+
+  els.nextBtn.addEventListener('click', next);
+  els.prevBtn.addEventListener('click', prev);
+  els.openDeckBtn.addEventListener('click', function(){ window.open(DECK_URL, '_blank'); });
+
+  window.addEventListener('keydown', function(e){
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
+  });
+
+  function ensureTimerStarted(){
+    if (startedAt !== null) return;
+    startedAt = Date.now();
+    timerInterval = setInterval(updateTimer, 250);
+    updateTimer();
+  }
+  function updateTimer(){
+    var elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    els.timer.textContent = mmss(elapsed);
+    els.timer.classList.remove('amber', 'rose');
+    if (elapsed >= 900) { els.timer.classList.add('rose'); }
+    else if (elapsed >= 720) { els.timer.classList.add('amber'); }
+  }
+
+  buildStopList();
+  render();
+})();
+</script>
+</body>
+</html>

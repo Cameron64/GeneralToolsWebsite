@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Turn the lights on - Austin DSA</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='72' font-size='72' text-anchor='middle'%3E%F0%9F%92%A1%3C/text%3E%3C/svg%3E">
+<style>*{box-sizing:border-box} body{margin:0}</style>
+</head>
+<body>
+<!-- DECK SOURCE START -->
+<title>Turn the lights on - Austin DSA</title>
+<style>
+  :root{
+    --night:#10141c; --night-2:#151b26; --night-3:#1a2130;
+    --paper:#f3efe6; --dusk:#a9b2c0; --faint:#8b95a6;
+    --amber:#ffb84d; --halo:#f7d489;
+    --rose:#ec1f27; --rose-deep:#c4151c;
+    --line:rgba(243,239,230,.16);
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family: var(--sans);
+    color: var(--paper);
+    background: linear-gradient(180deg, var(--night) 0%, var(--night-2) 58%, var(--night-3) 100%);
+    overflow:hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #lamps{ position:fixed; inset:0; width:100%; height:100%; z-index:0; display:block; }
+
+  #deck{ position:fixed; inset:0; z-index:1; }
+
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    padding: 7vh 8vw 12vh;
+    opacity:0; transform: translateY(10px);
+    transition: opacity .55s ease, transform .55s ease;
+    pointer-events:none;
+  }
+  .slide.active{ opacity:1; transform:none; pointer-events:auto; }
+
+  .eyebrow{
+    font-size: clamp(.7rem,1.5vw,.82rem);
+    letter-spacing: .2em; text-transform: uppercase; font-weight:600;
+    color: var(--dusk);
+    margin: 0 0 1.4rem;
+    display:inline-flex; align-items:center; gap:.7rem;
+  }
+  .eyebrow::before{ content:""; width:26px; height:2px; background: var(--rose); display:inline-block; }
+
+  h1, h2{
+    font-family: var(--serif);
+    font-weight:700; color: var(--paper);
+    line-height: 1.04; letter-spacing:-0.01em;
+    text-wrap: balance;
+    margin:0;
+    text-shadow: 0 2px 14px rgba(0,0,0,.45);
+  }
+  h1{ font-size: clamp(2.3rem, 6.6vw, 4.6rem); max-width: 16ch; }
+  h2{ font-size: clamp(1.9rem, 5.4vw, 3.7rem); max-width: 18ch; }
+
+  .support{
+    font-size: clamp(1.02rem, 2.3vw, 1.38rem);
+    line-height: 1.5; color: var(--dusk);
+    max-width: 30ch; margin: 1.5rem 0 0;
+  }
+  .support.wide{ max-width: 40ch; }
+
+  .stat{ margin-top: 1.6rem; }
+  .stat .num{
+    font-family: var(--serif); font-weight:700;
+    font-size: clamp(3.2rem, 12vw, 7.2rem); line-height: .9;
+    font-variant-numeric: tabular-nums; letter-spacing:-0.02em;
+  }
+  .stat .lab{
+    font-size: clamp(.72rem,1.6vw,.9rem); letter-spacing:.16em;
+    text-transform:uppercase; color: var(--dusk); margin-top:.7rem;
+  }
+  .num.paper{ color: var(--paper); }
+  .num.amber{ color: var(--amber); }
+  .num.loss{ color: var(--dusk); opacity:.85; }
+
+  /* title slide */
+  .lede-sub{
+    font-family: var(--sans); font-size: clamp(1.05rem,2.5vw,1.5rem);
+    line-height:1.45; color: var(--dusk); max-width: 34ch;
+    margin: 1.8rem auto 0;
+  }
+  .kicker{
+    font-size: clamp(.72rem,1.6vw,.88rem); letter-spacing:.22em; text-transform:uppercase;
+    color: var(--dusk); margin-bottom:2.2rem; font-weight:600;
+  }
+
+  .slide.figslide{ padding-bottom: 14vh; }
+  .cap{
+    font-size: clamp(.8rem,1.7vw,.98rem); color: var(--dusk);
+    margin-top:1.1rem; max-width:54ch;
+  }
+
+  /* slide 5: two beats (copy -> wiring diagram), cross-faded in one grid cell */
+  .beats{ display:grid; width:100%; }
+  .beats > .beat{ grid-area:1 / 1; }
+  .beat{
+    opacity:0; visibility:hidden;
+    transition: opacity .5s ease;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%;
+  }
+  .beat.active{ opacity:1; visibility:visible; }
+
+  /* data diagram (the same idea, as wiring) */
+  .erd{ width:100%; max-width:920px; margin:.4rem auto 0; overflow-x:auto; }
+  .erd svg{ width:100%; height:auto; display:block; }
+  .erd-cap{
+    font-size: clamp(.8rem,1.7vw,.98rem); color: var(--dusk);
+    margin:.85rem auto 0; max-width:58ch;
+  }
+  @media (max-width:720px){
+    .erd svg{ width:640px; max-width:none; }   /* keep labels legible; pan horizontally */
+  }
+
+  /* asks */
+  .asks{ list-style:none; margin: 1.8rem 0 0; padding:0; max-width: 40ch; text-align:left; }
+  .asks li{
+    display:flex; gap:.95rem; align-items:flex-start;
+    padding: .85rem 0; border-top:1px solid var(--line);
+    font-size: clamp(1rem,2.2vw,1.28rem); line-height:1.4; color: var(--paper);
+  }
+  .asks li:last-child{ border-bottom:1px solid var(--line); }
+  .asks .n{
+    flex:0 0 auto; width:1.9rem; height:1.9rem; border-radius:50%;
+    background: var(--rose-deep); color:#fff; font-family:var(--serif); font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:1rem;
+    margin-top:.05rem;
+  }
+  .asks.wideish{ max-width: 46ch; }
+  .asks.warm .n{ background: var(--amber); color:#10141c; }
+  .asks li strong{ color: var(--paper); }
+
+  /* demo moment */
+  .demo-line{
+    font-family: var(--serif); font-weight:700; color: var(--amber);
+    font-size: clamp(1.35rem, 3.4vw, 2.1rem); margin: 1.7rem 0 0;
+  }
+  .demo-line + .demo{ margin-top:.55rem; }
+
+  /* cost/safe two-up */
+  .twoup{ display:flex; gap: clamp(1.4rem, 5vw, 3.6rem); margin-top:1.8rem; flex-wrap:wrap; justify-content:center; }
+  .twoup .col{ max-width: 22ch; text-align:left; }
+  .twoup .h{ font-family:var(--serif); font-weight:700; font-size: clamp(1.17rem,2.4vw,1.4rem); margin:0 0 .5rem; }
+  .twoup .col.cost .h{ color: var(--amber); }
+  .twoup .col.safe .h{ color: var(--rose); }
+  .twoup p{ margin:0; font-size: clamp(.95rem,2vw,1.12rem); line-height:1.45; color: var(--dusk); }
+  .twoup .src{ margin-top:.6rem; font-size: clamp(.72rem,1.5vw,.84rem); color: var(--faint); }
+  .twoup .src a{ color: var(--amber); text-decoration: underline; text-underline-offset:2px; }
+
+  /* demo pointer */
+  .demo{
+    margin-top: 1.5rem; font-size: clamp(.86rem,1.8vw,1.02rem);
+    color: var(--dusk);
+  }
+  .demo .url{ display:inline-block; margin-top:.35rem; font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: clamp(.74rem,1.6vw,.9rem); color: var(--amber);
+    background: rgba(16,20,28,.7); padding:.25rem .55rem; border-radius:6px; border:1px solid var(--line); }
+
+  .close-line{
+    font-family: var(--serif); font-weight:700; color: var(--rose);
+    font-size: clamp(1.8rem, 5.2vw, 3.4rem); line-height:1.08; margin: 1.1rem 0 0;
+    text-wrap:balance; max-width: 18ch; text-shadow: 0 2px 14px rgba(0,0,0,.45);
+  }
+  .close-q{ margin-top: 2.1rem; font-size: clamp(.95rem,2vw,1.15rem); color: var(--dusk); max-width:34ch; font-style:italic; }
+
+  /* chrome */
+  #progwrap{ position:fixed; top:0; left:0; right:0; height:3px; background: rgba(243,239,230,.12); z-index:3; }
+  #prog{ height:100%; width:10%; background: var(--rose); transition: width .5s ease; }
+  #counter{
+    position:fixed; bottom:1.1rem; right:1.4rem; z-index:3;
+    font-size:.8rem; letter-spacing:.14em; color: var(--dusk);
+    font-variant-numeric: tabular-nums; font-weight:600;
+  }
+  #brand{
+    position:fixed; bottom:1.05rem; left:1.4rem; z-index:3;
+    font-size:.72rem; letter-spacing:.2em; text-transform:uppercase; color: var(--faint); font-weight:600;
+  }
+  #hint{
+    position:fixed; bottom:1.1rem; left:50%; transform:translateX(-50%); z-index:3;
+    font-size:.78rem; letter-spacing:.12em; color: var(--dusk); opacity:0;
+    transition:opacity .5s; pointer-events:none;
+  }
+  body.hint-on #hint{ opacity:.85; animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.4} 50%{opacity:.9} }
+
+  @media (max-width: 640px){
+    .slide{ padding: 6vh 7vw 12vh; }
+    .twoup{ flex-direction:column; align-items:center; }
+    .twoup .col{ text-align:center; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .slide{ transition:none; }
+    body.hint-on #hint{ animation:none; }
+  }
+
+  /* print -> clean PDF (light inversion) */
+  @media print{
+    :root{
+      --night:#ffffff; --night-2:#ffffff; --night-3:#ffffff;
+      --paper:#14191c; --dusk:#46555b; --faint:#7c8c91;
+      --amber:#8a5300; --halo:#8a5300;
+      --line:#c9c2b4;
+    }
+    html,body{ height:auto; overflow:visible; background:#fff; }
+    #lamps,#progwrap,#counter,#hint,#brand{ display:none !important; }
+    #deck{ position:static; }
+    .slide{
+      position:relative; opacity:1 !important; transform:none !important;
+      page-break-after: always; height:auto; min-height:96vh; padding: 8vh 8vw 8vh;
+      border-bottom: none;
+      background:#fff;
+    }
+    .beats{ display:block !important; }
+    .beat{ opacity:1 !important; visibility:visible !important; margin-bottom:4vh; }
+    .erd svg{ width:100% !important; }
+    h1,h2,.support,.close-line{ text-shadow:none; }
+    .asks .n{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .asks.warm .n{ color:#fff; }
+    .demo .url{ background:#f6f3ec; }
+  }
+</style>
+
+<canvas id="lamps"></canvas>
+
+<div id="progwrap"><div id="prog"></div></div>
+<div id="counter">01 / 11</div>
+<div id="brand">Austin DSA</div>
+<div id="hint">tap or press &rarr; to begin</div>
+
+<main id="deck">
+
+  <!-- 1. TITLE -->
+  <section class="slide active" data-lit="0.06" data-glow="0.50">
+    <div class="kicker">Austin DSA &middot; Leadership Committee</div>
+    <h1>The hall is full. The lights are off.</h1>
+    <p class="lede-sub">We are good at bringing people in. We cannot see who drifts away, or when. Here is the plan to turn the lights on.</p>
+  </section>
+
+  <!-- 2. THE SURGE -->
+  <section class="slide" data-lit="0.12" data-glow="0.55">
+    <div class="eyebrow">The front door works</div>
+    <h2>Every raid, every election, people find our door.</h2>
+    <p class="support">Crises and campaigns keep bringing people in. The chapter has never been better at the front door.</p>
+    <div class="stat"><div class="num paper">~1,500</div><div class="lab">members in good standing - the hall is full</div></div>
+  </section>
+
+  <!-- 3. ONE BLUNT NUMBER -->
+  <section class="slide" data-lit="0.06" data-glow="0.40">
+    <div class="eyebrow">The only light we have</div>
+    <h2>Inside, we can see exactly one number.</h2>
+    <p class="support">A hand-kept headcount - nothing underneath it. Of those who joined 90 days ago, how many are still active? Nobody can answer.</p>
+    <div class="stat"><div class="num amber">1</div><div class="lab">hand-kept number - the whole view</div></div>
+  </section>
+
+  <!-- 4. THE DARK -->
+  <section class="slide" data-lit="0.03" data-glow="0.30">
+    <div class="eyebrow">What the dark costs</div>
+    <h2>Nobody notices an empty chair in a dark room.</h2>
+    <p class="support wide">Found once, by hand - one volunteer's count for a 2024 report, never repeated. We lose people twice - once when they drift, and once when we forget they were ever here.</p>
+    <div class="stat"><div class="num loss">~1,800</div><div class="lab">have lapsed - found once, by hand</div></div>
+  </section>
+
+  <!-- 5. THE FIX (two beats: copy, then the wiring diagram) -->
+  <section class="slide figslide" data-lit="0.28" data-glow="0.68">
+    <div class="eyebrow">The fix</div>
+    <h2>Light our own hall.</h2>
+    <div class="beats">
+        <div class="beat beat-copy active" data-lit="0.28" data-glow="0.68">
+          <p class="support wide">A small store the chapter owns - managed, encrypted, backed up daily, every read logged. The monthly Action Network export that gets hand-copied into Drive spreadsheets today just changes where it lands. Action Network stays the system of record - read-only.</p>
+          <p class="cap">It is the sign-in book every hall already keeps - except this one also writes down who opened it.</p>
+        </div>
+        <div class="beat beat-diagram" data-lit="0.32" data-glow="0.68">
+          <div class="erd">
+            <svg viewBox="0 0 1080 330" role="img" aria-label="A wiring diagram in the deck's colors: Action Network, a read-only source on the left, sends a monthly emailed CSV export carrying the member join key, which loads into a database cylinder in the center that is our own member store - managed, encrypted, and logging every read - which on the right gives us sight into retention and drift.">
+              <rect x="0" y="0" width="1080" height="330" rx="12" fill="#1a2130"/>
+              <defs>
+                <linearGradient id="dbBody" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#ffb84d"/><stop offset="1" stop-color="#8a5a1f"/>
+                </linearGradient>
+                <linearGradient id="dbTop" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#ffe3b4"/><stop offset="1" stop-color="#f0a83c"/>
+                </linearGradient>
+                <filter id="dgShadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.35"/>
+                </filter>
+              </defs>
+
+              <g stroke="#8a93a5" stroke-width="2.2" stroke-linecap="round" opacity="0.4">
+                <line x1="322" y1="96" x2="316" y2="116"/><line x1="346" y1="90" x2="340" y2="110"/>
+                <line x1="370" y1="98" x2="364" y2="118"/><line x1="394" y1="92" x2="388" y2="112"/>
+              </g>
+
+              <rect x="36" y="100" width="200" height="112" rx="14" fill="#1a2130" stroke="#8a93a5" stroke-width="1.8" stroke-dasharray="6 5"/>
+              <g fill="#39465c"><circle cx="72" cy="124" r="9"/><circle cx="86" cy="126" r="7"/><circle cx="79" cy="130" r="10"/></g>
+              <text x="56" y="160" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-weight="700" fill="#f3efe6">Action Network</text>
+              <text x="56" y="182" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12.5" fill="#a9b2c0">national system of record</text>
+              <g><rect x="56" y="190" width="76" height="18" rx="9" fill="#f4dcdc" stroke="#c4151c" stroke-width="1"/><text x="94" y="203" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#c4151c" text-anchor="middle">read-only</text></g>
+
+              <path d="M240,156 H288" stroke="#8a93a5" stroke-width="2" fill="none"/>
+              <path d="M288,156 L279,151 L279,161 Z" fill="#8a93a5"/>
+
+              <rect x="296" y="112" width="176" height="88" rx="12" fill="#1a2130" stroke="#8a93a5" stroke-width="1.6" stroke-dasharray="5 4"/>
+              <text x="384" y="144" font-family="Georgia, 'Times New Roman', serif" font-size="13.5" font-weight="700" fill="#f3efe6" text-anchor="middle">National CSV export</text>
+              <text x="384" y="164" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#a9b2c0" text-anchor="middle">emailed monthly</text>
+              <text x="384" y="180" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#a9b2c0" text-anchor="middle">carries the join key</text>
+
+              <path d="M472,152 H528" stroke="#8a93a5" stroke-width="2" fill="none"/>
+              <path d="M528,152 L519,147 L519,157 Z" fill="#8a93a5"/>
+              <g><rect x="480" y="132" width="58" height="18" rx="9" fill="#242c3d"/><text x="509" y="145" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" fill="#a9b2c0" text-anchor="middle">loaded</text></g>
+
+              <path d="M540,92 V248 A80,22 0 0 0 700,248 V92" fill="url(#dbBody)" stroke="#f3efe6" stroke-width="2" filter="url(#dgShadow)"/>
+              <g fill="none" stroke="#f7d489" stroke-width="1.4" opacity="0.55">
+                <path d="M540,150 A80,22 0 0 0 700,150"/><path d="M540,200 A80,22 0 0 0 700,200"/>
+              </g>
+              <ellipse cx="620" cy="92" rx="80" ry="22" fill="url(#dbTop)" stroke="#f3efe6" stroke-width="2"/>
+              <ellipse cx="620" cy="92" rx="80" ry="22" fill="none" stroke="#f7d489" stroke-width="1" opacity="0.6"/>
+              <g>
+                <path d="M613,168 v-5 a7,7 0 0 1 14,0 v5" fill="none" stroke="#f3efe6" stroke-width="2.6"/>
+                <rect x="609" y="168" width="22" height="17" rx="3" fill="#f3efe6" stroke="#10141c" stroke-width="1.6"/>
+                <path d="M613,168 v-5 a7,7 0 0 1 14,0 v5" fill="none" stroke="#10141c" stroke-width="1.4"/>
+                <circle cx="620" cy="176" r="2.2" fill="#10141c"/>
+              </g>
+              <text x="620" y="290" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="700" fill="#f3efe6" text-anchor="middle">Our member store</text>
+              <text x="620" y="312" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#a9b2c0" text-anchor="middle">managed &middot; encrypted &middot; access-logged</text>
+
+              <path d="M700,150 H858" stroke="#8a93a5" stroke-width="2" fill="none"/>
+              <path d="M858,150 L849,145 L849,155 Z" fill="#8a93a5"/>
+              <g>
+                <rect x="720" y="120" width="142" height="20" rx="10" fill="#242c3d"/>
+                <g transform="translate(738,130)"><rect x="-4" y="-2" width="8" height="7" rx="1.2" fill="#a9b2c0"/><path d="M-2.5,-2 v-2 a2.5,2.5 0 0 1 5,0 v2" fill="none" stroke="#a9b2c0" stroke-width="1.3"/></g>
+                <text x="796" y="134" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#a9b2c0" text-anchor="middle">every read logged</text>
+              </g>
+
+              <rect x="864" y="96" width="180" height="150" rx="16" fill="#1a2130" stroke="#8a93a5" stroke-width="1.8" filter="url(#dgShadow)"/>
+              <text x="884" y="128" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-weight="700" fill="#f3efe6">Sight</text>
+              <g stroke="rgba(243,239,230,.16)" stroke-width="1"><line x1="884" y1="170" x2="1024" y2="170"/><line x1="884" y1="200" x2="1024" y2="200"/></g>
+              <polyline points="884,205 904,196 924,200 944,184 964,188 984,172 1004,176 1022,158" fill="none" stroke="#ec1f27" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="1022" cy="158" r="4" fill="#ec1f27"/>
+              <text x="884" y="230" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" fill="#a9b2c0">retention &middot; drift &middot; neighborhoods</text>
+            </svg>
+          </div>
+          <p class="erd-cap">The same idea, as wiring. Action Network stays the system of record; the monthly export it already sends lands in a store we own - managed, encrypted, logging every read - instead of being hand-copied into spreadsheets on Google Drive.</p>
+        </div>
+      </div>
+  </section>
+
+  <!-- 6. THE MIRROR -->
+  <section class="slide" data-lit="0.45" data-glow="0.75">
+    <div class="eyebrow">Not new scope</div>
+    <h2>You already asked for the lights.</h2>
+    <ol class="asks warm wideish">
+      <li><span class="n">&#10003;</span><span><strong>Member rolls, event logs, access that rotates</strong> - the Neighborhood Groups resolution asks for them in those words. You drew the four neighborhoods in May.</span></li>
+      <li><span class="n">&#10003;</span><span><strong>A secure, maintainable home for member data</strong> - a goal already written into our own tech plans.</span></li>
+      <li><span class="n">&#10003;</span><span><strong>&ldquo;Are we keeping the members we win?&rdquo;</strong> - the question MEC already chases by hand, spreadsheet by spreadsheet.</span></li>
+    </ol>
+    <p class="cap">The resolution passed. The goal is written. The question is already worked by hand. All that is missing is the light - and a named owner.</p>
+  </section>
+
+  <!-- 7. THE PLAN -->
+  <section class="slide" data-lit="0.55" data-glow="0.78">
+    <div class="eyebrow">What I want to do</div>
+    <h2>Three switches, flipped one at a time.</h2>
+    <ol class="asks warm wideish">
+      <li><span class="n">1</span><span><strong>Run the wiring</strong> - a managed, encrypted, access-logged database the chapter owns.</span></li>
+      <li><span class="n">2</span><span><strong>Plug in what already arrives</strong> - load the monthly Action Network export instead of hand-copying it, sorted into the four neighborhoods. No new data collected.</span></li>
+      <li><span class="n">3</span><span><strong>Hang the lamps together</strong> - the screens come last, shaped by what this room needs to see.</span></li>
+    </ol>
+    <p class="cap">Each step is small on its own, and each is reversible.</p>
+  </section>
+
+  <!-- 8. THE DEMO MOMENT -->
+  <section class="slide" data-lit="0.80" data-glow="0.90">
+    <div class="eyebrow">The light</div>
+    <h2>A lit room shows the drift - not verdicts.</h2>
+    <p class="support wide">By neighborhood, where people live. By cohort, over time. One count tells you a number - two counts tell you a direction. And a lamp keeps nobody in the room - it shows organizers the chair while there is still time to knock on a door.</p>
+    <p class="demo-line">Let me turn one on.</p>
+    <div class="demo">A working wireframe to react to - not a finished product:
+      <span class="url">/static/warm-welcome-neighborhoods/index.html</span>
+    </div>
+  </section>
+
+  <!-- 9. COST -->
+  <section class="slide" data-lit="0.82" data-glow="0.85">
+    <div class="eyebrow">Cost and risk</div>
+    <h2>The light bill: about $15 a month.</h2>
+    <div class="twoup">
+      <div class="col cost">
+        <p class="h">$15.15 / month</p>
+        <p>The database - daily backups, point-in-time recovery, encryption included. All-in with app hosting: roughly $320 to $330 a year. Comfortably under $500.</p>
+        <p class="src"><a href="https://www.digitalocean.com/pricing/managed-databases" target="_blank" rel="noopener">Source: DigitalOcean Managed Databases, entry PostgreSQL plan</a></p>
+      </div>
+      <div class="col safe">
+        <p class="h">The opposite of surveillance</p>
+        <p>Surveillance watches from the dark. This lights a room we are all standing in. Off Google. Fewer hands than today. Every look logged. No AI in the product - nothing predicts, nothing profiles, nothing watches.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. THE ASKS -->
+  <section class="slide" data-lit="0.90" data-glow="0.90">
+    <div class="eyebrow">What I am asking for</div>
+    <h2>Three things.</h2>
+    <ol class="asks">
+      <li><span class="n">1</span><span>Restart the IT Sub-Committee - I will stand for co-chair and recruit computing members. No hall should have one electrician.</span></li>
+      <li><span class="n">2</span><span>Bless the first step: the data tier. Roughly $320 to $330 a year all-in, with headroom up to $500. Wiring, not a finished app.</span></li>
+      <li><span class="n">3</span><span>Tell me what you would want to see. The lamps get built to your questions, not mine.</span></li>
+    </ol>
+  </section>
+
+  <!-- 11. CLOSE -->
+  <section class="slide" data-lit="1.00" data-glow="1.00">
+    <h2>The people already came. The hall is already full.</h2>
+    <p class="close-line">Let's stop losing them in the dark.</p>
+    <p class="close-q">If you could see anything about our membership, what would move a decision?</p>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var canvas = document.getElementById('lamps');
+  var ctx = canvas.getContext('2d');
+  var W=0, H=0, DPR=1;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W*DPR; canvas.height = H*DPR;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // ---- the bulb string ----
+  var BULBS = 26;
+  var lit = 0.06, targetLit = 0.06;
+  var glow = 0.50, targetGlow = 0.50;
+  var t = 0;
+  var intensities = [];
+  for(var bi=0; bi<BULBS; bi++) intensities.push(0);
+
+  function snapIntensities(){
+    for(var i=0;i<BULBS;i++){
+      intensities[i] = Math.max(0, Math.min(1, targetLit*BULBS - i));
+    }
+  }
+
+  // quadratic sag: ~8vh at the edges, ~14vh at mid-span
+  function wirePoint(u, sway){
+    var x0 = -10 + sway, x1 = W/2 + sway, x2 = W + 10 + sway;
+    var y0 = H*0.08, y1 = H*0.20, y2 = H*0.08;  // curve midpoint lands at 0.14*H
+    var a = 1 - u;
+    return {
+      x: a*a*x0 + 2*a*u*x1 + u*u*x2,
+      y: a*a*y0 + 2*a*u*y1 + u*u*y2
+    };
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var sway = reduce ? 0 : Math.sin(t*Math.PI*2/20)*4;  // whole string, +/-4px, ~20s period
+
+    // faint amber wash at the top, scaled by average intensity and glow
+    var avg = 0;
+    for(var i=0;i<BULBS;i++){ avg += intensities[i]; }
+    avg /= BULBS;
+    var washA = 0.06 * avg * glow;
+    if(washA > 0.002){
+      var wash = ctx.createLinearGradient(0, 0, 0, H*0.4);
+      wash.addColorStop(0, 'rgba(255,184,77,'+washA.toFixed(4)+')');
+      wash.addColorStop(1, 'rgba(255,184,77,0)');
+      ctx.fillStyle = wash;
+      ctx.fillRect(0, 0, W, H*0.4);
+    }
+
+    // the wire
+    ctx.beginPath();
+    var p0 = wirePoint(0, sway);
+    ctx.moveTo(p0.x, p0.y);
+    for(var u=0.04; u<=1.0001; u+=0.04){
+      var wp = wirePoint(u, sway);
+      ctx.lineTo(wp.x, wp.y);
+    }
+    ctx.strokeStyle = 'rgba(243,239,230,.12)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // the bulbs
+    for(var b=0; b<BULBS; b++){
+      var pt = wirePoint((b+0.5)/BULBS, sway);
+      var bx = pt.x, by = pt.y + 12;   // short stem
+      var inten = intensities[b];
+      if(!reduce && inten > 0.01){
+        inten *= (0.97 + 0.03*Math.sin(t*3 + b*7));  // low-amplitude breathing flicker
+      }
+      // stem
+      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(bx, by-5);
+      ctx.strokeStyle = 'rgba(243,239,230,.14)'; ctx.lineWidth = 1; ctx.stroke();
+      // faint glass outline (dusk), fading as the bulb lights
+      var outA = 0.22 * (1 - inten*0.8);
+      ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(169,178,192,'+outA.toFixed(4)+')'; ctx.lineWidth = 1.1; ctx.stroke();
+      // lit halo + amber core
+      if(inten > 0.01){
+        var rad = 18 + glow*42;
+        var haloA = 0.35 * inten * glow;
+        var halo = ctx.createRadialGradient(bx, by, 0, bx, by, rad);
+        halo.addColorStop(0, 'rgba(247,212,137,'+haloA.toFixed(4)+')');
+        halo.addColorStop(1, 'rgba(247,212,137,0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx, by, 4, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,184,77,'+(0.9*inten).toFixed(4)+')'; ctx.fill();
+      }
+    }
+  }
+
+  var last = (window.performance && performance.now) ? performance.now() : 0;
+  function frame(now){
+    var dt = Math.min((now-last)/1000, 0.05); last = now;
+    if(reduce){
+      lit = targetLit; glow = targetGlow;
+      snapIntensities();
+    } else {
+      t += dt;
+      lit  += (targetLit  - lit)  * Math.min(1, dt*1.6);
+      glow += (targetGlow - glow) * Math.min(1, dt*2.0);
+      for(var j=0; j<BULBS; j++){
+        var target = Math.max(0, Math.min(1, lit*BULBS - j));
+        intensities[j] += (target - intensities[j]) * Math.min(1, dt*3);  // bloom-on, ~1s
+      }
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- navigation (slides, each with optional beats) ----
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var beatsBySlide = slides.map(function(s){ return Array.prototype.slice.call(s.querySelectorAll('.beat')); });
+  var idx = 0, beat = 0;
+  var prog = document.getElementById('prog');
+  var counter = document.getElementById('counter');
+  function pad(n){ return (n<10?'0':'')+n; }
+  function maxBeat(i){ return Math.max(0, beatsBySlide[i].length - 1); }
+
+  function applyAmbience(){
+    var s = slides[idx];
+    var bs = beatsBySlide[idx];
+    var src = (bs.length && bs[beat]) ? bs[beat] : s;
+    var l = src.getAttribute('data-lit');  if(l===null) l = s.getAttribute('data-lit');
+    var g = src.getAttribute('data-glow'); if(g===null) g = s.getAttribute('data-glow');
+    targetLit  = parseFloat(l || '0');
+    targetGlow = parseFloat(g || '0.5');
+    if(reduce){ lit = targetLit; glow = targetGlow; snapIntensities(); }
+  }
+  function render(){
+    for(var k=0;k<slides.length;k++){ slides[k].classList.toggle('active', k===idx); }
+    var bs = beatsBySlide[idx];
+    for(var b=0;b<bs.length;b++){ bs[b].classList.toggle('active', b===beat); }
+    applyAmbience();
+    prog.style.width = ((idx+1)/slides.length*100) + '%';
+    counter.textContent = pad(idx+1) + ' / ' + pad(slides.length);
+    document.body.classList.toggle('hint-on', idx===0);
+  }
+  function show(i, b){
+    idx = Math.max(0, Math.min(slides.length-1, i));
+    var mb = maxBeat(idx);
+    beat = (b === 'last') ? mb : Math.max(0, Math.min(mb, b||0));
+    render();
+  }
+  function next(){
+    if(beat < maxBeat(idx)){ beat++; render(); }
+    else if(idx < slides.length-1){ show(idx+1, 0); }
+  }
+  function prev(){
+    if(beat > 0){ beat--; render(); }
+    else if(idx > 0){ show(idx-1, 'last'); }
+  }
+
+  window.addEventListener('keydown', function(e){
+    if(['ArrowRight','ArrowDown',' ','PageDown'].indexOf(e.key)>-1){ e.preventDefault(); next(); }
+    else if(['ArrowLeft','ArrowUp','PageUp'].indexOf(e.key)>-1){ e.preventDefault(); prev(); }
+    else if(e.key==='Home'){ e.preventDefault(); show(0, 0); }
+    else if(e.key==='End'){ e.preventDefault(); show(slides.length-1, 'last'); }
+    else if(e.key==='p' || e.key==='P'){ window.print(); }
+  });
+  document.getElementById('deck').addEventListener('click', function(e){
+    if(e.target.closest && e.target.closest('a')) return;
+    var x = e.clientX / window.innerWidth;
+    if(x < 0.28) prev(); else next();
+  });
+  var tx=0, ty=0;
+  window.addEventListener('touchstart', function(e){ tx=e.touches[0].clientX; ty=e.touches[0].clientY; }, {passive:true});
+  window.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - tx;
+    var dy = e.changedTouches[0].clientY - ty;
+    if(Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy)){ dx<0 ? next() : prev(); }
+  }, {passive:true});
+
+  show(0, 0);
+})();
+</script>
+<!-- DECK SOURCE END -->
+<script>
+(function(){
+  // Additive sync shim for the presenter view. Never touches the deck IIFE above;
+  // it only reads DOM state (.slide.active / .beat.active) and dispatches synthetic
+  // keydown events to drive navigation, exactly as the deck's own keydown handler expects.
+  var CHANNEL_NAME = 'lc-lights-sync';
+  var bc = null;
+  try { bc = new BroadcastChannel(CHANNEL_NAME); } catch (e) { bc = null; }
+
+  // 12-stop flattened order: [slideIdx (0-based), beatIdx (0-based)]
+  // Matches the plan's stop table; slide index 4 (slide 5) has two beats.
+  var STOPS = [
+    [0,0],[1,0],[2,0],[3,0],[4,0],[4,1],[5,0],[6,0],[7,0],[8,0],[9,0],[10,0]
+  ];
+
+  function getSlides(){ return Array.prototype.slice.call(document.querySelectorAll('.slide')); }
+  function currentState(){
+    var slides = getSlides();
+    var slideIdx = 0;
+    for (var i = 0; i < slides.length; i++) {
+      if (slides[i].classList.contains('active')) { slideIdx = i; break; }
+    }
+    var beats = Array.prototype.slice.call(slides[slideIdx].querySelectorAll('.beat'));
+    var beatIdx = 0;
+    for (var b = 0; b < beats.length; b++) {
+      if (beats[b].classList.contains('active')) { beatIdx = b; break; }
+    }
+    return { slide: slideIdx, beat: beatIdx };
+  }
+  function stopIndexOf(slideIdx, beatIdx){
+    for (var s = 0; s < STOPS.length; s++) {
+      if (STOPS[s][0] === slideIdx && STOPS[s][1] === beatIdx) return s;
+    }
+    return 0;
+  }
+  function dispatchKey(key){
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: key }));
+  }
+  function sendState(){
+    var st = currentState();
+    var msg = { type: 'state', slide: st.slide, beat: st.beat, ts: Date.now() };
+    if (bc) { try { bc.postMessage(msg); } catch (e) {} }
+    try { localStorage.setItem(CHANNEL_NAME, JSON.stringify(msg)); } catch (e) {}
+  }
+  function handleCmd(msg){
+    if (msg.cmd === 'next') { dispatchKey('ArrowRight'); return; }
+    if (msg.cmd === 'prev') { dispatchKey('ArrowLeft'); return; }
+    if (msg.cmd === 'goto') {
+      var target = stopIndexOf(msg.slide, msg.beat);
+      var cur = stopIndexOf(currentState().slide, currentState().beat);
+      var delta = target - cur;
+      var iterations = 0;
+      while (delta !== 0 && iterations < 24) {
+        dispatchKey(delta > 0 ? 'ArrowRight' : 'ArrowLeft');
+        delta += delta > 0 ? -1 : 1;
+        iterations++;
+      }
+      return;
+    }
+  }
+  function handleMessage(msg){
+    if (!msg || !msg.type) return;
+    if (msg.type === 'cmd') { handleCmd(msg); }
+    else if (msg.type === 'hello') { sendState(); }
+  }
+
+  if (bc) {
+    bc.onmessage = function(ev){ handleMessage(ev.data); };
+  }
+  window.addEventListener('storage', function(ev){
+    if (ev.key !== CHANNEL_NAME || !ev.newValue) return;
+    try { handleMessage(JSON.parse(ev.newValue)); } catch (e) {}
+  });
+
+  // Observe slide/beat class changes and broadcast state on every render.
+  var observer = new MutationObserver(function(){ sendState(); });
+  function observeAll(){
+    var targets = getSlides();
+    targets.forEach(function(s){
+      observer.observe(s, { attributes: true, attributeFilter: ['class'] });
+      Array.prototype.slice.call(s.querySelectorAll('.beat')).forEach(function(b){
+        observer.observe(b, { attributes: true, attributeFilter: ['class'] });
+      });
+    });
+  }
+  observeAll();
+
+  // 5s heartbeat, and announce presence on load.
+  setInterval(sendState, 5000);
+  sendState();
+})();
+</script>
+</body>
+</html>
