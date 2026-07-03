@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Austin DSA - Member-Data Custody Roadmap</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8C%B9</text></svg>">
+<style>*{box-sizing:border-box}html,body{margin:0}</style>
+</head>
+<body>
+<style>
+  :root {
+    --paper: #F1EAE0;
+    --paper-raised: #E8DFD1;
+    --ink: #221D18;
+    --ink-soft: #55493C;
+    --line: #C9BBA8;
+    --accent: #A32B3E;
+    --accent-ink: #FFFFFF;
+    --build: #2E4C6D;
+    --build-soft: #DCE4EA;
+    --gov: #4B6A4F;
+    --gov-soft: #DEE7DD;
+    --neutral-badge: #7A6B58;
+    --card-bg: #FBF7EF;
+    --shadow: rgba(34, 29, 24, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1C1815;
+      --paper-raised: #241F1A;
+      --ink: #ECE3D6;
+      --ink-soft: #C3B6A4;
+      --line: #4A3D30;
+      --accent: #E0616F;
+      --accent-ink: #1C1815;
+      --build: #7FA8CC;
+      --build-soft: #223142;
+      --gov: #8FBB94;
+      --gov-soft: #24322A;
+      --neutral-badge: #9C8C77;
+      --card-bg: #262019;
+      --shadow: rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1C1815;
+    --paper-raised: #241F1A;
+    --ink: #ECE3D6;
+    --ink-soft: #C3B6A4;
+    --line: #4A3D30;
+    --accent: #E0616F;
+    --accent-ink: #1C1815;
+    --build: #7FA8CC;
+    --build-soft: #223142;
+    --gov: #8FBB94;
+    --gov-soft: #24322A;
+    --neutral-badge: #9C8C77;
+    --card-bg: #262019;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+  :root[data-theme="light"] {
+    --paper: #F1EAE0;
+    --paper-raised: #E8DFD1;
+    --ink: #221D18;
+    --ink-soft: #55493C;
+    --line: #C9BBA8;
+    --accent: #A32B3E;
+    --accent-ink: #FFFFFF;
+    --build: #2E4C6D;
+    --build-soft: #DCE4EA;
+    --gov: #4B6A4F;
+    --gov-soft: #DEE7DD;
+    --neutral-badge: #7A6B58;
+    --card-bg: #FBF7EF;
+    --shadow: rgba(34, 29, 24, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  h1, h2, h3, h4 { text-wrap: balance; font-weight: 800; letter-spacing: -0.01em; }
+  .measure { max-width: 40rem; }
+
+  .wrap {
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 1.25rem 1.1rem 4rem;
+  }
+
+  /* ---------- Banner ---------- */
+  .banner {
+    background: linear-gradient(180deg, var(--paper-raised), var(--paper));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.4rem 1.4rem 1.5rem;
+    margin: 1rem 0 1.8rem;
+  }
+  .banner .eyebrow {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.5rem;
+  }
+  .banner h1 {
+    font-size: clamp(1.5rem, 4vw, 2.15rem);
+    margin: 0 0 0.7rem;
+  }
+  .banner p {
+    margin: 0.4rem 0;
+    font-size: 1.02rem;
+    max-width: 46rem;
+  }
+  .banner .now-line {
+    color: var(--ink);
+  }
+  .banner .ends-line {
+    color: var(--ink-soft);
+  }
+  .banner strong { color: var(--accent); font-weight: 800; }
+
+  /* ---------- Section heading ---------- */
+  .section-head {
+    margin: 2.6rem 0 0.9rem;
+  }
+  .section-head h2 {
+    font-size: 1.35rem;
+    margin: 0 0 0.35rem;
+  }
+  .section-head p {
+    margin: 0;
+    color: var(--ink-soft);
+    max-width: 40rem;
+    font-size: 0.96rem;
+  }
+
+  /* ---------- Legend ---------- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1rem;
+    padding: 0.9rem 1rem;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 0.88rem;
+  }
+  .legend .item { display: flex; align-items: center; gap: 0.45rem; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+  .badge-now { background: var(--accent); color: var(--accent-ink); }
+  .badge-next { background: var(--build); color: #fff; }
+  .badge-planned { background: transparent; color: var(--neutral-badge); border: 1.5px solid var(--neutral-badge); }
+  .badge-gated { background: transparent; color: var(--ink-soft); border: 1.5px dashed var(--line); }
+
+  /* ---------- Cost strip ---------- */
+  .cost-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 1rem;
+  }
+  .cost-cell {
+    flex: 1 1 12rem;
+    background: var(--card-bg);
+    padding: 0.9rem 1.1rem;
+  }
+  .cost-cell .label {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 0.25rem;
+  }
+  .cost-cell .num {
+    font-size: 1.3rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .cost-cell .num.accent { color: var(--accent); }
+  .cost-cell .sub { font-size: 0.82rem; color: var(--ink-soft); margin-top: 0.15rem; }
+
+  /* ---------- Architecture ---------- */
+  .arch-box {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 1.4rem;
+    align-items: center;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 640px) {
+    .arch-box { grid-template-columns: 1fr; }
+  }
+  .arch-box p { margin: 0; font-size: 0.95rem; }
+  .arch-svg-wrap { overflow-x: auto; }
+  .arch-svg-wrap svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+
+  /* ---------- Track rows ---------- */
+  .track {
+    margin-top: 1.6rem;
+  }
+  .track-label {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.7rem;
+  }
+  .track-dot {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 999px;
+    flex: none;
+  }
+  .track-dot.build { background: var(--build); }
+  .track-dot.gov { background: var(--gov); }
+  .track-label h3 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .track-label span.tag {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+
+  .card-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+    gap: 0.85rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--build);
+    border-radius: 10px;
+    padding: 1rem 1.05rem 1.1rem;
+    box-shadow: 0 1px 3px var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .card.gov-card { border-top-color: var(--gov); }
+  .card.pilot-card { border-top-color: var(--accent); }
+  .card.after-card { border-top-color: var(--accent); }
+
+  .card .num-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .card .num {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+  }
+  .card h4 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  .card .what, .card .why {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .card .why { color: var(--ink-soft); }
+  .card .label-inline {
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .card .flow {
+    margin-top: 0.15rem;
+    padding-top: 0.55rem;
+    border-top: 1px dashed var(--line);
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .card .flow b { color: var(--ink); font-weight: 700; }
+
+  /* Convergence divider */
+  .converge-wrap {
+    margin: 2rem 0 0.5rem;
+    overflow-x: auto;
+  }
+  .converge-wrap svg {
+    display: block;
+    width: 100%;
+    min-width: 260px;
+    height: auto;
+  }
+
+  /* Pilot / after section */
+  .pilot-section {
+    margin-top: 0.4rem;
+  }
+  .pilot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.9rem;
+  }
+  .pilot-card-wide {
+    grid-column: 1 / -1;
+  }
+
+  /* Decisions footer */
+  .next-box {
+    margin-top: 2.4rem;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+  }
+  .next-box h3 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+  .next-box ol {
+    margin: 0;
+    padding-left: 1.3rem;
+    font-size: 0.94rem;
+  }
+  .next-box li { margin-bottom: 0.45rem; }
+
+  footer.meta {
+    margin-top: 2.5rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+    padding-top: 0.9rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="banner">
+    <p class="eyebrow">Austin DSA · Member-data custody roadmap</p>
+    <h1>From a plan on paper to a chapter that owns its own member data.</h1>
+    <p class="now-line"><strong>Where we are:</strong> the build plan is written and stress-tested. Cam is the named data steward. One small unblock (a login key) and one short meeting - already on the calendar - stand between us and starting work.</p>
+    <p class="ends-line"><strong>Where this ends:</strong> a small, reversible pilot with about 25 to 50 people, a 90-day report back to the chapter's leaders, then scaling to all four neighborhood groups the chapter already voted to create.</p>
+  </div>
+
+  <div class="legend" aria-label="Status badge legend">
+    <div class="item"><span class="badge badge-now">Now</span> already happening or scheduled</div>
+    <div class="item"><span class="badge badge-next">Next</span> up right after the current step</div>
+    <div class="item"><span class="badge badge-planned">Planned</span> designed, not started</div>
+    <div class="item"><span class="badge badge-gated">Gated on…</span> waiting on a specific person or event</div>
+  </div>
+
+  <div class="section-head">
+    <h2>What this costs</h2>
+    <p>The chapter's leaders set an informal ceiling of about $500 a year. This plan comes in well under it.</p>
+  </div>
+  <div class="cost-strip">
+    <div class="cost-cell">
+      <p class="label">All-in, per month</p>
+      <p class="num accent">~$32</p>
+      <p class="sub">about $385 a year</p>
+    </div>
+    <div class="cost-cell">
+      <p class="label">Managed database</p>
+      <p class="num">$15.15/mo</p>
+      <p class="sub">holds the member records</p>
+    </div>
+    <div class="cost-cell">
+      <p class="label">Hosting for Echo</p>
+      <p class="num">~$11–12/mo</p>
+      <p class="sub">Echo currently runs on a volunteer's laptop</p>
+    </div>
+    <div class="cost-cell">
+      <p class="label">Chapter-owned backup</p>
+      <p class="num">+$5/mo</p>
+      <p class="sub">so no backup lives on one person's machine</p>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>The architecture, in one line</h2>
+    <p>How the pieces fit together, without the jargon.</p>
+  </div>
+  <div class="arch-box">
+    <p><strong>Echo</strong> (the chapter's own tool) gets a new <strong>member_data</strong> section, running on <strong>DigitalOcean</strong> with its own database. <strong>Action Network</strong>, the chapter's national database, stays the master copy - Echo only reads from it, through a locked one-way door. Every time someone looks at a member's details, that look gets written down, and viewing details requires a second login step. Backups are locked with a key only the steward holds, and stored off any one person's laptop.</p>
+    <div class="arch-svg-wrap">
+      <svg viewBox="0 0 340 190" role="img" aria-label="Diagram: Action Network connects one-way into a read-only proxy inside Echo's member_data app, which reads and writes to a database, and Echo writes nightly encrypted backups to chapter-owned storage.">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
+          </marker>
+        </defs>
+        <g fill="none" stroke="var(--ink-soft)" stroke-width="1.6" font-family="inherit">
+          <!-- AN box -->
+          <rect x="8" y="20" width="90" height="42" rx="8" fill="var(--gov-soft)" stroke="var(--gov)"/>
+          <text x="53" y="38" text-anchor="middle" fill="var(--ink)" font-size="11" font-weight="700" stroke="none">Action</text>
+          <text x="53" y="52" text-anchor="middle" fill="var(--ink)" font-size="11" font-weight="700" stroke="none">Network</text>
+
+          <!-- arrow AN -> proxy -->
+          <path d="M98,41 L146,41" stroke="var(--ink-soft)" marker-end="url(#arrow)" color="var(--ink-soft)"/>
+
+          <!-- Echo outer box -->
+          <rect x="150" y="8" width="182" height="120" rx="10" fill="none" stroke="var(--build)" stroke-dasharray="4 3"/>
+          <text x="241" y="24" text-anchor="middle" fill="var(--build)" font-size="10.5" font-weight="700" stroke="none">ECHO</text>
+
+          <!-- member_data box -->
+          <rect x="164" y="32" width="150" height="40" rx="7" fill="var(--build-soft)" stroke="var(--build)"/>
+          <text x="239" y="48" text-anchor="middle" fill="var(--ink)" font-size="10.5" font-weight="700" stroke="none">member_data</text>
+          <text x="239" y="61" text-anchor="middle" fill="var(--ink-soft)" font-size="9" stroke="none">read-only door to AN</text>
+
+          <!-- arrow member_data -> DB -->
+          <path d="M239,72 L239,90" stroke="var(--ink-soft)" marker-end="url(#arrow)" color="var(--ink-soft)"/>
+
+          <!-- DB cylinder -->
+          <ellipse cx="239" cy="98" rx="46" ry="9" fill="var(--card-bg)" stroke="var(--ink-soft)"/>
+          <rect x="193" y="98" width="92" height="20" fill="var(--card-bg)" stroke="none"/>
+          <line x1="193" y1="98" x2="193" y2="118" stroke="var(--ink-soft)"/>
+          <line x1="285" y1="98" x2="285" y2="118" stroke="var(--ink-soft)"/>
+          <ellipse cx="239" cy="118" rx="46" ry="9" fill="var(--card-bg)" stroke="var(--ink-soft)"/>
+          <text x="239" y="112" text-anchor="middle" fill="var(--ink)" font-size="10" font-weight="700" stroke="none">Database</text>
+
+          <!-- arrow Echo -> backup -->
+          <path d="M239,128 L239,150" stroke="var(--accent)" marker-end="url(#arrow)" color="var(--accent)"/>
+          <rect x="169" y="150" width="140" height="34" rx="7" fill="none" stroke="var(--accent)"/>
+          <text x="239" y="164" text-anchor="middle" fill="var(--accent)" font-size="10" font-weight="700" stroke="none">Encrypted nightly backup</text>
+          <text x="239" y="176" text-anchor="middle" fill="var(--ink-soft)" font-size="8.5" stroke="none">chapter-owned storage</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Two tracks, moving at the same time</h2>
+    <p>Building the tool and getting the chapter's blessing happen in parallel. Both have to finish before the pilot can start.</p>
+  </div>
+
+  <!-- BUILD TRACK -->
+  <div class="track">
+    <div class="track-label">
+      <span class="track-dot build" aria-hidden="true"></span>
+      <h3>Build track</h3>
+      <span class="tag">- the software, in five phases</span>
+    </div>
+    <div class="card-row">
+
+      <div class="card">
+        <div class="num-row"><span class="num">Phase 0</span><span class="badge badge-now">Now</span></div>
+        <h4>The spike</h4>
+        <p class="what"><span class="label-inline">What it does:</span> A short, free test. Cam runs code that already exists against Action Network to check three membership facts and try one tag update.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> It answers one question before any money is spent: can we trust Action Network's own membership status, or do we need the weekly file instead?</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> which data source Phase 2 is built on.</div>
+          <div><b>Gated on:</b> Cam getting access to the Action Network login key.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="num-row"><span class="num">Phase 1</span><span class="badge badge-next">Next</span></div>
+        <h4>Infrastructure</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Moves Echo, the chapter's tool, off a volunteer's personal laptop onto a real host (DigitalOcean), with its own managed database.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> Right now, if that laptop breaks or the volunteer leaves, the chapter's tool goes with it. This makes the tool the chapter's, not one person's.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> Phase 2 - there is nowhere to put the data until this database exists.</div>
+          <div><b>Gated on:</b> the Leadership Committee's yes and budget.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="num-row"><span class="num">Phase 2</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Data tier</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Builds the actual record-keeping: weekly snapshots of who is a member, a bridge from the old spreadsheet, and a live, read-only link to Action Network.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> This is what lets us see who joins, who stays, and who drifts - a history Action Network alone cannot show.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> Phase 3, which is built on top of this data.</div>
+          <div><b>Gated on:</b> Phase 1's database, plus the spike's answer on which data source to trust.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="num-row"><span class="num">Phase 3</span><span class="badge badge-planned">Planned</span></div>
+        <h4>The Echo app</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Adds the part people actually use: member records, roles, a simple ladder showing how engaged someone is, a log of who looked at what, and a required second login step for anyone viewing member details.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> This is where staff and volunteers see and use the data - safely, with every look recorded.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> Phase 4's controls, which operate on these records.</div>
+          <div><b>Gated on:</b> Phase 2's data tier.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="num-row"><span class="num">Phase 4</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Custody &amp; governance</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Adds the safety layer: nightly encrypted backups stored off any one laptop, rules for deleting old data, regular key rotation, and a written checklist showing the chapter follows national's data rules.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> This turns "we hold people's data" into "we are careful, accountable stewards of people's data."</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> the pilot - it cannot start without this in place.</div>
+          <div><b>Gated on:</b> Phases 2 and 3 existing to protect.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- GOVERNANCE TRACK -->
+  <div class="track">
+    <div class="track-label">
+      <span class="track-dot gov" aria-hidden="true"></span>
+      <h3>Governance track</h3>
+      <span class="tag">- the chapter's decisions, in two meetings</span>
+    </div>
+    <div class="card-row">
+
+      <div class="card gov-card">
+        <div class="num-row"><span class="num">Meeting 1</span><span class="badge badge-now">Now</span></div>
+        <h4>Leadership Committee meeting</h4>
+        <p class="what"><span class="label-inline">What it does:</span> A short meeting where the chapter's leaders hear the plan, see the real cost, and decide whether to fund it and name Cam the IT Coordinator - the chapter's named data steward.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> Nothing here can spend money or touch real member data without this yes.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> Phase 1's spending.</div>
+          <div><b>Gated on:</b> nothing - it's already scheduled for next week.</div>
+        </div>
+      </div>
+
+      <div class="card gov-card">
+        <div class="num-row"><span class="num">Meeting 2</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Adoption session</h4>
+        <p class="what"><span class="label-inline">What it does:</span> A follow-up meeting that works through nine short motions to formally adopt the chapter's written data-handling policy - who can see what, how long we keep it, what happens if something ever leaks.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> This is where the chapter agrees to the rules the tool will enforce - not just the budget, the actual rules.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> a pilot that runs under a chapter-approved policy, not just Cam's judgment.</div>
+          <div><b>Gated on:</b> Meeting 1 happening first.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CONVERGENCE VISUAL -->
+  <div class="converge-wrap" aria-hidden="true">
+    <svg viewBox="0 0 800 140" preserveAspectRatio="xMidYMid meet">
+      <g fill="none" stroke-width="3" stroke-linecap="round">
+        <path d="M10,35 C 300,35 420,70 470,70" stroke="var(--build)"/>
+        <path d="M10,105 C 300,105 420,70 470,70" stroke="var(--gov)"/>
+        <path d="M470,70 L 640,70" stroke="var(--accent)" stroke-width="4"/>
+        <circle cx="470" cy="70" r="7" fill="var(--accent)" stroke="none"/>
+        <circle cx="640" cy="70" r="6" fill="var(--accent)" stroke="none"/>
+      </g>
+      <g font-size="15" font-weight="700" font-family="inherit">
+        <text x="10" y="24" fill="var(--build)">Build track</text>
+        <text x="10" y="128" fill="var(--gov)">Governance track</text>
+        <text x="470" y="50" text-anchor="middle" fill="var(--accent)">Pilot</text>
+        <text x="700" y="66" fill="var(--ink-soft)" font-weight="400" font-size="13">continues below</text>
+      </g>
+    </svg>
+  </div>
+
+  <!-- PILOT + AFTER -->
+  <div class="pilot-section">
+    <div class="pilot-grid">
+
+      <div class="card pilot-card pilot-card-wide">
+        <div class="num-row"><span class="num">Convergence point</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Pilot: one cohort, one neighborhood</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Try the whole system on one small group - roughly 25 to 50 people, in one cohort (a group that joined around the same time) and one neighborhood group. MEC (the membership committee) and the Neighborhood Groups committee pick which.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> Real numbers and real hours worked, on a small, reversible slice - before this touches the whole chapter's data.</p>
+        <div class="flow">
+          <div><b>Unblocks:</b> everything that follows.</div>
+          <div><b>Gated on:</b> both tracks finishing - Phase 4 on the build side, the adoption session on the governance side.</div>
+        </div>
+      </div>
+
+      <div class="card after-card">
+        <div class="num-row"><span class="num">+90 days</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Day-90 readout</h4>
+        <p class="what"><span class="label-inline">What it does:</span> Ninety days into the pilot, Cam reports back to the Leadership Committee: how many hours it took, what the numbers showed, and whether it's worth scaling up.</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> This is the chapter's checkpoint to say yes, fix something, or stop - before more people's data is involved.</p>
+      </div>
+
+      <div class="card after-card">
+        <div class="num-row"><span class="num">Beyond</span><span class="badge badge-planned">Planned</span></div>
+        <h4>Scale &amp; build on top</h4>
+        <p class="what"><span class="label-inline">What it does:</span> If the pilot earns it: scale to all four neighborhood groups the chapter already voted to create, build the warm-welcome and Rose Buddy features on top of the data, and revisit adopting National's own tool if they ever offer one (around January).</p>
+        <p class="why"><span class="label-inline">Why it matters:</span> The pilot proves the foundation holds weight before we build the rest of the house on it.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="next-box">
+    <h3>What Cam does next</h3>
+    <ol>
+      <li>Get vault access to the Action Network login key - this is the only thing blocking Phase 0.</li>
+      <li>Show up to the Leadership Committee meeting next week with the plan, the wireframe, and the costs above.</li>
+      <li>Engage Alex M., the Vice Chair, directly about formalizing the IT Coordinator role - he's back and ready.</li>
+    </ol>
+  </div>
+
+  <footer class="meta">
+    Sources: the-problem.md, findings/state-of-play.md, implementation/plan-of-record.md, implementation/phase-0-spike.md through phase-4-custody-governance.md, findings/adoption-agenda.md. All figures current as of 2026-07-03; re-verify DigitalOcean pricing before the meeting.
+  </footer>
+
+</div>
+</body>
+</html>
