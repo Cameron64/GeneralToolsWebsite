@@ -393,8 +393,8 @@
   <section class="slide" data-lit="0.80" data-glow="0.90">
     <div class="eyebrow">The demo</div>
     <h2>The screens show drift - not verdicts.</h2>
-    <p class="support wide">By neighborhood, where people live. By cohort, over time. One count tells you a number - two counts tell you a direction. And the tool keeps nobody - organizing does that. It just shows who is drifting while there is still time to knock on a door.</p>
-    <p class="demo-line">Let me turn one on.</p>
+    <p class="support wide">By neighborhood, and by cohort over time - so you can see who is drifting while there is still time to knock on a door. The tool keeps nobody; organizing does that.</p>
+    <p class="demo-line">Let me turn the lights on.</p>
     <div class="demo"><a class="url" href="https://web-production-f9f03.up.railway.app/static/warm-welcome-neighborhoods/index.html" target="_blank" rel="noopener">A working wireframe to react to</a> - not a finished product</div>
   </section>
 
@@ -405,11 +405,10 @@
     <div class="twoup">
       <div class="col cost">
         <p class="h">$32 / month, all-in</p>
-        <p class="cost-line"><strong>$15.15</strong> - the database: daily backups, point-in-time recovery, encryption included.</p>
+        <p class="cost-line"><strong>$15.15</strong> - the database: daily backups, point-in-time recovery, encryption.</p>
         <p class="cost-line"><strong>$11 to $12</strong> - a real home for Echo, the chapter's app. Today it runs on a volunteer's laptop.</p>
-        <p class="cost-line"><strong>$5</strong> - nightly encrypted backup, moved off any personal machine to chapter-owned DigitalOcean Spaces storage, so our data survives a vendor failure and never rides a personal device.</p>
-        <p>Roughly $380 to $390 a year all-in. Comfortably under $500.</p>
-        <p class="cost-line">All hosted on <strong>DigitalOcean</strong> - chapter-owned, off Google and Amazon. We priced the alternatives; this is the lowest option that stays fully managed.</p>
+        <p class="cost-line"><strong>$5</strong> - nightly encrypted backup, on chapter-owned storage, never on a personal device.</p>
+        <p>Roughly <strong>$380 to $390 a year</strong>, comfortably under $500 - all on DigitalOcean, off Google and Amazon. Lowest fully-managed option we found.</p>
         <p class="src"><a href="https://www.digitalocean.com/pricing/managed-databases" target="_blank" rel="noopener">Source: DigitalOcean Managed Databases, entry PostgreSQL plan</a></p>
       </div>
       <div class="col safe">
@@ -715,8 +714,11 @@
   }
   observeAll();
 
-  // 5s heartbeat, and announce presence on load.
-  setInterval(sendState, 5000);
+  // Announce presence once on load, and reply to any presenter's hello (handled above).
+  // No blind heartbeat: broadcasting our position on a timer let a stray/duplicate deck
+  // tab keep re-asserting a stale slide, which fought the live deck and made the
+  // presenter's notes flip back and forth on their own. State now goes out only on real
+  // navigation (the MutationObserver) or when explicitly asked (hello).
   sendState();
 })();
 </script>
