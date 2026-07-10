@@ -238,53 +238,30 @@
 <canvas id="lamps"></canvas>
 
 <div id="progwrap"><div id="prog"></div></div>
-<div id="counter">01 / 11</div>
+<div id="counter">01 / 07</div>
 <div id="brand">Austin DSA</div>
 <div id="hint">tap or press &rarr; to begin</div>
 
 <main id="deck">
 
-  <!-- 1. TITLE -->
-  <section class="slide active" data-lit="0.06" data-glow="0.50">
+  <!-- 1. THE PROBLEM (compresses the old title / surge / one-number / drift arc) -->
+  <section class="slide active" data-lit="0.05" data-glow="0.35">
     <div class="kicker">Austin DSA &middot; Working session</div>
     <h1>The door works. The lights are off.</h1>
-    <p class="lede-sub">About fifteen hundred people have walked in our door. We are good at bringing them in; we cannot see who drifts back out, or when. The fix starts with a database the chapter owns.</p>
-  </section>
-
-  <!-- 2. THE SURGE -->
-  <section class="slide" data-lit="0.12" data-glow="0.55">
-    <div class="eyebrow">The front door works</div>
-    <h2>Every ICE raid, every election, people find our door.</h2>
-    <p class="support">Crises and campaigns keep bringing people in. The chapter has never been better at the front door.</p>
+    <p class="lede-sub">People keep walking in - every ICE raid, every election brings more. But we see the crowd, not the person: nobody can tell who quietly drifts back out.</p>
     <div class="stat"><div class="num paper">~1,500</div><div class="lab">members in good standing today</div></div>
   </section>
 
-  <!-- 3. ONE BLUNT NUMBER -->
-  <section class="slide" data-lit="0.06" data-glow="0.40">
-    <div class="eyebrow">What we can see today</div>
-    <h2>We can see the crowd - not one person in it.</h2>
-    <p class="support">Action Network shows us aggregates: list size, weekly signups. But of those who joined 90 days ago, how many are still active? Nobody can answer - that view is not in any tier of the product.</p>
-    <div class="stat"><div class="num amber">0</div><div class="lab">per-member sight in anything we run</div></div>
-  </section>
-
-  <!-- 4. THE DARK -->
-  <section class="slide" data-lit="0.03" data-glow="0.30">
-    <div class="eyebrow">The cost of not seeing</div>
-    <h2>People drift out quietly - and nobody notices.</h2>
-    <p class="support wide">Found once, by hand - one volunteer's count for a 2024 report, never repeated. We lose people twice - once when they drift, and once when we forget they were ever here.</p>
-    <div class="stat"><div class="num loss">~1,800</div><div class="lab">have lapsed - found once, by hand</div></div>
-  </section>
-
   <!-- 5. THE FIX (two beats: copy, then the wiring diagram) -->
-  <section class="slide figslide" data-lit="0.28" data-glow="0.68">
+  <section class="slide figslide" data-lit="0.30" data-glow="0.68">
     <div class="eyebrow">The fix</div>
     <h2>A small database the chapter owns.</h2>
     <div class="beats">
-        <div class="beat beat-copy active" data-lit="0.28" data-glow="0.68">
+        <div class="beat beat-copy active" data-lit="0.30" data-glow="0.68">
           <p class="support wide">Managed, encrypted, backed up daily - and every read is logged. Inside it: names, contact details, join dates, dues status. The monthly export already arrives with those fields; today we strip them out before anything lands in Drive, because a spreadsheet is no place to keep them. This is.</p>
           <p class="cap">It is the sign-in book we already keep at every meeting - except this one also writes down who opened it.</p>
         </div>
-        <div class="beat beat-diagram" data-lit="0.32" data-glow="0.68">
+        <div class="beat beat-diagram" data-lit="0.34" data-glow="0.70">
           <div class="erd">
             <svg viewBox="0 0 1240 330" role="img" aria-label="An architecture diagram in the deck's colors: Action Network, a read-only source on the left, sends a monthly emailed CSV export carrying the member join key, which loads into a database cylinder in the center - our own member store, managed and encrypted - connected both ways to Echo, the chapter's own app, which enforces role-based access, logs every read, and adds its own data such as event sign-ins; Echo serves the screens on the right that give us sight into retention and drift.">
               <rect x="0" y="0" width="1240" height="330" rx="12" fill="#1a2130"/>
@@ -366,7 +343,7 @@
   </section>
 
   <!-- 6. THE MIRROR -->
-  <section class="slide" data-lit="0.45" data-glow="0.75">
+  <section class="slide" data-lit="0.48" data-glow="0.76">
     <div class="eyebrow">Not new scope</div>
     <h2>We already asked for all of this.</h2>
     <ol class="asks warm wideish">
@@ -378,7 +355,7 @@
   </section>
 
   <!-- 7. THE PLAN -->
-  <section class="slide" data-lit="0.55" data-glow="0.78">
+  <section class="slide" data-lit="0.62" data-glow="0.82">
     <div class="eyebrow">What I want to do</div>
     <h2>Three steps, one at a time.</h2>
     <ol class="asks warm wideish">
@@ -399,7 +376,7 @@
   </section>
 
   <!-- 9. COST -->
-  <section class="slide" data-lit="0.82" data-glow="0.85">
+  <section class="slide" data-lit="0.90" data-glow="0.94">
     <div class="eyebrow">Cost and risk</div>
     <h2>The light bill: about $32 a month.</h2>
     <div class="twoup">
@@ -418,22 +395,11 @@
     </div>
   </section>
 
-  <!-- 10. THE ASKS -->
-  <section class="slide" data-lit="0.90" data-glow="0.90">
-    <div class="eyebrow">What I am asking for</div>
-    <h2>Three things.</h2>
-    <ol class="asks">
-      <li><span class="n">1</span><span>Back the restart of the IT Sub-Committee - I will stand for co-chair when the election is held, and recruit computing members so this never rests on one person.</span></li>
-      <li><span class="n">2</span><span>Carry the first step to the full Leadership Committee as a motion: the database, a real home for Echo, chapter-owned backups. Roughly $380 to $390 a year, with headroom up to $500.</span></li>
-      <li><span class="n">3</span><span>Tell me what you would want to see. The screens get built to your questions, not mine.</span></li>
-    </ol>
-  </section>
-
-  <!-- 11. CLOSE -->
+  <!-- 7. CLOSE (discussion prompt - working session; no asks, no vote, no pitch) -->
   <section class="slide" data-lit="1.00" data-glow="1.00">
-    <h2>The people already walked in.</h2>
-    <p class="close-line">Let's stop losing them in the dark.</p>
-    <p class="close-q">If you could see anything about our membership, what would move a decision?</p>
+    <h2>Over to you.</h2>
+    <p class="close-line">What would you want the lights to show?</p>
+    <p class="close-q">And what should we be careful with before we turn anything on?</p>
   </section>
 
 </main>
@@ -630,10 +596,10 @@
   var bc = null;
   try { bc = new BroadcastChannel(CHANNEL_NAME); } catch (e) { bc = null; }
 
-  // 12-stop flattened order: [slideIdx (0-based), beatIdx (0-based)]
-  // Matches the plan's stop table; slide index 4 (slide 5) has two beats.
+  // 8-stop flattened order: [slideIdx (0-based), beatIdx (0-based)]
+  // Matches the rev-9 presenter's stop table; slide index 1 (the fix slide) has two beats.
   var STOPS = [
-    [0,0],[1,0],[2,0],[3,0],[4,0],[4,1],[5,0],[6,0],[7,0],[8,0],[9,0],[10,0]
+    [0,0],[1,0],[1,1],[2,0],[3,0],[4,0],[5,0],[6,0]
   ];
 
   function getSlides(){ return Array.prototype.slice.call(document.querySelectorAll('.slide')); }

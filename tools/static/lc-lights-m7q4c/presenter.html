@@ -143,7 +143,7 @@
 
   <div id="topbar">
     <div id="timer" data-seconds="0">0:00</div>
-    <div id="stopPos">stop <strong id="stopNum">1</strong> of 12 - <span id="stopTitleInline"></span></div>
+    <div id="stopPos">stop <strong id="stopNum">1</strong> of 8 - <span id="stopTitleInline"></span></div>
     <div id="targetTime">target by end: <span id="targetLabel"></span></div>
     <div id="connDot" class="unlinked"><span class="dot"></span><span id="connLabel">deck not found - use Open deck</span></div>
   </div>
@@ -175,7 +175,7 @@
 
   <div style="grid-column: 1 / -1; padding: 1.2rem 1.4rem 2rem; display:flex; flex-direction:column; gap: .8rem;">
     <details class="drawer" id="asksDrawer">
-      <summary>The three asks</summary>
+      <summary>If they ask what you need</summary>
       <div class="body">
         <ol>
           <li><strong>IT ownership:</strong> &quot;Back restarting the IT Sub-Committee - that&#39;s where the co-chair election happens, and I&#39;ll stand. I&#39;ll recruit a couple of computing folks so it&#39;s not a bus-factor of one.&quot;</li>
@@ -221,109 +221,73 @@
     "n": 1,
     "slide": 0,
     "beat": 0,
-    "title": "The door works. The lights are off.",
-    "targetSec": 30,
-    "script": "<p>&quot;Thanks for making the time - I&#39;ll be brief. About 1,500 people have walked in our door. We&#39;re good at getting them in. What we can&#39;t see is who quietly slips back out.&quot;</p><p>&quot;Tonight I&#39;m making the case for a database the chapter owns. This room can&#39;t vote money tonight - and I&#39;m not asking it to. I&#39;ll take about 10 minutes, show you 1 live demo, and end with 3 asks, all things we can actually do in this room.&quot;</p>",
-    "targetLabel": "0:30"
+    "title": "The problem",
+    "targetSec": 60,
+    "script": "<ul><li>~1,500 in good standing; every ICE raid and election brings more - the front door works.</li><li>The gap: we see the crowd, not the person - no per-person retention view. &quot;Not in any tier of the product&quot; - we checked the docs.</li><li>Garrigan&#39;s 2024 hand count: ~1,800 lapsed - found once, by hand, never repeated.</li><li>Say it plainly: &quot;This is a working session - I&#39;m floating this to think it through with you, not asking for a vote.&quot;</li></ul>",
+    "targetLabel": "1:00"
   },
   {
     "n": 2,
     "slide": 1,
     "beat": 0,
-    "title": "The front door works",
-    "targetSec": 75,
-    "script": "<p>&quot;First, the good news. About 1,500 members in good standing today. Every ICE raid, every election, people go looking for somewhere to put their anger to work - and they find our door.&quot;</p><p>&quot;That part of this chapter genuinely works. It&#39;s not what I&#39;m here about. I&#39;m here about what happens after they&#39;re inside.&quot;</p>",
-    "targetLabel": "1:15"
-  },
-  {
-    "n": 3,
-    "slide": 2,
-    "beat": 0,
-    "title": "What we can see today",
+    "title": "The fix - a small database we own",
     "targetSec": 120,
-    "script": "<p>&quot;Now the bad news. Action Network does show us some numbers - list size, weekly signups and unsubscribes. Crowd numbers. What it cannot show us is a person.&quot;</p><p>&quot;Ask a basic organizing question - of the people who joined 90 days ago, how many are still active? Nobody in this chapter can answer that. And it&#39;s not a settings problem - that view is not in any tier of the product. We checked the docs. Nothing we run can see it.&quot;</p>",
+    "script": "<ul><li>The monthly membership export already arrives by email - today it&#39;s hand-copied into Google Drive spreadsheets.</li><li>The fix is only where it lands: a database the chapter owns - managed, encrypted, backed up daily, every read logged.</li><li>Be plain, it&#39;s PII: names, emails, phones, join dates, dues status - the same fields the export already carries, today stripped before Drive.</li><li>One line: &quot;A spreadsheet is no place to keep them. This is.&quot;</li></ul>",
     "targetLabel": "2:00"
   },
   {
+    "n": 3,
+    "slide": 1,
+    "beat": 1,
+    "title": "The same idea, as a diagram",
+    "targetSec": 165,
+    "script": "<ul><li>Left: Action Network, untouched - only the monthly export moves.</li><li>Center: our own member store - managed, encrypted, access-logged.</li><li>Right: Echo, the chapter&#39;s app - how anyone touches the data: role-based access, every read logged; adds its own data (event sign-ins, link clicks).</li><li>Reversible: unplug it tomorrow and nothing upstream ever moved.</li></ul>",
+    "targetLabel": "2:45"
+  },
+  {
     "n": 4,
-    "slide": 3,
+    "slide": 2,
     "beat": 0,
-    "title": "The cost of not seeing",
-    "targetSec": 180,
-    "script": "<p>&quot;And we have measured what that blindness costs - exactly once. In 2024, Garrigan sat down and counted by hand: about 1,800 people have joined us over the years and then let their dues lapse.&quot;</p><p>&quot;To be clear, that&#39;s across our whole history - a different count from the 1,500 who are current today. Both are real.&quot;</p><p>&quot;But the number isn&#39;t even the point. The point is that it took 1 volunteer, counting by hand, once - and it has never been repeated. We lose people twice - once when they drift, and once when we forget they were ever here.&quot;</p><p class=\"stage-direction\">Drift and dues lapse are different things - the number on the slide is dues lapse. Don&#39;t reach for who shows up to meetings - that isn&#39;t evidence.</p>",
-    "targetLabel": "3:00"
+    "title": "Not new scope",
+    "targetSec": 240,
+    "script": "<p class=\"stage-direction\">Say the names out loud - the slide deliberately doesn&#39;t.</p><ul><li>Peter: the Neighborhood Groups resolution asks for member rolls, event logs, rotating access - in those words; it passed, 4 neighborhoods drawn in May.</li><li>Garrigan: a secure, maintainable home for member data is a goal he wrote into the tech plans.</li><li>Rachel / MEC: &quot;are we keeping the members we win&quot; - already chased by hand.</li><li>All that&#39;s missing: the database - and a named owner.</li></ul>",
+    "targetLabel": "4:00"
   },
   {
     "n": 5,
-    "slide": 4,
+    "slide": 3,
     "beat": 0,
-    "title": "The fix - a small database we own",
-    "targetSec": 240,
-    "script": "<p>&quot;So here&#39;s the fix - and I want you to notice how small it is. Every month, an export of our own membership list already arrives by email. Today, that file gets hand-copied into spreadsheets on Google Drive.&quot;</p><p>&quot;The fix is where it lands: a small database the chapter owns - managed, encrypted, backed up daily, and every single read is logged. If anyone opens a member&#39;s record, the log says who, and when.&quot;</p><p>&quot;And let&#39;s be plain about what&#39;s inside, because it is personal information - names, emails, phones, join dates, dues status. The monthly export already arrives with every one of those fields. Today we strip them out before the file touches Drive, because a spreadsheet is no place to keep them - and that&#39;s exactly why nobody can answer the 90-day question. This is a place built to hold them.&quot;</p>",
-    "targetLabel": "4:00"
+    "title": "Three steps, one at a time",
+    "targetSec": 315,
+    "script": "<ul><li>Step zero is free: Action Network literacy - tutorials, office hours, no spend, can start this month.</li><li>1) Stand up the infrastructure - the database plus a real home for Echo - before any data touches it.</li><li>2) Load what already arrives - the monthly export lands there instead of Drive, sorted into the 4 neighborhoods; nothing new collected.</li><li>3) Build the screens together - last, shaped by what this room needs. Each step small and reversible.</li></ul>",
+    "targetLabel": "5:15"
   },
   {
     "n": 6,
     "slide": 4,
-    "beat": 1,
-    "title": "The fix - the same idea, as a diagram",
-    "targetSec": 300,
-    "script": "<p>&quot;Here&#39;s the same thing as a diagram, for the engineers in the room. On the left, Action Network, untouched - the only thing that moves is the monthly export already on its way to us. It just lands in the store we own instead of loose spreadsheets.&quot;</p><p>&quot;And on the right is the piece I haven&#39;t named yet: Echo - the chapter&#39;s own app, the one that already runs our event publishing and link tracking. Echo is how anyone touches the data: it decides who sees what, and it logs every read. It adds its own data too - event sign-ins, link clicks - so the picture gets richer the more we use it. Whatever this room decides it wants to see, Echo is what we point at it.&quot;</p><p>&quot;And unplug it all tomorrow - nothing upstream ever moved. That&#39;s what makes this reversible.&quot;</p>",
-    "targetLabel": "5:00"
+    "beat": 0,
+    "title": "The demo - the payoff",
+    "targetSec": 540,
+    "script": "<ul><li>Ground rule: the live screens show drift and direction, never verdicts - who is drifting while there is still time to knock on a door.</li><li>&quot;The tool keeps nobody. Organizing does that.&quot;</li><li>Then switch tabs: &quot;Let me turn the lights on.&quot; (the bulbs snap on)</li></ul><p class=\"stage-direction\">~2 min live: the Neighborhoods view first, then the cohort look-back. Working wireframe, fake data - every name made up. Ask what&#39;s highest-value before anything real gets built.</p>",
+    "targetLabel": "9:00"
   },
   {
     "n": 7,
     "slide": 5,
     "beat": 0,
-    "title": "Not new scope",
-    "targetSec": 390,
-    "script": "<p class=\"stage-direction\">Say the names out loud; the slide deliberately doesn&#39;t.</p><p>&quot;The slide says we already asked for all of this, and I mean that literally - none of this is my idea.&quot;</p><p>&quot;Peter - the Neighborhood Groups resolution you co-wrote asks for member rolls, event logs, and access that rotates, in those words. It passed, and we drew the 4 neighborhoods in May.&quot;</p><p>&quot;Garrigan - a secure, maintainable home for member data is a goal you wrote into our own tech plans.&quot;</p><p>&quot;Rachel - &#39;are we keeping the members we win&#39; is the question MEC is already chasing by hand, spreadsheet by spreadsheet, because by hand is the only way we&#39;ve given you.&quot;</p><p>&quot;So the resolution is passed, the goal is written, and the question is already being worked. All that&#39;s missing is the database - and a named owner. That&#39;s the gap I&#39;m asking to close today.&quot;</p>",
-    "targetLabel": "6:30"
+    "title": "The light bill",
+    "targetSec": 630,
+    "script": "<ul><li>$15.15/mo (~$182/yr) database + $11-12/mo real home for Echo + $5/mo chapter-owned backups = about $32/mo, roughly $380-390/yr, under the $500 ceiling.</li><li>All on DigitalOcean - off Google and Amazon (BDS-clean).</li><li>The opposite of surveillance: our data in our hands, fewer eyes than today, every look logged - no AI in the product.</li><li>Maintenance (Nisha&#39;s fair question): answered by the named owner + a robust IT sub-committee + docs and policy + boring managed infra - built to be maintained, not an afterthought.</li></ul>",
+    "targetLabel": "10:30"
   },
   {
     "n": 8,
     "slide": 6,
     "beat": 0,
-    "title": "What I want to do",
-    "targetSec": 450,
-    "script": "<p>&quot;The plan is 3 steps, taken one at a time. And before any of them, a step zero that&#39;s free: get more of us fluent in Action Network itself - tutorials, office hours. There&#39;s good data sitting there that most members never see. That costs nothing, and it can start this month.&quot;</p><p>&quot;First, stand up the infrastructure - the database, plus a real home for Echo, our own app, which today runs on a volunteer&#39;s laptop. That comes first, before any data touches it. Second, plug in what already arrives - the monthly export starts landing there instead of Drive, sorted into the 4 neighborhoods. Still nothing new collected.&quot;</p><p>&quot;Third - and only third - build the screens, together. They come last, shaped by what this room says it needs to see.&quot;</p><p>&quot;Each step is small. Each is reversible. Stop after any one of them, and Action Network never moved.&quot;</p>",
-    "targetLabel": "7:30"
-  },
-  {
-    "n": 9,
-    "slide": 7,
-    "beat": 0,
-    "title": "The demo",
-    "targetSec": 600,
-    "script": "<p>&quot;One ground rule, and I built the whole thing around it: the live screens show direction, never verdicts. Who is drifting - while there is still time to knock on a door.&quot;</p><p>&quot;The tool keeps nobody. Organizing does that.&quot;</p><p>&quot;Enough slides - let me turn the lights on.&quot;</p><p class=\"stage-direction\">The bulbs snap on with that line. Switch to the wireframe tab (opened before the meeting). ~2 minutes: the Neighborhoods view first, then the cohort look-back. Over it, say:</p><p>&quot;This is a working wireframe to react to - not a finished product, and none of it is real member data; every name in here is made up. I want your input on the highest-value uses before anything real gets built.&quot;</p>",
-    "targetLabel": "10:00"
-  },
-  {
-    "n": 10,
-    "slide": 8,
-    "beat": 0,
-    "title": "The light bill",
-    "targetSec": 690,
-    "script": "<p>&quot;This half of the slide is the treasurer&#39;s. Ramsey couldn&#39;t make it tonight - he has the whole proposal in writing and is giving his read async. The database is $15.15 a month - about $182 a year - and that includes daily backups, point-in-time recovery, and encryption.&quot;</p><p>&quot;Add $11 to $12 a month for a real home for Echo - our own app, the one running our event publishing and link tracking today from a volunteer&#39;s laptop - and $5 a month for nightly encrypted backups on chapter-owned storage, never on anyone&#39;s personal machine. All-in, about $32 a month - roughly $380 to $390 a year. Comfortably under the $500 ceiling.&quot;</p><p>&quot;And Nisha, this half is for you - you asked exactly the right question about this. Surveillance is being watched without knowing it. This is the opposite: our own membership data, in our own hands - off Google, seen by fewer people than today, and every look leaves a log.&quot;</p><p>&quot;There is no AI in the product. Nothing predicts, nothing profiles, nothing watches.&quot;</p>",
-    "targetLabel": "11:30"
-  },
-  {
-    "n": 11,
-    "slide": 9,
-    "beat": 0,
-    "title": "Three things",
-    "targetSec": 780,
-    "script": "<p>&quot;I&#39;m asking for 3 things - and none of them is a vote.&quot;</p><p>&quot;1: back restarting the IT Sub-Committee. That&#39;s where the co-chair election happens - Alex facilitates it - and I&#39;ll stand. That&#39;s where the role Nisha and I have talked about, the IT coordinator, actually lives now. I&#39;ll recruit a couple of computing members so this never rests on one person.&quot;</p><p>&quot;2: Nisha - carry this to the full Leadership Committee. Put the first step on the next LC agenda as a motion: the database, a real home for Echo, and chapter-owned backups. About $32 a month - $380 to $390 a year, with headroom under the $500 ceiling. Ramsey already has it in writing and is weighing in async - if the budget mechanics need confirming first, that&#39;s a next step, not a no.&quot;</p><p>&quot;3 - the one I care most about: tell me what you would want to see. The screens get built to your questions, not mine.&quot;</p>",
-    "targetLabel": "13:00"
-  },
-  {
-    "n": 12,
-    "slide": 10,
-    "beat": 0,
-    "title": "Close",
-    "targetSec": 840,
-    "script": "<p class=\"stage-direction\">Let the full string of bulbs sit for a moment before speaking.</p><p>&quot;The people already walked in. Let&#39;s stop losing them in the dark.&quot;</p><p>&quot;So let me end with the question I actually came to ask: if you could see anything about our membership - anything at all - what would move a decision?&quot;</p>",
-    "targetLabel": "14:00"
+    "title": "Close - over to you",
+    "targetSec": 720,
+    "script": "<p class=\"stage-direction\">Let the full string of bulbs sit for a moment before speaking.</p><ul><li>Hand the floor: &quot;Over to you.&quot; Open questions, not a pitch.</li><li>On the slide: what would you want the lights to show? And what should we be careful with before we turn anything on?</li><li>If they ask what you need, it&#39;s in the drawer below - but let the room drive the working session.</li></ul>",
+    "targetLabel": "12:00"
   }
 ];
 
