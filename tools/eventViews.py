@@ -59,7 +59,7 @@ class PostedEventListView(LoginRequiredMixin, PermissionRequiredMixin, ListView)
 
 # MARK: Publish New Event
 
-def _buildEventPayload(eventInfo, ignoreResolveableConflicts) -> dict:
+def _buildEventPayload(eventInfo, ignoreResolveableConflicts, tags=()) -> dict:
     """Serialize an EventInfo into the PublishJob payload (schema
     PublishJob.PAYLOAD_VERSION).
 
@@ -70,7 +70,14 @@ def _buildEventPayload(eventInfo, ignoreResolveableConflicts) -> dict:
     tzinfo with no zone name (the issue #26 regression). DateTimeWithAcceptedTimeZone
     keeps the wall time and the zone name as the two explicit facts they are, so
     the round trip is lossless and stores exactly what the user entered. start/end
-    are already localized here (by convertToEventInfo / getEventInfo)."""
+    are already localized here (by convertToEventInfo / getEventInfo).
+
+    "tags" is purely additive and every reader defaults it, so it does NOT need a
+    PAYLOAD_VERSION bump - and must not get one: publish_anyway clones a stored
+    payload verbatim, version included, and a CONFLICT job can sit for days
+    waiting on a human, so bumping would make pre-deploy conflict jobs
+    unpublishable. The tags' emoji are already inside eventInfo.title; this key
+    exists so the worker can record them on the PostedEvents row."""
     return {
         "payloadVersion": PublishJob.PAYLOAD_VERSION,
         "title": eventInfo.title,
@@ -88,6 +95,7 @@ def _buildEventPayload(eventInfo, ignoreResolveableConflicts) -> dict:
         "instructions": eventInfo.instructions,
         "zoomRequired": eventInfo.zoomRequired,
         "ignoreResolveableConflicts": ignoreResolveableConflicts,
+        "tags": list(tags),
     }
 
 
@@ -137,6 +145,7 @@ def new_event(request):
             payload=_buildEventPayload(
                 eventInfo,
                 ignoreResolveableConflicts,
+                form.getSelectedTagKeys(),
             ),
             creator=request.user,
             owner=owner,
@@ -231,6 +240,7 @@ def new_delegated_event(request):
                                                country = eventInfo.country,
                                                description = eventInfo.description,
                                                instructions = eventInfo.instructions,
+                                               tags = form.getSelectedTagKeys(),
                                                dateCreated = utcNow,
                                                creator = request.user,
                                                owner = owner,
@@ -344,7 +354,10 @@ def approve_delegated_event(request, id):
             # ignoreResolveableConflicts - the requester's dry run already
             # surfaced gCal conflicts at request time.
             logger.info("ApprovedDelegateEvent: Enqueueing publish job for event %d", id)
-            payload = _buildEventPayload(eventInfo, ignoreResolveableConflicts=True)
+            # eventInfo's title/description already carry the tag emoji (composed
+            # at request time and stored on the row); the keys ride along so the
+            # PostedEvents row records them too.
+            payload = _buildEventPayload(eventInfo, ignoreResolveableConflicts=True, tags=event.tags)
             payload["reason"] = formData[ApproveDelegatedEventForm.Keys.REASON]
             payload["approverId"] = request.user.id
             job = PublishJob.objects.create(

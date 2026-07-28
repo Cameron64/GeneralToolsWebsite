@@ -123,6 +123,11 @@ def _finishDirectPublish(job: PublishJob, eventInfo, result) -> None:
                                     country = eventInfo.country,
                                     description = eventInfo.description,
                                     instructions = eventInfo.instructions,
+                                    # .get with a default: a payload written before
+                                    # audience tags existed has no "tags" key, and
+                                    # the version was deliberately not bumped for
+                                    # this additive field.
+                                    tags = job.payload.get("tags", []),
                                     dateCreated = utcNow,
                                     datePublished = utcNow,
                                     anManageLink = result.anManageLink if result.anManageLink is not None else "",
@@ -182,6 +187,11 @@ def _finishDelegatedPublish(job: PublishJob, eventInfo, result) -> None:
                                     country = event.country,
                                     description = event.description,
                                     instructions = event.instructions,
+                                    # From the request row, not the payload: the
+                                    # DelegatedEvents row is the record of what
+                                    # the requester asked for and the authorizer
+                                    # approved.
+                                    tags = event.tags,
                                     dateCreated = utcNow,
                                     datePublished = utcNow,
                                     anManageLink = result.anManageLink if result.anManageLink is not None else "",

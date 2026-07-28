@@ -1,5 +1,13 @@
 <dl class="detail-grid">
   <dt>Title</dt><dd>{{ object.title }}</dd>
+  {% if object.getTags %}
+  {# The emoji are already in the title above; this spells out what they mean.
+     Only rendered when the event carries tags, so untagged events look as before. #}
+  <dt>Labels</dt>
+  <dd class="flex flex-wrap gap-1.5">
+    {% for tag in object.getTags %}<span class="badge badge-tag">{{ tag.emoji }} {{ tag.label }}</span>{% endfor %}
+  </dd>
+  {% endif %}
   <dt>Start</dt><dd>{{ object.getStartLocalizedStr }}</dd>
   <dt>End</dt><dd>{{ object.getEndLocalizedStr }}</dd>
   <dt>Creator</dt><dd>{{ object.getCreatorName }}</dd>

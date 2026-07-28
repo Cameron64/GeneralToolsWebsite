@@ -15,6 +15,7 @@ from django.utils.safestring import mark_safe
 from .timezones import DateTimeWithAcceptedTimeZone, TZ_TO_AN_TZ
 from .EventAutomation import EventAutomationDriver, ActionNetworkAutomation
 
+from . import eventTags
 from . import permissions
 from .models import User, EventOwners, AccessRequests, LinkTree, LinkTreeItem, QRCode
 
@@ -124,6 +125,7 @@ class NewEventForm(forms.Form):
         ZIP_CODE = "zipcode"
         OWNER = "owner"
         IGNORE_RESOLVEABLE_CONFLICTS = "ignoreResolveableConflics"
+        TAGS_EXPLAINER = "tagsExplainer"
         # ZOOM_REQUIRED = "zoomRequired"
 
     # Restricted to healthy owners in __init__ (see _activeOwnerQueryset). This
@@ -143,6 +145,18 @@ class NewEventForm(forms.Form):
     description = forms.CharField(
         label="Description",
         widget=forms.Textarea(attrs={"rows": "5", "class": "form-field w-full"}),
+    )
+    # The per-tag checkboxes themselves are added in __init__ from
+    # eventTags.EVENT_TAGS so the vocabulary lives in exactly one place.
+    tagsExplainer = forms.CharField(
+        initial="""
+        Ticking any of these adds a small icon to the front of the event title and a short key to the description.
+        Because it rides in the title itself, it shows up everywhere the event does - the calendar on austindsa.org,
+        anyone's subscribed Google or Apple calendar, and the Action Network page. Leave them all unticked for a normal event.
+        """,
+        widget=StaticTextWidget(),
+        required=False,
+        label="Member-facing labels",
     )
     eventType = forms.TypedChoiceField(
         label="Event Type",
@@ -237,6 +251,44 @@ class NewEventForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields[NewEventForm.Keys.OWNER].queryset = _activeOwnerQueryset()
+        # One checkbox per audience tag, generated from the vocabulary rather
+        # than declared, so adding or retiring a tag is a one-line edit in
+        # eventTags. A BooleanField renders through the generic field loop in
+        # both new-event/new.html and new-delegated-event/new.html, which
+        # branches on widget.input_type == "checkbox".
+        tagFieldNames = []
+        for tag in eventTags.EVENT_TAGS:
+            fieldName = eventTags.formFieldName(tag.key)
+            self.fields[fieldName] = forms.BooleanField(
+                label=f"{tag.emoji} {tag.label}",
+                help_text=tag.helpText,
+                widget=forms.CheckboxInput(),
+                required=False,
+            )
+            tagFieldNames.append(fieldName)
+        # order_fields hoists the fields it is given to the FRONT and appends
+        # everything else in declared order - so this has to name the whole
+        # leading run, not just the new fields, or the checkboxes would land
+        # above the Event Owner dropdown.
+        self.order_fields([
+            NewEventForm.Keys.OWNER,
+            NewEventForm.Keys.TITLE,
+            NewEventForm.Keys.DESCRIPTION,
+            NewEventForm.Keys.TAGS_EXPLAINER,
+            *tagFieldNames,
+        ])
+
+    def getSelectedTagKeys(self) -> list[str]:
+        """The ticked audience tags, in EVENT_TAGS order (not submission order)
+        so the emoji sequence is stable across events. Empty on an unvalidated
+        or invalid form."""
+        if not self.is_valid():
+            return []
+        return [
+            tag.key
+            for tag in eventTags.EVENT_TAGS
+            if self.cleaned_data.get(eventTags.formFieldName(tag.key))
+        ]
 
     def clean_zipcode(self):
         data = self.cleaned_data[NewEventForm.Keys.ZIP_CODE]
@@ -267,8 +319,14 @@ class NewEventForm(forms.Form):
             end = end.replace(tzinfo=None)
         eventType = formData[NewEventForm.Keys.EVENT_TYPE]
         zoomRequired = eventType in [ActionNetworkAutomation.ANTypes.HYBRID, ActionNetworkAutomation.ANTypes.VIRTUAL]
+        # Audience tags are composed into the title and description HERE, at the
+        # single choke point both creation flows share, and never again: the
+        # PublishJob payload, the PostedEvents row, the DelegatedEvents row and
+        # the approve flow's getEventInfo() all carry the composed strings
+        # forward. Both helpers are no-ops when nothing is ticked.
+        tagKeys = self.getSelectedTagKeys()
         eventInfo = EventAutomationDriver.EventInfo(
-            title=formData[NewEventForm.Keys.TITLE],
+            title=eventTags.composeTitle(formData[NewEventForm.Keys.TITLE], tagKeys),
             start=DateTimeWithAcceptedTimeZone(wallTime=start, zoneName=timezoneStr),
             end=DateTimeWithAcceptedTimeZone(wallTime=end, zoneName=timezoneStr),
             locationName=formData[NewEventForm.Keys.LOCATION_NAME],
@@ -276,7 +334,7 @@ class NewEventForm(forms.Form):
             city=formData[NewEventForm.Keys.CITY],
             state=formData[NewEventForm.Keys.STATE],
             zip=formData[NewEventForm.Keys.ZIP_CODE],
-            description=formData[NewEventForm.Keys.DESCRIPTION],
+            description=eventTags.composeDescription(formData[NewEventForm.Keys.DESCRIPTION], tagKeys),
             instructions=formData[NewEventForm.Keys.INSTRUCTIONS],
             country=formData[NewEventForm.Keys.COUNTRY],
             zoomRequired=zoomRequired,

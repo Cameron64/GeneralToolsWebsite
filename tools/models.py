@@ -5,6 +5,7 @@ from .EventAutomation.EventAutomationDriver import EventInfo, ActionNetworkAutom
 import datetime
 import pytz
 from django.urls import reverse
+from . import eventTags
 from . import permissions
 from . import utils
 from .timezones import DateTimeWithAcceptedTimeZone
@@ -69,6 +70,14 @@ class PostedEvents(models.Model):
     description = models.TextField()
     instructions = models.TextField()
 
+    # Audience tag keys (eventTags.EVENT_TAGS) selected when the event was
+    # created. Descriptive metadata only - the tags' emoji are already baked
+    # into `title` and `description`, which is what the external systems show.
+    # These are kept so we can report on what we offered newcomers without
+    # parsing titles back apart, and so the in-app pages can badge an event.
+    # Never re-derive the title from these.
+    tags = models.JSONField(default=list, blank=True)
+
     dateCreated = models.DateTimeField()
     datePublished = models.DateTimeField()
 
@@ -103,7 +112,12 @@ class PostedEvents(models.Model):
     
     def getUrl(self) -> str:
         return reverse("event-detail", kwargs={"pk" : self.id})
-    
+
+    def getTags(self) -> list[eventTags.EventTag]:
+        """Resolved EventTag objects for the templates. Keys that are no longer
+        in the vocabulary are dropped rather than rendered as blanks."""
+        return eventTags.tagsFor(self.tags)
+
     def getStartLocalizedStr(self) -> str:
         return self.getStartLocalized().strftime(utils.DATE_TIME_FORMAT)
     
@@ -168,6 +182,10 @@ class DelegatedEvents(models.Model):
     description = models.TextField()
     instructions = models.TextField()
 
+    # See PostedEvents.tags. Carried across the approve step so the published
+    # row records the labels the requester asked for and the authorizer saw.
+    tags = models.JSONField(default=list, blank=True)
+
     dateCreated = models.DateTimeField()
     dateReviewed = models.DateTimeField(null=True, blank=True, default=None)
 
@@ -181,6 +199,10 @@ class DelegatedEvents(models.Model):
     zoomRequired = models.BooleanField(default=True)
 
     eventType = models.IntegerField(default=ActionNetworkAutomation.ANTypes.HYBRID)
+
+    def getTags(self) -> list[eventTags.EventTag]:
+        """See PostedEvents.getTags."""
+        return eventTags.tagsFor(self.tags)
 
     def getStatusAsString(self) -> str:
         if self.status == DelegatedEvents.Status.REQUESTED:

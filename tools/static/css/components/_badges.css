@@ -25,6 +25,11 @@
 .badge-unresolved {
   @apply bg-warning text-dark;
 }
+/* Audience tag on an event (eventTags.EVENT_TAGS) - descriptive, not a state,
+   so it stays neutral rather than joining the success/warning/danger scale. */
+.badge-tag {
+  @apply bg-neutral-100 text-secondary border border-neutral-300 font-normal;
+}
 /* Owner lifecycle badge (Manage Event Owners) */
 .badge-expired {
   @apply text-white;

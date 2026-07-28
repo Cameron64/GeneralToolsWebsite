@@ -334,6 +334,9 @@
   .justify-between {
     justify-content: space-between;
   }
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
+  }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
   }
@@ -1299,6 +1302,15 @@
   .badge-unresolved {
     background-color: var(--color-warning);
     color: var(--color-dark);
+  }
+  .badge-tag {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+    border-color: var(--color-neutral-300);
+    background-color: var(--color-neutral-100);
+    --tw-font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-normal);
+    color: var(--color-secondary);
   }
   .badge-expired {
     color: var(--color-white);
