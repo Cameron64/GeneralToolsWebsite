@@ -68,10 +68,73 @@ class ANAutomatorConfig:
 
 
 class Utils:
+    # send_keys maps to the W3C "Element Send Keys" command, which is specified as a
+    # simulated keyboard: the driver splits the string into UTF-16 code units and
+    # synthesizes a key event per unit. Anything outside the BMP (U+10000+, i.e. most
+    # modern emoji) is a surrogate pair with no corresponding key, and ChromeDriver
+    # refuses the whole command with "ChromeDriver only supports characters in the BMP".
+    # That exception unwinds all the way to publishEvent's UNEXPECTED result, so an
+    # emoji in an event title fails the entire publish. AN itself never sees the text.
+    #
+    # execute_script has no keyboard model - the string travels as a JSON argument, the
+    # same way a paste does - so we divert to it, but only for text send_keys cannot
+    # carry. send_keys stays the default because it drives the page's own key handlers
+    # (Redactor, the AN date pickers) exactly like a human would.
+
+    # Highest code point send_keys can carry (one UTF-16 code unit).
+    MAX_BMP_CODE_POINT = 0xFFFF
+
+    # Rebuild the editable content the way typing does (one <p>) and fire the events
+    # Redactor syncs its hidden textarea on. Plain inputs just take .value.
+    _SET_TEXT_SCRIPT = """
+        const el = arguments[0], text = arguments[1];
+        el.focus();
+        if (el.isContentEditable) {
+            const p = document.createElement("p");
+            p.textContent = text;
+            el.replaceChildren(p);
+        } else {
+            el.value = text;
+        }
+        for (const type of ["input", "change", "keyup"]) {
+            el.dispatchEvent(new Event(type, {bubbles: true}));
+        }
+    """
+
     @staticmethod
-    def typeTextIntoElement(elem, text: str):
+    def hasNonBmp(text: str) -> bool:
+        return any(ord(c) > Utils.MAX_BMP_CODE_POINT for c in text)
+
+    @staticmethod
+    def stripNonBmp(text: str) -> str:
+        return "".join(c for c in text if ord(c) <= Utils.MAX_BMP_CODE_POINT)
+
+    @staticmethod
+    def typeTextIntoElement(elem, text: str, driver=None):
+        # driver is optional so a call site we missed degrades to the old behavior
+        # instead of raising - but such a site cannot carry emoji.
+        if driver is None or not Utils.hasNonBmp(text):
+            elem.clear()
+            elem.send_keys(text)
+            return
+
+        logger.info("Utils: Text has non-BMP characters, setting it via JS")
+        driver.execute_script(Utils._SET_TEXT_SCRIPT, elem, text)
+        if Utils._readBackText(elem).strip():
+            return
+
+        # The JS set did not stick (an editor we do not know how to drive). Publishing
+        # must still succeed: AN has no delete API, so failing this late would leak the
+        # Zoom meeting created before this step. Drop the emoji rather than the event.
+        logger.warning("Utils: JS text set did not take, falling back to stripped text")
         elem.clear()
-        elem.send_keys(text)
+        elem.send_keys(Utils.stripNonBmp(text))
+
+    @staticmethod
+    def _readBackText(elem) -> str:
+        if elem.get_attribute("isContentEditable") == "true":
+            return elem.get_attribute("textContent") or ""
+        return elem.get_attribute("value") or ""
 
 
 class Screen(abc.ABC):
@@ -506,7 +569,7 @@ class EditEventScreen(Screen):
 
     def fillOutEventInfo(self, eventInfo: EventInfo):
         logger.info("EditEventScreen: Setting title to %s", eventInfo.title)
-        Utils.typeTextIntoElement(self._titleInputBox(), eventInfo.title)
+        Utils.typeTextIntoElement(self._titleInputBox(), eventInfo.title, self.driver)
 
         logger.info("EditEventScreen: Setting type to %d", eventInfo.anEventType)
         eventTypeSelect = selenium.webdriver.support.select.Select(self._eventTypeDropdown())
@@ -515,16 +578,16 @@ class EditEventScreen(Screen):
         # Only set location for in person or hybrid
         if eventInfo.anEventType == ANTypes.HYBRID or eventInfo.anEventType == ANTypes.IN_PERSON:
             logger.info("EditEventScreen: Setting Location to %s", eventInfo.locationName)
-            Utils.typeTextIntoElement(self._locationInputBox(), eventInfo.locationName)
+            Utils.typeTextIntoElement(self._locationInputBox(), eventInfo.locationName, self.driver)
 
             logger.info("EditEventScreen: Setting Address to %s", eventInfo.address)
-            Utils.typeTextIntoElement(self._addressInputBox(), eventInfo.address)
+            Utils.typeTextIntoElement(self._addressInputBox(), eventInfo.address, self.driver)
 
             logger.info("EditEventScreen: Setting City to %s", eventInfo.city)
-            Utils.typeTextIntoElement(self._cityInputBox(), eventInfo.city)
+            Utils.typeTextIntoElement(self._cityInputBox(), eventInfo.city, self.driver)
 
             logger.info("EditEventScreen: Setting Zip to %s", eventInfo.zip)
-            Utils.typeTextIntoElement(self._zipInputBox(), eventInfo.zip)
+            Utils.typeTextIntoElement(self._zipInputBox(), eventInfo.zip, self.driver)
 
             logger.info("EditEventScreen: Setting State to %s", eventInfo.state)
             stateSelectDropdown = selenium.webdriver.support.select.Select(
@@ -568,11 +631,11 @@ class EditEventScreen(Screen):
             
             if eventInfo.zoomLink is not None:
                 logger.info("EditEventScreen: Setting virtual link to %s", eventInfo.zoomLink)
-                Utils.typeTextIntoElement(self._virtualEventLinkInputBox(), eventInfo.zoomLink)
+                Utils.typeTextIntoElement(self._virtualEventLinkInputBox(), eventInfo.zoomLink, self.driver)
             
 
         logger.info("EditEventScreen: Setting Description to %s", eventInfo.description)
-        Utils.typeTextIntoElement(self._descriptionInputBox(), eventInfo.description)
+        Utils.typeTextIntoElement(self._descriptionInputBox(), eventInfo.description, self.driver)
 
         logger.info(
             "EditEventScreen: Setting start date to %s", str(eventInfo.startTime)
@@ -653,7 +716,7 @@ class EditEventThankYouScreen(Screen):
 
     def addInstructions(self, text: str):
         logger.info("EditEventThankYouScreen: Adding instructions %s", text)
-        Utils.typeTextIntoElement(self._instructionsInputBox(), text)
+        Utils.typeTextIntoElement(self._instructionsInputBox(), text, self.driver)
 
     def publishEvent(self):
         self._publishButton().click()
