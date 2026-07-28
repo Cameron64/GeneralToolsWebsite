@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Echo - Emoji that work in event titles</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%E2%9C%8A</text></svg>">
+<style>
+  :root {
+    --paper: #F1EAE0;
+    --paper-raised: #E8DFD1;
+    --ink: #221D18;
+    --ink-soft: #55493C;
+    --line: #C9BBA8;
+    --accent: #A32B3E;
+    --accent-ink: #FFFFFF;
+    --good: #4B6A4F;
+    --good-soft: #DEE7DD;
+    --bad-soft: #F2DFDF;
+    --card-bg: #FBF7EF;
+    --shadow: rgba(34, 29, 24, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1C1815;
+      --paper-raised: #241F1A;
+      --ink: #ECE3D6;
+      --ink-soft: #C3B6A4;
+      --line: #4A3D30;
+      --accent: #E0616F;
+      --accent-ink: #1C1815;
+      --good: #8FBB94;
+      --good-soft: #24322A;
+      --bad-soft: #3A2626;
+      --card-bg: #262019;
+      --shadow: rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1C1815; --paper-raised: #241F1A; --ink: #ECE3D6; --ink-soft: #C3B6A4;
+    --line: #4A3D30; --accent: #E0616F; --accent-ink: #1C1815; --good: #8FBB94;
+    --good-soft: #24322A; --bad-soft: #3A2626; --card-bg: #262019; --shadow: rgba(0,0,0,.45);
+  }
+  :root[data-theme="light"] {
+    --paper: #F1EAE0; --paper-raised: #E8DFD1; --ink: #221D18; --ink-soft: #55493C;
+    --line: #C9BBA8; --accent: #A32B3E; --accent-ink: #FFFFFF; --good: #4B6A4F;
+    --good-soft: #DEE7DD; --bad-soft: #F2DFDF; --card-bg: #FBF7EF; --shadow: rgba(34,29,24,.10);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  h1, h2 { text-wrap: balance; font-weight: 800; }
+
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 64px; }
+  header.top { border-bottom: 2px solid var(--line); padding-bottom: 18px; margin-bottom: 26px; }
+  .brand {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 800;
+  }
+  h1 { font-size: 30px; margin: 8px 0 6px; }
+  .sub { color: var(--ink-soft); margin: 0; }
+
+  .answer {
+    background: var(--card-bg); border: 1px solid var(--line); border-left: 5px solid var(--accent);
+    border-radius: 8px; padding: 16px 18px; margin: 0 0 26px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .answer p { margin: 0 0 10px; }
+  .answer p:last-child { margin-bottom: 0; }
+
+  .picks { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+
+  .chip {
+    font: inherit; cursor: pointer; background: var(--paper-raised);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    display: inline-flex; align-items: center; gap: 8px; color: var(--ink);
+    transition: transform .08s ease, border-color .12s ease;
+  }
+  .chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .chip .gly { font-size: 22px; line-height: 1; }
+  .chip .nm { font-size: 12px; color: var(--ink-soft); }
+  .chip.copied { border-color: var(--good); background: var(--good-soft); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 28px; }
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .box.yes { background: var(--good-soft); }
+  .box.no  { background: var(--bad-soft); }
+  .box h2 { font-size: 15px; margin: 0 0 8px; }
+  .box .row { font-size: 26px; letter-spacing: 6px; line-height: 1.5; }
+  .box p { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+  .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 8px; }
+  input[type="search"] {
+    font: inherit; padding: 10px 12px; border-radius: 8px; flex: 1 1 260px;
+    border: 1px solid var(--line); background: var(--card-bg); color: var(--ink);
+  }
+  .count { font-size: 13px; color: var(--ink-soft); }
+  .hint { font-size: 13px; color: var(--ink-soft); margin: 0 0 22px; }
+
+  section.grp { margin: 0 0 22px; }
+  section.grp h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-soft); border-bottom: 1px solid var(--line);
+    padding-bottom: 6px; margin: 0 0 12px;
+  }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  section.grp[hidden] { display: none; }
+
+  .none { color: var(--ink-soft); font-style: italic; }
+
+  footer {
+    margin-top: 34px; border-top: 1px solid var(--line); padding-top: 16px;
+    font-size: 13px; color: var(--ink-soft);
+  }
+  footer code { background: var(--paper-raised); padding: 1px 5px; border-radius: 4px; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 24px; }
+    .two { grid-template-columns: 1fr; }
+    .wrap { padding: 20px 14px 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">Austin DSA &middot; Echo</div>
+  <h1>Emoji that work in event titles</h1>
+  <p class="sub">A short list, until the fix ships. Tap any emoji to copy it.</p>
+</header>
+
+<div class="answer">
+  <p><strong>184 of the 3,944 standard emoji work in Echo's event fields right now.</strong> The ones that work are the older, simpler symbols. Newer full-color emoji fail, and they fail the whole event, not just the title.</p>
+  <p>This applies to the <strong>title, description and instructions</strong> fields alike. A fix is written and under review, so this list is temporary.</p>
+  <div class="picks"><button class="chip" type="button" data-glyph="✊" data-name="raised fist" title="raised fist"><span class="gly">✊</span><span class="nm">raised fist</span></button><button class="chip" type="button" data-glyph="✅" data-name="check mark button" title="check mark button"><span class="gly">✅</span><span class="nm">check mark button</span></button><button class="chip" type="button" data-glyph="⭐" data-name="star" title="star"><span class="gly">⭐</span><span class="nm">star</span></button><button class="chip" type="button" data-glyph="❤️" data-name="red heart" title="red heart"><span class="gly">❤️</span><span class="nm">red heart</span></button><button class="chip" type="button" data-glyph="✨" data-name="sparkles" title="sparkles"><span class="gly">✨</span><span class="nm">sparkles</span></button><button class="chip" type="button" data-glyph="⚡" data-name="high voltage" title="high voltage"><span class="gly">⚡</span><span class="nm">high voltage</span></button><button class="chip" type="button" data-glyph="♻️" data-name="recycling symbol" title="recycling symbol"><span class="gly">♻️</span><span class="nm">recycling symbol</span></button><button class="chip" type="button" data-glyph="✉️" data-name="envelope" title="envelope"><span class="gly">✉️</span><span class="nm">envelope</span></button><button class="chip" type="button" data-glyph="⚠️" data-name="warning" title="warning"><span class="gly">⚠️</span><span class="nm">warning</span></button><button class="chip" type="button" data-glyph="☮️" data-name="peace symbol" title="peace symbol"><span class="gly">☮️</span><span class="nm">peace symbol</span></button></div>
+</div>
+
+<div class="two">
+  <div class="box yes">
+    <h2>Works today</h2>
+    <div class="row">✊ ✅ ⭐ ❤️ ✨ ⚡ ♻️ ✉️</div>
+    <p>Anything in the list below. These were added to Unicode in the 1990s, before emoji as we know them, which is the whole reason they get through.</p>
+  </div>
+  <div class="box no">
+    <h2>Fails today</h2>
+    <div class="row">🌹 🔥 📣 🎉 📅 🗳️</div>
+    <p>Every emoji added after roughly 2010, every skin-tone hand, and every flag. Our own rose is in this group, which is why the fix matters more than the list.</p>
+  </div>
+</div>
+
+<div class="tools">
+  <input type="search" id="q" placeholder="Search by name, e.g. fist, star, heart" aria-label="Search emoji by name">
+  <span class="count" id="count"></span>
+</div>
+<p class="hint">Tap an emoji to copy it, then paste it into the event form.</p>
+
+<div id="list"></div>
+<p class="none" id="none" hidden>Nothing matches that search.</p>
+
+<footer>
+  <p>Generated from Unicode's <code>emoji-test.txt</code> (2025-08-04), keeping only emoji whose every code point is at or below U+FFFF. 184 of 3,944 qualify.</p>
+  <p>Questions about an event that will not publish: ask in the tech channel.</p>
+</footer>
+
+</div>
+
+<script>
+const DATA = [{"group": "Smileys & Emotion", "items": [{"g": "☺️", "n": "smiling face", "c": "U+263A U+FE0F"}, {"g": "☹️", "n": "frowning face", "c": "U+2639 U+FE0F"}, {"g": "☠️", "n": "skull and crossbones", "c": "U+2620 U+FE0F"}, {"g": "❣️", "n": "heart exclamation", "c": "U+2763 U+FE0F"}, {"g": "❤️", "n": "red heart", "c": "U+2764 U+FE0F"}]}, {"group": "People & Body", "items": [{"g": "✋", "n": "raised hand", "c": "U+270B"}, {"g": "✌️", "n": "victory hand", "c": "U+270C U+FE0F"}, {"g": "☝️", "n": "index pointing up", "c": "U+261D U+FE0F"}, {"g": "✊", "n": "raised fist", "c": "U+270A"}, {"g": "✍️", "n": "writing hand", "c": "U+270D U+FE0F"}, {"g": "⛷️", "n": "skier", "c": "U+26F7 U+FE0F"}, {"g": "⛹️", "n": "person bouncing ball", "c": "U+26F9 U+FE0F"}, {"g": "⛹️‍♂️", "n": "man bouncing ball", "c": "U+26F9 U+FE0F U+200D U+2642 U+FE0F"}, {"g": "⛹️‍♀️", "n": "woman bouncing ball", "c": "U+26F9 U+FE0F U+200D U+2640 U+FE0F"}]}, {"group": "Animals & Nature", "items": [{"g": "☘️", "n": "shamrock", "c": "U+2618 U+FE0F"}]}, {"group": "Food & Drink", "items": [{"g": "☕", "n": "hot beverage", "c": "U+2615"}]}, {"group": "Travel & Places", "items": [{"g": "⛰️", "n": "mountain", "c": "U+26F0 U+FE0F"}, {"g": "⛪", "n": "church", "c": "U+26EA"}, {"g": "⛩️", "n": "shinto shrine", "c": "U+26E9 U+FE0F"}, {"g": "⛲", "n": "fountain", "c": "U+26F2"}, {"g": "⛺", "n": "tent", "c": "U+26FA"}, {"g": "♨️", "n": "hot springs", "c": "U+2668 U+FE0F"}, {"g": "⛽", "n": "fuel pump", "c": "U+26FD"}, {"g": "⚓", "n": "anchor", "c": "U+2693"}, {"g": "⛵", "n": "sailboat", "c": "U+26F5"}, {"g": "⛴️", "n": "ferry", "c": "U+26F4 U+FE0F"}, {"g": "✈️", "n": "airplane", "c": "U+2708 U+FE0F"}, {"g": "⌛", "n": "hourglass done", "c": "U+231B"}, {"g": "⏳", "n": "hourglass not done", "c": "U+23F3"}, {"g": "⌚", "n": "watch", "c": "U+231A"}, {"g": "⏰", "n": "alarm clock", "c": "U+23F0"}, {"g": "⏱️", "n": "stopwatch", "c": "U+23F1 U+FE0F"}, {"g": "⏲️", "n": "timer clock", "c": "U+23F2 U+FE0F"}, {"g": "☀️", "n": "sun", "c": "U+2600 U+FE0F"}, {"g": "⭐", "n": "star", "c": "U+2B50"}, {"g": "☁️", "n": "cloud", "c": "U+2601 U+FE0F"}, {"g": "⛅", "n": "sun behind cloud", "c": "U+26C5"}, {"g": "⛈️", "n": "cloud with lightning and rain", "c": "U+26C8 U+FE0F"}, {"g": "☂️", "n": "umbrella", "c": "U+2602 U+FE0F"}, {"g": "☔", "n": "umbrella with rain drops", "c": "U+2614"}, {"g": "⛱️", "n": "umbrella on ground", "c": "U+26F1 U+FE0F"}, {"g": "⚡", "n": "high voltage", "c": "U+26A1"}, {"g": "❄️", "n": "snowflake", "c": "U+2744 U+FE0F"}, {"g": "☃️", "n": "snowman", "c": "U+2603 U+FE0F"}, {"g": "⛄", "n": "snowman without snow", "c": "U+26C4"}, {"g": "☄️", "n": "comet", "c": "U+2604 U+FE0F"}]}, {"group": "Activities", "items": [{"g": "✨", "n": "sparkles", "c": "U+2728"}, {"g": "⚽", "n": "soccer ball", "c": "U+26BD"}, {"g": "⚾", "n": "baseball", "c": "U+26BE"}, {"g": "⛳", "n": "flag in hole", "c": "U+26F3"}, {"g": "⛸️", "n": "ice skate", "c": "U+26F8 U+FE0F"}, {"g": "♠️", "n": "spade suit", "c": "U+2660 U+FE0F"}, {"g": "♥️", "n": "heart suit", "c": "U+2665 U+FE0F"}, {"g": "♦️", "n": "diamond suit", "c": "U+2666 U+FE0F"}, {"g": "♣️", "n": "club suit", "c": "U+2663 U+FE0F"}, {"g": "♟️", "n": "chess pawn", "c": "U+265F U+FE0F"}]}, {"group": "Objects", "items": [{"g": "⛑️", "n": "rescue worker’s helmet", "c": "U+26D1 U+FE0F"}, {"g": "☎️", "n": "telephone", "c": "U+260E U+FE0F"}, {"g": "⌨️", "n": "keyboard", "c": "U+2328 U+FE0F"}, {"g": "✉️", "n": "envelope", "c": "U+2709 U+FE0F"}, {"g": "✏️", "n": "pencil", "c": "U+270F U+FE0F"}, {"g": "✒️", "n": "black nib", "c": "U+2712 U+FE0F"}, {"g": "✂️", "n": "scissors", "c": "U+2702 U+FE0F"}, {"g": "⛏️", "n": "pick", "c": "U+26CF U+FE0F"}, {"g": "⚒️", "n": "hammer and pick", "c": "U+2692 U+FE0F"}, {"g": "⚔️", "n": "crossed swords", "c": "U+2694 U+FE0F"}, {"g": "⚙️", "n": "gear", "c": "U+2699 U+FE0F"}, {"g": "⚖️", "n": "balance scale", "c": "U+2696 U+FE0F"}, {"g": "⛓️", "n": "chains", "c": "U+26D3 U+FE0F"}, {"g": "⚗️", "n": "alembic", "c": "U+2697 U+FE0F"}, {"g": "⚰️", "n": "coffin", "c": "U+26B0 U+FE0F"}, {"g": "⚱️", "n": "funeral urn", "c": "U+26B1 U+FE0F"}]}, {"group": "Symbols", "items": [{"g": "♿", "n": "wheelchair symbol", "c": "U+267F"}, {"g": "⚠️", "n": "warning", "c": "U+26A0 U+FE0F"}, {"g": "⛔", "n": "no entry", "c": "U+26D4"}, {"g": "☢️", "n": "radioactive", "c": "U+2622 U+FE0F"}, {"g": "☣️", "n": "biohazard", "c": "U+2623 U+FE0F"}, {"g": "⬆️", "n": "up arrow", "c": "U+2B06 U+FE0F"}, {"g": "↗️", "n": "up-right arrow", "c": "U+2197 U+FE0F"}, {"g": "➡️", "n": "right arrow", "c": "U+27A1 U+FE0F"}, {"g": "↘️", "n": "down-right arrow", "c": "U+2198 U+FE0F"}, {"g": "⬇️", "n": "down arrow", "c": "U+2B07 U+FE0F"}, {"g": "↙️", "n": "down-left arrow", "c": "U+2199 U+FE0F"}, {"g": "⬅️", "n": "left arrow", "c": "U+2B05 U+FE0F"}, {"g": "↖️", "n": "up-left arrow", "c": "U+2196 U+FE0F"}, {"g": "↕️", "n": "up-down arrow", "c": "U+2195 U+FE0F"}, {"g": "↔️", "n": "left-right arrow", "c": "U+2194 U+FE0F"}, {"g": "↩️", "n": "right arrow curving left", "c": "U+21A9 U+FE0F"}, {"g": "↪️", "n": "left arrow curving right", "c": "U+21AA U+FE0F"}, {"g": "⤴️", "n": "right arrow curving up", "c": "U+2934 U+FE0F"}, {"g": "⤵️", "n": "right arrow curving down", "c": "U+2935 U+FE0F"}, {"g": "⚛️", "n": "atom symbol", "c": "U+269B U+FE0F"}, {"g": "✡️", "n": "star of David", "c": "U+2721 U+FE0F"}, {"g": "☸️", "n": "wheel of dharma", "c": "U+2638 U+FE0F"}, {"g": "☯️", "n": "yin yang", "c": "U+262F U+FE0F"}, {"g": "✝️", "n": "latin cross", "c": "U+271D U+FE0F"}, {"g": "☦️", "n": "orthodox cross", "c": "U+2626 U+FE0F"}, {"g": "☪️", "n": "star and crescent", "c": "U+262A U+FE0F"}, {"g": "☮️", "n": "peace symbol", "c": "U+262E U+FE0F"}, {"g": "♈", "n": "Aries", "c": "U+2648"}, {"g": "♉", "n": "Taurus", "c": "U+2649"}, {"g": "♊", "n": "Gemini", "c": "U+264A"}, {"g": "♋", "n": "Cancer", "c": "U+264B"}, {"g": "♌", "n": "Leo", "c": "U+264C"}, {"g": "♍", "n": "Virgo", "c": "U+264D"}, {"g": "♎", "n": "Libra", "c": "U+264E"}, {"g": "♏", "n": "Scorpio", "c": "U+264F"}, {"g": "♐", "n": "Sagittarius", "c": "U+2650"}, {"g": "♑", "n": "Capricorn", "c": "U+2651"}, {"g": "♒", "n": "Aquarius", "c": "U+2652"}, {"g": "♓", "n": "Pisces", "c": "U+2653"}, {"g": "⛎", "n": "Ophiuchus", "c": "U+26CE"}, {"g": "▶️", "n": "play button", "c": "U+25B6 U+FE0F"}, {"g": "⏩", "n": "fast-forward button", "c": "U+23E9"}, {"g": "⏭️", "n": "next track button", "c": "U+23ED U+FE0F"}, {"g": "⏯️", "n": "play or pause button", "c": "U+23EF U+FE0F"}, {"g": "◀️", "n": "reverse button", "c": "U+25C0 U+FE0F"}, {"g": "⏪", "n": "fast reverse button", "c": "U+23EA"}, {"g": "⏮️", "n": "last track button", "c": "U+23EE U+FE0F"}, {"g": "⏫", "n": "fast up button", "c": "U+23EB"}, {"g": "⏬", "n": "fast down button", "c": "U+23EC"}, {"g": "⏸️", "n": "pause button", "c": "U+23F8 U+FE0F"}, {"g": "⏹️", "n": "stop button", "c": "U+23F9 U+FE0F"}, {"g": "⏺️", "n": "record button", "c": "U+23FA U+FE0F"}, {"g": "⏏️", "n": "eject button", "c": "U+23CF U+FE0F"}, {"g": "♀️", "n": "female sign", "c": "U+2640 U+FE0F"}, {"g": "♂️", "n": "male sign", "c": "U+2642 U+FE0F"}, {"g": "⚧️", "n": "transgender symbol", "c": "U+26A7 U+FE0F"}, {"g": "✖️", "n": "multiply", "c": "U+2716 U+FE0F"}, {"g": "➕", "n": "plus", "c": "U+2795"}, {"g": "➖", "n": "minus", "c": "U+2796"}, {"g": "➗", "n": "divide", "c": "U+2797"}, {"g": "♾️", "n": "infinity", "c": "U+267E U+FE0F"}, {"g": "‼️", "n": "double exclamation mark", "c": "U+203C U+FE0F"}, {"g": "⁉️", "n": "exclamation question mark", "c": "U+2049 U+FE0F"}, {"g": "❓", "n": "red question mark", "c": "U+2753"}, {"g": "❔", "n": "white question mark", "c": "U+2754"}, {"g": "❕", "n": "white exclamation mark", "c": "U+2755"}, {"g": "❗", "n": "red exclamation mark", "c": "U+2757"}, {"g": "〰️", "n": "wavy dash", "c": "U+3030 U+FE0F"}, {"g": "⚕️", "n": "medical symbol", "c": "U+2695 U+FE0F"}, {"g": "♻️", "n": "recycling symbol", "c": "U+267B U+FE0F"}, {"g": "⚜️", "n": "fleur-de-lis", "c": "U+269C U+FE0F"}, {"g": "⭕", "n": "hollow red circle", "c": "U+2B55"}, {"g": "✅", "n": "check mark button", "c": "U+2705"}, {"g": "☑️", "n": "check box with check", "c": "U+2611 U+FE0F"}, {"g": "✔️", "n": "check mark", "c": "U+2714 U+FE0F"}, {"g": "❌", "n": "cross mark", "c": "U+274C"}, {"g": "❎", "n": "cross mark button", "c": "U+274E"}, {"g": "➰", "n": "curly loop", "c": "U+27B0"}, {"g": "➿", "n": "double curly loop", "c": "U+27BF"}, {"g": "〽️", "n": "part alternation mark", "c": "U+303D U+FE0F"}, {"g": "✳️", "n": "eight-spoked asterisk", "c": "U+2733 U+FE0F"}, {"g": "✴️", "n": "eight-pointed star", "c": "U+2734 U+FE0F"}, {"g": "❇️", "n": "sparkle", "c": "U+2747 U+FE0F"}, {"g": "©️", "n": "copyright", "c": "U+00A9 U+FE0F"}, {"g": "®️", "n": "registered", "c": "U+00AE U+FE0F"}, {"g": "™️", "n": "trade mark", "c": "U+2122 U+FE0F"}, {"g": "#️⃣", "n": "keycap: #", "c": "U+0023 U+FE0F U+20E3"}, {"g": "*️⃣", "n": "keycap: *", "c": "U+002A U+FE0F U+20E3"}, {"g": "0️⃣", "n": "keycap: 0", "c": "U+0030 U+FE0F U+20E3"}, {"g": "1️⃣", "n": "keycap: 1", "c": "U+0031 U+FE0F U+20E3"}, {"g": "2️⃣", "n": "keycap: 2", "c": "U+0032 U+FE0F U+20E3"}, {"g": "3️⃣", "n": "keycap: 3", "c": "U+0033 U+FE0F U+20E3"}, {"g": "4️⃣", "n": "keycap: 4", "c": "U+0034 U+FE0F U+20E3"}, {"g": "5️⃣", "n": "keycap: 5", "c": "U+0035 U+FE0F U+20E3"}, {"g": "6️⃣", "n": "keycap: 6", "c": "U+0036 U+FE0F U+20E3"}, {"g": "7️⃣", "n": "keycap: 7", "c": "U+0037 U+FE0F U+20E3"}, {"g": "8️⃣", "n": "keycap: 8", "c": "U+0038 U+FE0F U+20E3"}, {"g": "9️⃣", "n": "keycap: 9", "c": "U+0039 U+FE0F U+20E3"}, {"g": "ℹ️", "n": "information", "c": "U+2139 U+FE0F"}, {"g": "Ⓜ️", "n": "circled M", "c": "U+24C2 U+FE0F"}, {"g": "㊗️", "n": "Japanese “congratulations” button", "c": "U+3297 U+FE0F"}, {"g": "㊙️", "n": "Japanese “secret” button", "c": "U+3299 U+FE0F"}, {"g": "⚫", "n": "black circle", "c": "U+26AB"}, {"g": "⚪", "n": "white circle", "c": "U+26AA"}, {"g": "⬛", "n": "black large square", "c": "U+2B1B"}, {"g": "⬜", "n": "white large square", "c": "U+2B1C"}, {"g": "◼️", "n": "black medium square", "c": "U+25FC U+FE0F"}, {"g": "◻️", "n": "white medium square", "c": "U+25FB U+FE0F"}, {"g": "◾", "n": "black medium-small square", "c": "U+25FE"}, {"g": "◽", "n": "white medium-small square", "c": "U+25FD"}, {"g": "▪️", "n": "black small square", "c": "U+25AA U+FE0F"}, {"g": "▫️", "n": "white small square", "c": "U+25AB U+FE0F"}]}];
+
+const list = document.getElementById("list");
+const countEl = document.getElementById("count");
+const noneEl = document.getElementById("none");
+const q = document.getElementById("q");
+
+function chip(item) {
+  const b = document.createElement("button");
+  b.className = "chip";
+  b.type = "button";
+  b.title = item.n + "  " + item.c;
+  b.dataset.name = item.n.toLowerCase();
+  b.dataset.glyph = item.g;
+  b.innerHTML = '<span class="gly"></span><span class="nm"></span>';
+  b.querySelector(".gly").textContent = item.g;
+  b.querySelector(".nm").textContent = item.n;
+  b.addEventListener("click", () => copy(b));
+  return b;
+}
+
+function copy(btn) {
+  const text = btn.dataset.glyph;
+  const done = () => {
+    document.querySelectorAll(".chip.copied").forEach(c => c.classList.remove("copied"));
+    btn.classList.add("copied");
+    setTimeout(() => btn.classList.remove("copied"), 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallback(text, done));
+  } else {
+    fallback(text, done);
+  }
+}
+
+function fallback(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (e) { /* clipboard blocked */ }
+  document.body.removeChild(ta);
+}
+
+DATA.forEach(g => {
+  const sec = document.createElement("section");
+  sec.className = "grp";
+  const h = document.createElement("h2");
+  h.textContent = g.group + " (" + g.items.length + ")";
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  g.items.forEach(i => grid.appendChild(chip(i)));
+  sec.appendChild(h);
+  sec.appendChild(grid);
+  list.appendChild(sec);
+});
+
+document.querySelectorAll(".picks .chip").forEach(b => b.addEventListener("click", () => copy(b)));
+
+function filter() {
+  const term = q.value.trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll("#list section.grp").forEach(sec => {
+    let visible = 0;
+    sec.querySelectorAll(".chip").forEach(c => {
+      const hit = !term || c.dataset.name.includes(term);
+      c.hidden = !hit;
+      if (hit) visible++;
+    });
+    sec.hidden = visible === 0;
+    shown += visible;
+  });
+  countEl.textContent = term ? shown + " of 184 shown" : "184 emoji";
+  noneEl.hidden = shown !== 0;
+}
+
+q.addEventListener("input", filter);
+filter();
+</script>
+</body>
+</html>
