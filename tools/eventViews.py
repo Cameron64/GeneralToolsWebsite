@@ -91,6 +91,34 @@ def _buildEventPayload(eventInfo, ignoreResolveableConflicts) -> dict:
     }
 
 
+# What a conflict says when the viewer has no standing to read the chapter's
+# calendars: the slot is taken, but not by what.
+REDACTED_CONFLICT_TITLE = "Another scheduled event"
+
+
+def _redactConflictsFor(user, owner, conflicts):
+    """Strip third-party event titles and Zoom host accounts for a viewer who is
+    not an authorizer for `owner`.
+
+    A conflict check runs against the chapter's central Zoom and Google Calendar
+    under service credentials, so it can see everything on them. The requester
+    needs to know a slot is taken and when it frees up - that is the actionable
+    part, and start/end are kept. The event's TITLE and the host's Zoom account
+    are not: they are the contents of other people's calendars, and holding
+    requestDelegatedEvent is not a claim to read those.
+
+    Authorizers for the owner are exempt: they already reach the same detail
+    through the approve flow, so redacting there would only remove information
+    they are entitled to.
+    """
+    if user in owner.authorizers.all():
+        return conflicts
+    return [
+        dataclasses.replace(conflict, title=REDACTED_CONFLICT_TITLE, zoomUser=None)
+        for conflict in conflicts
+    ]
+
+
 @login_required
 @permission_required(PUBLISH_EVENT)
 def new_event(request):
@@ -271,7 +299,11 @@ def new_delegated_event(request):
                 "PublishDelegatedEvent: Event Request Creation Failed with Unresolveable Conflict %s",
                 str(result),
             )
-            # Convert conflict times to timezone specified in form, then make naiive
+            # This dry run reached the central Zoom/gCal under service
+            # credentials on behalf of a requester who needed no authorizer
+            # membership to get here, so the conflicts are redacted before they
+            # reach the page. Logged in full above for operators.
+            result.conflicts = _redactConflictsFor(request.user, owner, result.conflicts)
             return render(
                 request,
                 "tools/new-delegated-event/unresolveable.html",
@@ -283,6 +315,7 @@ def new_delegated_event(request):
                 "PublishDelegatedEvent: Event Request Failed with Unresolveable Conflict %s",
                 str(result),
             )
+            result.conflicts = _redactConflictsFor(request.user, owner, result.conflicts)
             return render(
                 request, "tools/new-delegated-event/resolveable.html", dataclasses.asdict(result)
             )
