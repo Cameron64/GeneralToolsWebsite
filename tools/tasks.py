@@ -22,6 +22,7 @@ from huey.contrib.djhuey import db_periodic_task, db_task
 
 import settings
 
+from . import permissions
 from .EmailApi import EmailApi
 from .EventAutomation import EventAutomationDriver
 from .SecretManager import SecretManager
@@ -165,11 +166,28 @@ def _finishDelegatedPublish(job: PublishJob, eventInfo, result) -> None:
     approver = User.objects.get(id=job.payload["approverId"])
     reason = job.payload["reason"]
     utcNow = datetime.datetime.now(datetime.UTC)
-    event.status = DelegatedEvents.Status.APPROVED
-    event.approver = approver
-    event.dateReviewed = utcNow
-    event.reason = reason
-    event.save()
+    # Re-read the review status from the DB before overwriting it. The
+    # pre-publish re-validation in publishEventJob already refuses a job whose
+    # request left REQUESTED, but the publish itself takes 15-30 seconds and a
+    # denial can land inside that window. If it did, the external event was
+    # still created (Action Network has no delete API - it cannot be recalled),
+    # so the PostedEvents row below is written either way as the record of what
+    # actually exists. What must NOT happen is silently overwriting a human's
+    # DENIED decision with APPROVED.
+    event.refresh_from_db()
+    if event.status != DelegatedEvents.Status.REQUESTED:
+        logger.error(
+            "PublishEventJob: Delegated event %s left REQUESTED (now %s) while job %s was "
+            "publishing - the external event WAS created and needs manual reconciliation. "
+            "Preserving the existing review decision instead of overwriting it with APPROVED.",
+            event.id, event.getStatusAsString(), job.id,
+        )
+    else:
+        event.status = DelegatedEvents.Status.APPROVED
+        event.approver = approver
+        event.dateReviewed = utcNow
+        event.reason = reason
+        event.save()
     e = PostedEvents.objects.create(title = eventInfo.title,
                                     start = event.start,
                                     end = event.end,
@@ -220,6 +238,83 @@ def _finishDelegatedPublish(job: PublishJob, eventInfo, result) -> None:
         logger.exception(err)
 
 
+class _AuthorizationNoLongerValid(Exception):
+    """The authorization the enqueueing view checked no longer holds.
+
+    Carries a member-safe reason - it is surfaced to the job's creator through
+    PublishJob.errorMessage, so it must never contain internals or a traceback.
+    """
+
+
+def _revalidateJobAuthorization(job: PublishJob) -> None:
+    """Re-check the enqueueing view's authorization at execution time.
+
+    The web request that created this job checked permission, owner activity and
+    owner-authorizer membership - but that was a snapshot. In production Huey is
+    asynchronous (HUEY_IMMEDIATE=False), so an arbitrary amount of time passes
+    before the worker runs, and every one of those facts is mutable in the
+    meantime: an access admin can revoke the permission or drop the member from
+    EventOwners.authorizers, the owner's expiration can pass, and a delegated
+    request can be denied by a different authorizer.
+
+    Publishing is not a cheap side effect to get wrong. It creates a real Zoom
+    meeting, a real Action Network event (no delete API - it cannot be recalled
+    programmatically), and a real Google Calendar entry under chapter
+    credentials. So this fails CLOSED: anything it cannot positively confirm
+    stops the publish.
+
+    Mirrors eventViews.new_event (PUBLISH_EVENT + isActive + authorizers) and
+    eventViews.approve_delegated_event (APPROVE_DELEGATED_EVENT + authorizers +
+    status is REQUESTED). Keep the two in step - if a check is added to a view,
+    add it here too.
+
+    Raises _AuthorizationNoLongerValid if the job must not publish.
+    """
+    # creator and owner are SET_NULL, so a deleted user or owner reads as None
+    # rather than raising - treat that as revocation, not as a missing check.
+    if job.creator is None:
+        raise _AuthorizationNoLongerValid(
+            "The account that requested this publish no longer exists, so it was not published."
+        )
+    if job.owner is None:
+        raise _AuthorizationNoLongerValid(
+            "The event owner this publish was requested for no longer exists, so it was not published."
+        )
+    if not job.owner.isActive():
+        raise _AuthorizationNoLongerValid(
+            f"Owner {job.owner.name} is no longer active, so this event was not published."
+        )
+    if job.creator not in job.owner.authorizers.all():
+        raise _AuthorizationNoLongerValid(
+            f"You are no longer an authorizer for owner {job.owner.name}, "
+            "so this event was not published."
+        )
+
+    if job.kind == PublishJob.Kind.DELEGATED:
+        if not job.creator.has_perm(permissions.APPROVE_DELEGATED_EVENT):
+            raise _AuthorizationNoLongerValid(
+                "Your permission to approve delegated events was removed, "
+                "so this event was not published."
+            )
+        event = job.delegatedEvent
+        if event is None:
+            raise _AuthorizationNoLongerValid(
+                "The event request this approval was for no longer exists, so nothing was published."
+            )
+        # Refuse a request that another authorizer denied (or that was already
+        # approved by a competing job) while this one sat in the queue.
+        event.refresh_from_db()
+        if event.status != DelegatedEvents.Status.REQUESTED:
+            raise _AuthorizationNoLongerValid(
+                f"This event request is already {event.getStatusAsString().lower()}, "
+                "so it was not published again."
+            )
+    elif not job.creator.has_perm(permissions.PUBLISH_EVENT):
+        raise _AuthorizationNoLongerValid(
+            "Your permission to publish events was removed, so this event was not published."
+        )
+
+
 # retries=0 is load-bearing: Action Network has no delete API, so a retry
 # after a partial run can double-publish an event nobody can programmatically
 # remove. Failures land in the job row for a human to triage instead.
@@ -245,6 +340,11 @@ def publishEventJob(jobId):
                 f"PublishEventJob: Unsupported payload version {payload.get('payloadVersion')!r} "
                 f"(expected {PublishJob.PAYLOAD_VERSION})"
             )
+
+        # Authorization was checked when this job was enqueued, possibly a long
+        # time ago. Re-check it here, before any external side effect.
+        _revalidateJobAuthorization(job)
+
         eventInfo = _rehydrateEventInfo(payload)
 
         if settings.DEMO_MODE:
@@ -298,6 +398,16 @@ def publishEventJob(jobId):
             logger.error("PublishEventJob: Unexpected error when publishing event %s", str(result))
             job.errorMessage = "".join(result.errorStr or [])
             job.status = PublishJob.Status.FAILED
+    except _AuthorizationNoLongerValid as revoked:
+        # A refusal, not a crash: nothing was published and there is nothing to
+        # clean up. The reason is member-safe by construction, so it goes to the
+        # job row verbatim rather than as a traceback.
+        logger.error(
+            "PublishEventJob: Refusing to publish job %s - authorization no longer valid: %s",
+            jobId, revoked,
+        )
+        job.status = PublishJob.Status.FAILED
+        job.errorMessage = str(revoked)
     except Exception:
         logger.exception("PublishEventJob: Unexpected exception publishing job %s", jobId)
         job.status = PublishJob.Status.FAILED

@@ -384,7 +384,12 @@ class PublishStatusPageTests(LoginClientMixin, TestCase):
 @fastHashing
 class PublishAnywayTests(LoginClientMixin, TestCase):
     def setUp(self):
-        self.creator = UserFactory.make("creator")
+        # publish_anyway itself only checks login + _canViewJob, so it re-enqueues
+        # a publish without re-checking publishEvent / owner-active / authorizer.
+        # publishEventJob's re-validation is what actually gates the clone, hence
+        # the real permission here (a user who reached a CONFLICT job through
+        # new_event necessarily had it).
+        self.creator = UserFactory.make("creator", perms=("publishEvent",))
         self.other = UserFactory.make("other")
         self.owner = makeOwner("Education Committee", authorizers=[self.creator])
 

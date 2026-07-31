@@ -78,10 +78,15 @@ def zoomConflict():
 @fastHashing
 class PublishEventJobDirectTests(TestCase):
     def setUp(self):
-        self.creator = UserFactory.make("publisher")
+        # A genuinely publishable setup: publishEvent + authorizer on an active
+        # owner. publishEventJob re-validates all three at execution time
+        # (tasks._revalidateJobAuthorization), so a job whose creator lacks them
+        # is one the view could never have created and the task now refuses.
+        self.creator = UserFactory.make("publisher", perms=("publishEvent",))
         self.owner = EventOwners.objects.create(
             name="Education Committee", isPermanent=True, expiration=FUTURE,
         )
+        self.owner.authorizers.add(self.creator)
 
     def makeDirectJob(self, ignoreResolveableConflicts=False, **infoOverrides):
         eventInfo = makeEventInfo(**infoOverrides)
@@ -218,11 +223,15 @@ class PublishEventJobDirectTests(TestCase):
 @fastHashing
 class PublishEventJobDelegatedTests(TestCase):
     def setUp(self):
-        self.requester = UserFactory.make("requester")
-        self.approver = UserFactory.make("approver")
+        self.requester = UserFactory.make("requester", perms=("requestDelegatedEvent",))
+        # The approver is the job's creator, so it is the approver's rights that
+        # publishEventJob re-validates: approveDelegatedEvent + authorizer on an
+        # active owner (tasks._revalidateJobAuthorization).
+        self.approver = UserFactory.make("approver", perms=("approveDelegatedEvent",))
         self.owner = EventOwners.objects.create(
             name="Education Committee", isPermanent=True, expiration=FUTURE,
         )
+        self.owner.authorizers.add(self.approver)
         self.event = DelegatedEvents.objects.create(
             title="Tabling at the farmers market",
             start=datetime.datetime(2030, 7, 1, 23, 0, tzinfo=datetime.UTC),
@@ -339,12 +348,16 @@ class PublishEventJobDemoModeTests(TestCase):
     patch the module attribute directly."""
 
     def setUp(self):
-        self.creator = UserFactory.make("publisher")
-        self.requester = UserFactory.make("requester")
-        self.approver = UserFactory.make("approver")
+        # DEMO_MODE skips the external publish but NOT the authorization
+        # re-validation, which runs before it - so these fixtures need the same
+        # real rights as the non-demo ones.
+        self.creator = UserFactory.make("publisher", perms=("publishEvent",))
+        self.requester = UserFactory.make("requester", perms=("requestDelegatedEvent",))
+        self.approver = UserFactory.make("approver", perms=("approveDelegatedEvent",))
         self.owner = EventOwners.objects.create(
             name="Education Committee", isPermanent=True, expiration=FUTURE,
         )
+        self.owner.authorizers.add(self.creator, self.approver)
 
     def makeDirectJob(self, **infoOverrides):
         payload = _buildEventPayload(makeEventInfo(**infoOverrides), False)
