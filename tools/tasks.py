@@ -55,6 +55,24 @@ def syncLinkTreeWiki():
             )
 
 
+# 10:30 UTC, half an hour before the wiki sync: the two touch unrelated tables,
+# and staggering them keeps the single worker from doing both at once.
+@db_periodic_task(crontab(hour="10", minute="30"))
+def pruneLinkEvents():
+    """Daily retention pass over the Link Tree click/scan log.
+
+    LinkEvent is appended on every public click and QR scan and nothing else
+    ever deletes one, so without this the table grows without bound. The
+    management command stays the imperative core (manual runs and --dry-run keep
+    working); this is just its schedule.
+    """
+    try:
+        call_command("prune_link_events", quiet=True)
+    except SystemExit as e:
+        if e.code:
+            logger.error("prune_link_events reported errors (exit code %s)", e.code)
+
+
 # --- Event publishing (PublishJob) ------------------------------------------
 #
 # The two real-publish flows in eventViews.py (new_event and the

@@ -49,6 +49,17 @@ SECRET_KEY = env("SECRET_KEY")
 # same-day visitor-uniqueness continuity.
 LINK_TRACKING_SALT = env("LINK_TRACKING_SALT", default=SECRET_KEY)
 
+# How long a LinkEvent row is kept before prune_link_events deletes it (see
+# tools/management/commands/prune_link_events.py, scheduled by tasks.py).
+# LinkEvent is written on every public click/scan with no upper bound, so
+# without a retention window the table grows forever - both an availability
+# problem (it shares the Django DB with everything else) and a data-minimization
+# one: national's Membership List Guide asks that member-derived files be deleted
+# regularly, and we should not hold visitor logs indefinitely just because they
+# are cheap to append. 180 days keeps season-over-season comparison while
+# bounding growth. Set to 0 to disable pruning entirely (not recommended).
+LINK_EVENT_RETENTION_DAYS = env.int("LINK_EVENT_RETENTION_DAYS", default=180)
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
