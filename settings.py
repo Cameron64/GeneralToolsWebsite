@@ -84,6 +84,35 @@ CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
 # header and falls back to the actual scheme.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Mark the session and CSRF cookies Secure so the browser never puts them on a
+# plaintext request. Without this Django uses its non-Secure default, and
+# nginx-conf/tools-website.conf's port-80 "return 301 https://..." does NOT
+# save us: the browser has already sent its cookies in cleartext by the time it
+# reads the redirect, so a network-positioned observer can lift an
+# authenticated session before the first HTTPS byte.
+#
+# Keyed off DEBUG rather than hardcoded True: plain `runserver` is HTTP, and a
+# Secure cookie there would simply never come back, breaking local login. The
+# explicit env overrides exist for tools-website-no-ssl.conf, which serves the
+# app over HTTP on purpose behind a Cloudflare-style tunnel - if that tunnel
+# terminates TLS the defaults below are still correct, but the knob is there if
+# a deployment genuinely cannot offer HTTPS to the browser.
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
+
+# HSTS is deliberately OPT-IN (0 = no header) rather than defaulted on. It is
+# the one security header a mistake in which cannot be walked back: once a
+# browser has cached "this host is HTTPS-only" it refuses plaintext for the
+# full duration, so switching it on for a domain that later needs HTTP (or
+# whose cert lapses) locks users out with no server-side undo. Turn it on per
+# deployment once TLS is known-good and renewing:
+#     SECURE_HSTS_SECONDS=31536000
+# Ramp up from a small value (e.g. 300) first, and only add PRELOAD once
+# INCLUDE_SUBDOMAINS is true and every subdomain is on HTTPS.
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+
 AUTH_USER_MODEL = "tools.user"
 
 # Without this a direct login (no ?next=) bounces to Django's default
