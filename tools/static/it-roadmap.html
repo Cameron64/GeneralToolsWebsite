@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Austin DSA - IT Sub-Committee Roadmap</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8C%B9</text></svg>">
+<style>*{box-sizing:border-box}html,body{margin:0}</style>
+</head>
+<body>
+<style>
+  :root {
+    --paper: #F1EAE0;
+    --paper-raised: #E8DFD1;
+    --ink: #221D18;
+    --ink-soft: #55493C;
+    --line: #C9BBA8;
+    --accent: #A32B3E;
+    --accent-ink: #FFFFFF;
+    --build: #2E4C6D;
+    --build-soft: #DCE4EA;
+    --gov: #4B6A4F;
+    --gov-soft: #DEE7DD;
+    --neutral-badge: #7A6B58;
+    --card-bg: #FBF7EF;
+    --shadow: rgba(34, 29, 24, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1C1815;
+      --paper-raised: #241F1A;
+      --ink: #ECE3D6;
+      --ink-soft: #C3B6A4;
+      --line: #4A3D30;
+      --accent: #E0616F;
+      --accent-ink: #1C1815;
+      --build: #7FA8CC;
+      --build-soft: #223142;
+      --gov: #8FBB94;
+      --gov-soft: #24322A;
+      --neutral-badge: #9C8C77;
+      --card-bg: #262019;
+      --shadow: rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1C1815;
+    --paper-raised: #241F1A;
+    --ink: #ECE3D6;
+    --ink-soft: #C3B6A4;
+    --line: #4A3D30;
+    --accent: #E0616F;
+    --accent-ink: #1C1815;
+    --build: #7FA8CC;
+    --build-soft: #223142;
+    --gov: #8FBB94;
+    --gov-soft: #24322A;
+    --neutral-badge: #9C8C77;
+    --card-bg: #262019;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 20px 72px; }
+
+  header.masthead {
+    border-bottom: 3px double var(--line);
+    padding: 40px 0 24px;
+    margin-bottom: 36px;
+  }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 10px;
+  }
+  h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.12; margin: 0 0 14px; letter-spacing: -.02em; }
+  .standfirst { font-size: clamp(16px, 2.2vw, 19px); color: var(--ink-soft); max-width: 62ch; margin: 0; }
+  .metaline {
+    margin-top: 18px; font-size: 13px; color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 8px 18px;
+  }
+
+  h2 {
+    font-size: clamp(21px, 3vw, 27px); margin: 48px 0 6px; letter-spacing: -.01em;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  h2 .num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  .sectionsub { color: var(--ink-soft); margin: 10px 0 22px; max-width: 66ch; }
+  h3 { font-size: 17px; margin: 0 0 8px; }
+  p { max-width: 68ch; }
+
+  .callout {
+    background: var(--card-bg); border: 1px solid var(--line);
+    border-left: 5px solid var(--accent);
+    padding: 20px 22px; border-radius: 4px; margin: 26px 0;
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 12px; }
+  .callout strong { color: var(--accent); }
+
+  .rail { display: grid; gap: 18px; margin: 26px 0 8px; }
+  @media (min-width: 860px) { .rail { grid-template-columns: repeat(4, 1fr); } }
+
+  .phase {
+    background: var(--card-bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 18px 20px; box-shadow: 0 1px 3px var(--shadow);
+    display: flex; flex-direction: column;
+  }
+  .phase .when {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-soft); margin-bottom: 8px;
+  }
+  .phase .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .phase .oneline { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 14px; }
+  .phase ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .phase li { margin-bottom: 7px; }
+  .phase.p1 { border-top: 4px solid var(--accent); }
+  .phase.p2 { border-top: 4px solid var(--build); }
+  .phase.p3 { border-top: 4px solid var(--gov); }
+  .phase.p4 { border-top: 4px solid var(--neutral-badge); }
+
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    padding: 3px 9px; border-radius: 999px; text-transform: uppercase;
+  }
+  .tag.now { background: var(--accent); color: var(--accent-ink); }
+  .tag.build { background: var(--build-soft); color: var(--build); }
+  .tag.gov { background: var(--gov-soft); color: var(--gov); }
+  .tag.later { background: var(--paper-raised); color: var(--neutral-badge); border: 1px solid var(--line); }
+
+  .scoreboard { display: grid; gap: 14px; margin-top: 22px; }
+  @media (min-width: 720px) { .scoreboard { grid-template-columns: repeat(2, 1fr); } }
+  .score {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--card-bg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 16px 18px;
+  }
+  .score .n {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+  }
+  .score .b { font-size: 14.5px; }
+  .score .b strong { display: block; margin-bottom: 3px; font-size: 15.5px; }
+  .score .b span { color: var(--ink-soft); }
+
+  .tablewrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--card-bg); }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14.5px; vertical-align: top; }
+  th { background: var(--paper-raised); font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .why { display: grid; gap: 16px; margin-top: 20px; }
+  @media (min-width: 760px) { .why { grid-template-columns: 1fr 1fr; } }
+  .whycard { background: var(--card-bg); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
+  .whycard h3 { color: var(--accent); }
+  .whycard p { font-size: 14.5px; margin: 0; color: var(--ink-soft); }
+
+  .joinbox {
+    margin-top: 40px; background: var(--paper-raised);
+    border: 1px solid var(--line); border-radius: 6px; padding: 26px 24px;
+  }
+  .joinbox h2 { margin-top: 0; border: 0; padding: 0; }
+  .joinbox ul { padding-left: 20px; }
+  .joinbox li { margin-bottom: 8px; }
+
+  footer {
+    margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-soft);
+  }
+  .rose { color: var(--accent); }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Austin DSA &middot; Information Technology Sub-Committee</div>
+    <h1>What we are building, and in what order</h1>
+    <p class="standfirst">A roadmap for this term. Written so that the people who sit in these chairs next inherit a plan and a foundation, rather than a folder of passwords and somebody's memory.</p>
+    <div class="metaline">
+      <span><strong>Term:</strong> 2026 to 2027</span>
+      <span><strong>Parent committee:</strong> Logistics &amp; Planning</span>
+      <span><strong>First meeting:</strong> 20 August 2026</span>
+      <span><strong>Status:</strong> draft for the sub-committee to adopt</span>
+    </div>
+  </header>
+
+  <div class="callout">
+    <p><strong>The short version.</strong> The chapter's systems run today on the care and memory of a handful of generous people who kept things going through a quiet stretch and never asked for the job. That is a debt, not a scandal.</p>
+    <p>This term's work is turning that goodwill into institutions: a written record of what we run, access that can be handed over and handed back, backups we have actually tested, and a committee that outlives every one of us, including the people carrying it now, who deserve to be able to get busy without the lights going out.</p>
+  </div>
+
+  <h2><span class="num">01</span>Why this matters beyond the tech</h2>
+  <p class="sectionsub">Two reasons, and neither of them is "the tools are annoying".</p>
+
+  <div class="why">
+    <div class="whycard">
+      <h3>The chapter already voted for it</h3>
+      <p>Organising by Neighborhood Groups requires secure handling of member information, lists that belong to each neighborhood, and access that rotates safely as volunteers come and go. Nobody currently owns making that possible. Under our bylaws, that is this sub-committee. The inventory and the access work are not housekeeping; they are the prerequisites for something the chapter has already decided to do.</p>
+    </div>
+    <div class="whycard">
+      <h3>Continuity is the actual product</h3>
+      <p>Our bylaws ask this sub-committee to keep an inventory, to manage permissions, to educate members, and to make sure access survives a change of seat. Every one of those is really the same request: <em>do not let the chapter's ability to function depend on one person being free this month.</em></p>
+    </div>
+  </div>
+
+  <h2><span class="num">02</span>The roadmap</h2>
+  <p class="sectionsub">Four phases. The first is about people, not technology, because nothing else is possible without it. Each phase assumes the one before it landed.</p>
+
+  <div class="rail">
+
+    <div class="phase p1">
+      <div class="when"><span class="tag now">Now</span></div>
+      <div class="title">Constitute</div>
+      <div class="oneline">August to September. Become a real committee.</div>
+      <ul>
+        <li>Three or more members on a written roster</li>
+        <li>Elect a second co-chair, so no single person is the whole committee</li>
+        <li>Fill the roles that need no special access, each with a named backup</li>
+        <li>Agree how decisions get made and write it down</li>
+        <li>Set a monthly cadence and stick to it</li>
+      </ul>
+    </div>
+
+    <div class="phase p2">
+      <div class="when"><span class="tag build">Next</span></div>
+      <div class="title">Know</div>
+      <div class="oneline">September to November. Write down what we actually run.</div>
+      <ul>
+        <li>Finish the inventory: every system, who holds it, who pays for it</li>
+        <li>Clear every unconfirmed entry rather than one a month</li>
+        <li>Agree that access requests come through this sub-committee and get recorded</li>
+        <li>Bring the Treasurer a real picture of what our software line buys</li>
+        <li>Publish it all on the wiki, so the next person starts where we finished</li>
+      </ul>
+    </div>
+
+    <div class="phase p3">
+      <div class="when"><span class="tag gov">Then</span></div>
+      <div class="title">Protect</div>
+      <div class="oneline">Autumn onward. Look after our people and our data.</div>
+      <ul>
+        <li>Revise and deliver the digital security teach-in for members</li>
+        <li>Practical focus: making organisers harder to target online</li>
+        <li>Contribute a data-custody view to the chapter's technology policy work</li>
+        <li>Written guidance for handling member information, in line with national's</li>
+        <li>Prove our backups restore, rather than assuming they would</li>
+      </ul>
+    </div>
+
+    <div class="phase p4">
+      <div class="when"><span class="tag later">Direction</span></div>
+      <div class="title">Endure</div>
+      <div class="oneline">Multi-term. The part we prepare rather than finish.</div>
+      <ul>
+        <li>Move toward single sign-on, so joining and leaving are one action</li>
+        <li>Keycloak is our chosen destination for this</li>
+        <li>Prefer joining an existing service over running our own</li>
+        <li>Build everything from now on so that move is a swap, not a rewrite</li>
+        <li>Documentation and handover as a habit, not an end-of-term scramble</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <h2><span class="num">03</span>What we want to be true by November</h2>
+  <p class="sectionsub">A committee with no visible scoreboard is a committee people stop attending. These four are deliberately modest, and every one is achievable with what we have today.</p>
+
+  <div class="scoreboard">
+    <div class="score"><div class="n">1</div><div class="b"><strong>A second co-chair, elected</strong><span>The single change that makes everything else reasonable to ask for.</span></div></div>
+    <div class="score"><div class="n">2</div><div class="b"><strong>The teach-in delivered</strong><span>In front of actual members, not sitting in a folder.</span></div></div>
+    <div class="score"><div class="n">3</div><div class="b"><strong>Nothing left unconfirmed</strong><span>Every row of the inventory answered, including who pays.</span></div></div>
+    <div class="score"><div class="n">4</div><div class="b"><strong>Access requests recorded</strong><span>An agreed route, so the picture stops going out of date the moment we write it.</span></div></div>
+  </div>
+
+  <h2><span class="num">04</span>The one long-term decision, made early</h2>
+  <p>Most of what makes handover painful comes down to identity: who you are, and what that entitles you to. Get that right and adding or removing someone is a single action. Get it wrong and every system is its own separate chore, which is roughly where most chapters live.</p>
+
+  <p>So we are naming the destination now, even though we are not building it this year: <strong>single sign-on, with Keycloak as the chosen provider.</strong> Deciding early is nearly free and changes how we build today; deciding late is expensive and changes nothing.</p>
+
+  <div class="callout">
+    <p><strong>An honest unknown.</strong> We would much rather join an existing service than run our own, because operating one is a standing commitment that has to survive people getting busy. We have heard second hand that national is moving in the same direction, but that is a long way from an offer to host anyone, and to our knowledge nobody has actually asked.</p>
+    <p>Finding out is on our list, and it belongs to whoever takes the inter-chapter role. Until we have an answer, we plan as though we would be doing it ourselves.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Horizon</th><th>What changes</th><th>What it needs from the chapter</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Now</strong></td><td>The sub-committee exists properly and can make decisions that stick</td><td>A few members. Genuinely, that is the ask</td></tr>
+        <tr><td><strong>Next</strong></td><td>We can answer what we run, who holds it, and what it costs</td><td>Patience with a lot of questions, and an agreed route for access</td></tr>
+        <tr><td><strong>Then</strong></td><td>Members are better protected, and recovery is tested rather than hoped for</td><td>A slot at a general meeting, and time from the people who hold the keys today</td></tr>
+        <tr><td><strong>Direction</strong></td><td>Joining and leaving become one action instead of many</td><td>A future term's work. Ours is to leave the ground prepared</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="joinbox">
+    <h2 style="border:0;padding:0;margin:0 0 6px;">Getting involved</h2>
+    <p class="sectionsub" style="margin-bottom:14px;">You do not need to be technical. Most of this work is asking people questions, writing answers down, and following through.</p>
+    <ul>
+      <li><strong>Just be a member.</strong> No job, no attendance requirement, no hours. Right now it is the most useful thing anyone can do</li>
+      <li><strong>Take a role</strong> if one interests you. Every one is written to fit a busy person and every one has a second person on it</li>
+      <li><strong>Take a backup slot</strong> if you would rather learn something before owning it. That is a completely normal way in</li>
+      <li><strong>Come and disagree.</strong> A committee that only hears from its chairs makes worse decisions</li>
+    </ul>
+    <p style="margin-bottom:0;">Say so in the IT channel on Slack, or at any meeting <span class="rose">&#127801;</span></p>
+  </div>
+
+  <footer>
+    Draft roadmap for the Austin DSA IT Sub-Committee, prepared for the first meeting on 20 August 2026. Not yet adopted; the sub-committee's members decide what this becomes. Corrections and arguments welcome in the IT channel.
+  </footer>
+
+</div>
+</body>
+</html>
