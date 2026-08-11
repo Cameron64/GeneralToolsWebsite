@@ -27,7 +27,16 @@
       <h2 class="section-title">Groups</h2>
       <div class="choice-list">
         {% for row in groupRows %}
-        <label class="choice-card" data-filter-text="{{ row.group.name|lower }}">
+        {# "Event Leads" is EVENT_LEAD_ROLE_GROUP (tools/models.py) - matched by
+           name because this template has no Python access to the constant.
+           That group is derived (2026-08-11 decision): membership means
+           "authorizes at least one committee", enforced by
+           revokeCommitteeMembership on every committee-leave. A grant checked
+           here still saves (this page stays a real .groups.set()), but it does
+           NOT stick past the member's next committee-leave if they still have
+           no committee by then - so this box is not a durable way to hand out
+           the publish/approve bundle. #}
+        <label class="choice-card{% if row.group.name == "Event Leads" %} is-covered{% endif %}" data-filter-text="{{ row.group.name|lower }}">
           <input type="checkbox" name="groups" value="{{ row.group.id }}"
                  {% if row.checked %}checked{% endif %}
                  data-group-checkbox data-group-id="{{ row.group.id }}" data-group-name="{{ row.group.name }}" />
@@ -36,6 +45,9 @@
             <span class="choice-card-desc">
               {% if row.permissionNames %}Grants: {{ row.permissionNames|join:", " }}{% else %}No tool permissions attached yet.{% endif %}
             </span>
+            {% if row.group.name == "Event Leads" %}
+            <span class="choice-card-hint">Derived - follows committee authorization automatically and is reverted the next time this member leaves their last committee (see Manage Event Owners). For view-only event access with no committee, use a narrower group instead (e.g. "Event Publishers" / "Event Approvers").</span>
+            {% endif %}
           </span>
         </label>
         {% empty %}

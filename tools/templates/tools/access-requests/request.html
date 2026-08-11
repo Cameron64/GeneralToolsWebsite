@@ -1,22 +1,132 @@
 {% extends "base.html" %}
 {% block page_content %}
-<div class="page-card max-w-2xl">
+<div class="page-card max-w-3xl">
   <h1 class="page-title">Request Access</h1>
-  <p class="page-subtitle">Ask to join an event owner (a committee or working group), or to be granted a permission. The people who can approve it (an owner's current members, or an admin) will get an email with a link to review your request.</p>
-  <form action="" method="post">
+  <p class="page-subtitle">Check what you want - joining a committee or getting a permission needs approval from the people who can grant it. Uncheck what you want to give up - that happens immediately, no approval needed.</p>
+
+  {% if user.is_superuser %}
+  <div class="alert alert-info">You are a <b>superuser</b> - you implicitly hold every permission, so the permissions below are locked. Committees are still real for you: publishing or approving events for a committee still requires being one of its members.</div>
+  {% endif %}
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-error">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form action="" method="post" data-self-service-access>
     {% csrf_token %}
-    {% if form.non_field_errors %}
-    <div class="alert alert-error">{{ form.non_field_errors }}</div>
-    {% endif %}
-    {% for field in form %}
-    <div class="form-row">
-      {{ field.label_tag }}
-      {{ field }}
-      {% if field.errors %}<div class="form-errors">{{ field.errors }}</div>{% endif %}
+    {% for key in renderedChecked %}
+    <input type="hidden" name="renderedChecked" value="{{ key }}" />
+    {% endfor %}
+
+    <h2 class="section-title pt-0">Committees</h2>
+    <p class="form-help pb-2">Checked committees are ones you can currently publish and approve events for.</p>
+    <div class="choice-list">
+      {% for row in committeeRows %}
+      <label class="choice-card" data-filter-text="{{ row.owner.name|lower }}">
+        <input type="checkbox" name="committees" value="{{ row.owner.id }}"
+               {% if row.checked %}checked{% endif %}
+               data-owner-name="{{ row.owner.name }}"
+               data-authorizer-count="{{ row.authorizerCount }}"
+               data-pending-delegated-count="{{ row.pendingDelegatedEventCount }}" />
+        <span class="choice-card-body">
+          <span class="choice-card-title">{{ row.owner.name }}</span>
+          <span class="choice-card-desc">
+            {% if row.checked %}You can publish and approve events for this committee. Unchecking leaves it immediately.{% else %}Ask to join - an existing member of this committee will need to approve.{% endif %}
+          </span>
+        </span>
+      </label>
+      {% empty %}
+      <p class="form-help">No committees are open right now.</p>
+      {% endfor %}
+    </div>
+
+    <h2 class="section-title">Permissions</h2>
+    <p class="form-help pb-2">Locked rows are granted by one of your groups (or by superuser status) - ask an admin to change your groups instead of trying to uncheck them here.</p>
+    {% for section in permissionSections %}
+    <h3 class="menu-section-title">{{ section.title }}</h3>
+    <div class="choice-list">
+      {% for row in section.rows %}
+      <label class="choice-card{% if row.locked %} is-covered{% endif %}" data-filter-text="{{ row.shortLabel|lower }}">
+        <input type="checkbox" name="permissions" value="{{ row.permission.id }}"
+               {% if row.checked %}checked{% endif %}
+               {% if row.locked %}disabled{% endif %}
+               data-permission-name="{{ row.shortLabel }}"
+               {% if row.isApproveAccessRequest %}data-approve-access-request data-other-approve-holder-count="{{ row.otherApproveHolderCount }}"{% endif %} />
+        <span class="choice-card-body">
+          <span class="choice-card-title">{{ row.shortLabel }}</span>
+          {% if row.lockHint %}<span class="choice-card-hint">{{ row.lockHint }}</span>{% endif %}
+        </span>
+      </label>
+      {% endfor %}
     </div>
     {% endfor %}
 
-    <input type="submit" value="Submit Request" class="btn btn-primary my-3" />
+    <div class="form-row">
+      <label for="{{ form.justification.id_for_label }}">Why do you need any newly-checked access?</label>
+      {{ form.justification }}
+      <div class="form-help">Only required if you're adding something - dropping access never needs a reason.</div>
+      {% if form.justification.errors %}<div class="form-errors">{{ form.justification.errors }}</div>{% endif %}
+    </div>
+
+    <div class="save-bar">
+      <input type="submit" value="Save access" class="btn btn-primary" />
+    </div>
   </form>
 </div>
+
+<script>
+  // Confirm-before-submit (plan D8): fires only when the diff contains
+  // removals, and names what is about to be lost. defaultChecked reflects the
+  // checkbox's state AT RENDER TIME regardless of later toggling, so
+  // "defaultChecked && !checked" is exactly "this was held and is being
+  // unchecked" without needing a separate data attribute to track it.
+  const form = document.querySelector("form[data-self-service-access]");
+  form.addEventListener("submit", (event) => {
+    const removedCommittees = [];
+    form.querySelectorAll('input[name="committees"]').forEach((box) => {
+      if (box.defaultChecked && !box.checked) {
+        const authorizerCount = parseInt(box.dataset.authorizerCount, 10) || 0;
+        const pendingCount = parseInt(box.dataset.pendingDelegatedCount, 10) || 0;
+        let line = box.dataset.ownerName;
+        if (authorizerCount <= 1 && pendingCount > 0) {
+          line += ` (you're the last member - ${pendingCount} pending event request${pendingCount === 1 ? "" : "s"} will be stuck until someone else joins or cancels them)`;
+        } else if (authorizerCount <= 1) {
+          line += " (you're the last member of this committee)";
+        }
+        removedCommittees.push(line);
+      }
+    });
+
+    const removedPermissions = [];
+    let droppingLastApprover = false;
+    form.querySelectorAll('input[name="permissions"]').forEach((box) => {
+      if (box.defaultChecked && !box.checked) {
+        removedPermissions.push(box.dataset.permissionName);
+        if (box.hasAttribute("data-approve-access-request")
+            && (parseInt(box.dataset.otherApproveHolderCount, 10) || 0) === 0) {
+          droppingLastApprover = true;
+        }
+      }
+    });
+
+    if (removedCommittees.length === 0 && removedPermissions.length === 0) {
+      return;
+    }
+
+    let message = "This removes the following immediately - no approval needed:\n\n";
+    if (removedCommittees.length) {
+      message += "Committees:\n" + removedCommittees.map((line) => "- " + line).join("\n") + "\n\n";
+    }
+    if (removedPermissions.length) {
+      message += "Permissions:\n" + removedPermissions.map((name) => "- " + name).join("\n") + "\n\n";
+    }
+    if (droppingLastApprover) {
+      message += "You are the last non-superuser member who can review access requests - after this, only site superusers will be able to review requests.\n\n";
+    }
+    message += "Continue?";
+    if (!window.confirm(message)) {
+      event.preventDefault();
+    }
+  });
+</script>
 {% endblock page_content %}

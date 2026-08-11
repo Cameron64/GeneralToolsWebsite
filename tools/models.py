@@ -1,5 +1,7 @@
 from urllib.parse import urlparse
 
+import logging
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.utils import timezone as djangoTimezone
@@ -12,6 +14,9 @@ from . import utils
 from .resolutionText import normalizedTextHash
 from .ActionNetworkAPI.migValidator import MIGStatus
 from .timezones import DateTimeWithAcceptedTimeZone
+
+logger = logging.getLogger(__name__)
+
 # Approving a committee (EventOwner) join grants the full event-lead capability
 # through this managed role group. The EventOwner's authorizer list scopes which
 # owner the member may act for; this group carries the page-level event
@@ -24,6 +29,20 @@ from .timezones import DateTimeWithAcceptedTimeZone
 # membership should stop implying publish/approve rights. To separate, stop
 # granting EVENT_LEAD_ROLE_GROUP on join and grant the narrower publish-only
 # "Event Publishers" group (and "Event Approvers" for approvers) instead.
+#
+# Decided 2026-08-11 (Cam, plan v3 D5): this group is MANAGED/DERIVED, not a
+# free-standing role - membership means "authorizes at least one EventOwner",
+# full stop. revokeCommitteeMembership() below is the reconciler: it strips the
+# group the moment eventAuthorizations goes empty, regardless of how membership
+# was acquired. That includes hand-grants made outside grantTo - Manage Member
+# Access (target.groups.set), Manage Groups (group.user_set.add/remove), and
+# /admin/'s group member widget all let an admin add someone here directly, and
+# under this rule that grant is NOT durable: it gets reconciled away on the
+# member's next committee-leave. If an admin wants to hand someone view-only
+# event access without committee membership, put them in a narrower group
+# instead (the seed's "Event Publishers" / "Event Approvers" pattern, scoped to
+# VIEW_PUBLISHED_EVENTS / VIEW_DELEGATED_EVENTS) - Event Leads is not a place to
+# park view-only grants, because they will not stick.
 EVENT_LEAD_ROLE_GROUP = "Event Leads"
 EVENT_LEAD_PERMISSIONS = (
     permissions.PUBLISH_EVENT,
@@ -431,6 +450,17 @@ class AccessRequests(models.Model):
     dateCreated = models.DateTimeField(auto_now_add=True)
     dateReviewed = models.DateTimeField(null=True, blank=True, default=None)
 
+    # Joins the rows produced by one multi-item self-service submission (plan
+    # access-self-service-form D3). Forced by canBeReviewedBy/clean(): a single
+    # checklist submit can name both an owner and a permission, which have
+    # different rightful approvers and clean() forbids on one row, so a batch
+    # is N rows sharing this id instead of one row with N targets. NULL for
+    # every row created before this field existed and for any single-item
+    # request going forward - both are legacy/ordinary singleton "batches" of
+    # one, not an error state. Population and grouping are the second agent's
+    # forms.py/accessViews.py work; this migration only adds the column.
+    batchId = models.UUIDField(null=True, blank=True, db_index=True)
+
     class Meta:
         verbose_name = "Access Request"
 
@@ -532,6 +562,36 @@ class AccessRequests(models.Model):
                 content_type__app_label="tools",
             ))
         requester.groups.add(roleGroup)
+
+
+def revokeCommitteeMembership(user, owner) -> bool:
+    """Remove a member from an owner's authorizers, and drop the derived
+    Event Leads role group when they no longer authorize any owner.
+
+    Returns whether the role group was removed, so callers can report it.
+
+    This is grantTo's owner branch, run backwards - the counterpart the app
+    never had (see EVENT_LEAD_ROLE_GROUP's comment for the 2026-08-11 decision
+    that made the group's membership fully derived from eventAuthorizations).
+    Every removal path in the app - the self-service revoke this exists for,
+    and the admin owner-edit page (ownerViews.py) - must call this rather than
+    calling owner.authorizers.remove() directly, or the two surfaces drift.
+    """
+    owner.authorizers.remove(user)
+    groupRemoved = False
+    if not user.eventAuthorizations.exists():
+        # filter().first(), never get() - a fresh install (or a DB where nobody
+        # has ever joined a committee) has no "Event Leads" row yet, and that
+        # is a normal state to reconcile through, not an error.
+        roleGroup = Group.objects.filter(name=EVENT_LEAD_ROLE_GROUP).first()
+        if roleGroup is not None:
+            user.groups.remove(roleGroup)
+            groupRemoved = True
+    logger.info(
+        "revokeCommitteeMembership: removed %s as an authorizer of '%s' (roleGroupRemoved=%s)",
+        user.getUserNameString(), owner.name, groupRemoved,
+    )
+    return groupRemoved
 
 
 # ---------------------------------------------------------------------------
