@@ -67,8 +67,11 @@
       </p>
 
       {% if canManage %}
+      {% comment %} The inner flex wrapper is load-bearing: .record-actions is a single-column grid, so a bare <a class="btn"> stretches to the full card width. Same wrapper edit.html uses. {% endcomment %}
       <div class="record-actions">
-        <a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Edit this tool</a>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Edit this tool</a>
+        </div>
       </div>
       {% endif %}
     </div>
