@@ -8,16 +8,21 @@
   That line is the whole answer. Everything under it is background, and you can ignore it.
 </div>
 
-{# One card per resource rather than one table row.
+{% comment %}
+One card per resource rather than one table row.
 
-   This was a 6-column table and it could not be read without scrolling
-   sideways. Two of those columns (the blurb and the how-to-get-access text)
-   hold full sentences, and .page-card sets overflow-x:auto, so table
-   auto-layout gave the prose columns their max-content width and squeezed
-   the rest off the right edge - "How to get access", the one column a member
-   actually came for, ended up ~45px wide and wrapped one word per line.
-   Narrowing columns does not fix that; a table is the wrong container for two
-   paragraphs, so the row became a card that reads top-down instead. #}
+This was a 6-column table and it could not be read without scrolling
+sideways. Two of those columns (the blurb and the how-to-get-access text)
+hold full sentences, and .page-card sets overflow-x:auto, so table
+auto-layout gave the prose columns their max-content width and squeezed the
+rest off the right edge - "How to get access", the one column a member
+actually came for, ended up ~45px wide and wrapped one word per line.
+Narrowing columns does not fix that; a table is the wrong container for two
+paragraphs, so the row became a card that reads top-down instead.
+
+Note {% comment %} and not {# #}: the {# #} form is single-line only, and a
+multi-line one renders as visible body text on the page.
+{% endcomment %}
 {% for row in rows %}
 <div class="page-card">
   <h2 class="page-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></h2>

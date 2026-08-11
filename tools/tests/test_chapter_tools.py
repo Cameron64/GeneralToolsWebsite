@@ -149,6 +149,11 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         # ...and the answer still renders in full rather than being truncated
         # to fit a column.
         self.assertContains(resp, "Ask in #it-committee.")
+        # The template explains the above in a {% comment %} block. Django's
+        # {# #} form is single-line only, so writing that rationale as a
+        # multi-line {# #} silently prints it as body text - it shipped that
+        # way once. This sentinel is a word only that comment uses.
+        self.assertNotContains(resp, "overflow-x:auto")
 
     def test_questions_view_redirects_plain_member(self):
         self.loginAs(self.member)
