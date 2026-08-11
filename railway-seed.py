@@ -622,27 +622,41 @@ CHAPTER_RESOURCES = [
     dict(
         name="Zoom", category=Cat.COMMUNICATION,
         accessModel=Access.SHARED_VAULT, payer=Payer.CHAPTER,
-        blurb="Chapter Zoom licenses for general meetings, committee meetings, and virtual events. Two licenses, used interchangeably.",
+        # "Two licenses, used interchangeably" was wrong - there are two
+        # SEPARATE paid accounts with different purposes. Corrected 2026-08-11.
+        # The account names themselves are real restricted-layer detail and
+        # stay in the off-repo seed; the demo box carries only the shape.
+        blurb="Chapter Zoom for general meetings, committee meetings, and virtual events. Two separate paid accounts with different purposes, not two interchangeable seats.",
         annualCost=decimal.Decimal("299.80"),
-        costNote="Two licenses at Zoom's published list price. The amount the chapter is actually invoiced still needs confirming with the Treasurer.",
+        costNote="Two paid accounts. The figure here is Zoom's published list price, not an invoice anyone has seen - the amount the chapter is actually billed still needs confirming with the Treasurer.",
         howToGetAccess="Ask the IT Sub-Committee. Access is a shared login handed out through the chapter password vault, so you need a vault account first.",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.RED,
-        revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
+        revocationNote="Shared passwords, and there are two of them. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password on BOTH paid accounts and re-sharing each one. Rotating only the main account leaves the second still open to whoever had it.",
         continuityNote="The second factor is shared through the vault alongside the password. Moving 2FA onto a personal phone silently breaks it for everyone else on the login, so it has to stay where it is.",
         holders=[],  # deliberately left empty - see rule 2 above: this is the
         # one resource on the demo box keeping the honest "Nobody recorded
         # yet" state, chosen because it is not part of any dependency edge so
         # the empty state doesn't interfere with pressure-testing those.
+        # Two separate paid accounts means two credential rows, not one. Modelling
+        # them as a single "shared login" hid the fact that revoking access means
+        # rotating TWO passwords, which is the whole point of the credential table
+        # being finer-grained than the resource.
         credentials=[
-            dict(label="Shared meeting-host login", kind=CredKind.VAULT_SHARED_LOGIN,
+            dict(label="Shared meeting-host login (main account)", kind=CredKind.VAULT_SHARED_LOGIN,
                  vaultCollection="zoom", status=CredStatus.LIVE,
-                 note="One password, held by everyone who runs meetings."),
+                 note="One password, held by everyone who runs general meetings."),
+            dict(label="Shared meeting-host login (second account)", kind=CredKind.VAULT_SHARED_LOGIN,
+                 vaultCollection="zoom", status=CredStatus.LIVE,
+                 note="A separate paid account with its own password, used for a different set of meetings."),
             dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
                  vaultCollection="zoom", status=CredStatus.LIVE,
                  note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
         ],
-        questions=["Confirm who is currently in the Zoom vault collection."],
+        questions=[
+            "Confirm who is currently in the Zoom vault collection.",
+            "Confirm which meetings each of the two paid accounts is meant for, and whether that is written down anywhere.",
+        ],
     ),
     dict(
         name="Google Calendar", category=Cat.ORGANIZING,
