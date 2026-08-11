@@ -757,31 +757,52 @@ CHAPTER_RESOURCES = [
     ),
     dict(
         name="Google Calendar", category=Cat.ORGANIZING,
-        accessModel=Access.INDIVIDUAL, payer=Payer.CHAPTER,
-        blurb="The one shared chapter calendar. Events published through Echo land here automatically.",
+        # SERVICE_ACCOUNT, not INDIVIDUAL. No person signs into this calendar.
+        # Echo's service account writes to it, which is exactly what the
+        # SERVICE_ACCOUNT explanation already says.
+        accessModel=Access.SERVICE_ACCOUNT, payer=Payer.FREE,
+        blurb=(
+            "The public chapter calendar. Events published through Echo land here automatically, "
+            "which is how nearly everything on it got there."
+        ),
         annualCost=None,
-        costNote="No separate bill. Included in the chapter's Google Workspace subscription.",
+        costNote="Free. There is no subscription and no bill.",
         howToGetAccess=(
-            "Ask the IT Sub-Committee in Slack and tell them which email address you want the "
-            "rights on. You get edit rights on the shared calendar under your own account, so "
-            "there is no password to hand over and nothing to share."
+            "There is nothing to request here, and nobody to request it from. Members do not get "
+            "logins to this calendar. Things appear on it because Echo puts them there, so the "
+            "way to add an event is to get event-publishing access in Echo and publish it."
         ),
         siteUrl="https://calendar.google.com",
         accessRequestUrl="",
-        stewardName="IT Sub-Committee",
-        delegationTier=Tier.YELLOW,
-        revocationNote="Edit rights are granted per address, so removing one person is a single change that leaves everyone else alone.",
-        continuityNote="Sits on top of the Workspace account, so whoever holds Workspace super-admin can always restore calendar access.",
-        holders=[
-            dict(personName="Marisol T.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
-                 note="Holds edit rights on the shared calendar under her own chapter address."),
+        # Deliberately not blank, and deliberately not a committee name. Blank
+        # reads as "not filled in yet" and invites somebody to fill it in with a
+        # guess. The honest answer is that we looked and there is no owner - and
+        # that answer is the single most useful thing on this card.
+        stewardName="Nobody - owner unknown, see continuity note",
+        delegationTier=Tier.UNCLASSIFIED,
+        revocationNote=(
+            "Nothing to revoke from a member, because no member is granted anything. Cutting off "
+            "Echo's ability to write here would mean changing Echo's own Google credentials."
+        ),
+        continuityNote=(
+            "NOT COVERED. Somebody created this calendar on a personal Google account years ago, "
+            "the chapter started using it, and it stayed that way. We do not know whose account "
+            "owns it, so there is nobody to ask for a password reset and no way to add an owner. "
+            "If that account is closed or its owner becomes unreachable, the chapter loses the "
+            "calendar and the published history on it, and would have to start a new one and "
+            "repoint Echo. This is not a theoretical risk and it has no current mitigation."
+        ),
+        # No holders and no credential rows on purpose: inventing either would
+        # re-tell the individual-logins story this card exists to correct. The
+        # empty-state prose already says nobody recorded is a job, not a fact.
+        holders=[],
+        credentials=[],
+        questions=[
+            "Find out which Google account owns the chapter calendar. Start with whoever was "
+            "running comms when it first appeared.",
+            "Decide whether to keep this calendar or create one the chapter provably owns and "
+            "repoint Echo at it. Keeping it is a choice to accept the loss risk, not a null option.",
         ],
-        credentials=[
-            dict(label="Per-address edit rights", kind=CredKind.INDIVIDUAL_LOGIN,
-                 vaultCollection="", status=CredStatus.LIVE,
-                 note="Granted to a person's own chapter address, not to a shared login."),
-        ],
-        questions=["Confirm which chapter addresses currently hold edit rights on the calendar."],
     ),
     dict(
         name="Echo (this site)", category=Cat.INFRASTRUCTURE,
@@ -896,6 +917,12 @@ DEPENDENCY_EDGES = [
     dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="DigitalOcean", note=""),
     dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="Cloudflare", note="DNS and domain only"),
     dict(fromName="Echo (this site)", kind=DepKind.RUNS_ON, toName="Cloudflare", note=""),
+    # The calendar is the case REACHED_THROUGH was added for: nobody is granted
+    # access to it, things are on it because Echo published them. Read backwards
+    # on Echo's page this is also the useful half - it names what Echo is the
+    # front door for.
+    dict(fromName="Google Calendar", kind=DepKind.REACHED_THROUGH, toName="Echo (this site)",
+         note="publish an event in Echo and it appears here"),
 ]
 
 CHAPTER_WIDE_QUESTIONS = [
@@ -941,6 +968,33 @@ for spec in CHAPTER_RESOURCES:
                           status=credential["status"], note=credential["note"]),
         )
         credentialCount += 1
+
+    # Drop child rows this spec no longer lists. Upsert-by-name only ever adds
+    # and rewrites, so renaming or removing a holder/credential used to strand
+    # the old row forever: renaming a Zoom credential left the previous label
+    # behind, and the card showed both. Worse, when a resource's access story is
+    # CORRECTED - the calendar going from "individual edit rights" to "nobody is
+    # granted anything" - the stale rows keep asserting the exact claim the
+    # correction removed, directly under the corrected prose.
+    #
+    # Deleting is safe here in a way it would not be in the real registry: this
+    # script refuses to run outside DEMO_MODE, and on a demo box the spec is by
+    # definition the whole truth. The real loader (seed_chapter_tools) does NOT
+    # do this - it has to assume a human may have added rows it knows nothing
+    # about. Each deletion is named below rather than counted, because a silent
+    # delete is what made the first orphan take a live audit to notice.
+    staleHolders = resource.holders.exclude(
+        personName__in=[holder["personName"] for holder in spec["holders"]],
+    )
+    staleCredentials = resource.credentials.exclude(
+        label__in=[credential["label"] for credential in spec["credentials"]],
+    )
+    for row in staleHolders:
+        report.append(f"  removed stale holder: {resource.name} / {row.personName}")
+    for row in staleCredentials:
+        report.append(f"  removed stale credential: {resource.name} / {row.label}")
+    staleHolders.delete()
+    staleCredentials.delete()
     for question in spec["questions"]:
         _, wasCreated = ResourceQuestion.objects.get_or_create(resource=resource, question=question)
         questionsCreated += 1 if wasCreated else 0
