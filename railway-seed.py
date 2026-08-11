@@ -523,9 +523,11 @@ report.append("resolutions: now %d (%s)" % (
     dict((s, Resolution.objects.filter(status=s).count()) for s, _ in S.CHOICES)))
 
 # --- Chapter Tools (IT access registry) -----------------------------------------
-# Five real chapter systems, seeded exactly as approved for the demo box - no
-# additional services. Every field is populated so the pages can be pressure
-# tested with nothing rendering as a dash.
+# Seven real chapter systems, seeded exactly as approved for the demo box - no
+# additional services beyond the two infrastructure rows added 2026-08-11
+# (Cloudflare, DigitalOcean) plus their dependency edges on the other five.
+# Every field is populated so the pages can be pressure tested with nothing
+# rendering as a dash.
 #
 # TWO RULES THIS BLOCK EXISTS TO KEEP, both easy to break by "just adding one
 # more row" and neither caught by any test:
@@ -536,24 +538,34 @@ report.append("resolutions: now %d (%s)" % (
 #      (shared password, own login, service account). None of them state an
 #      Austin DSA weakness, because this box is reachable by URL. The chapter's
 #      actual posture goes in the off-repo seed JSON, run locally only.
-#   2. NO INVENTED PEOPLE. Holder rows name only people whose access is already
-#      known. Where the holder list is genuinely unknown the row is left empty
-#      on purpose: "Nobody recorded yet" is the honest answer and is the point
-#      the registry is making, so do not pad it with plausible names.
+#   2. HOLDER NAMES ON THIS BOX ARE FICTIONAL DEMO PERSONAS. Cam (IT Co-chair)
+#      explicitly authorised inventing them for the demo box on 2026-08-11, so
+#      this reverses what used to be rule 2 here ("no invented people"). The
+#      names below are not any real chapter member, confirmed or not - they
+#      exist so the registry can be pressure-tested with a full holder map
+#      instead of mostly-empty tables. The real holder map lives only in the
+#      off-repo seed JSON, run locally only. One resource below is still left
+#      deliberately holder-free - see its comment - because "Nobody recorded
+#      yet" is itself a real state the registry needs to keep showing, not a
+#      gap to be padded away.
 #
 # Resources/holders/credentials are upserted (this block is the refresh source
 # every boot). Questions are create-only, keyed on their text, so assigning or
-# resolving one in the app survives the next redeploy.
+# resolving one in the app survives the next redeploy. Dependency edges are
+# upserted too, keyed on (resource, dependsOn, kind) - the same triple the
+# model's unique constraint enforces.
 import decimal
 
 from tools.models import (
-    ChapterResource, ResourceCredential, ResourceHolder, ResourceQuestion,
+    ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder,
+    ResourceQuestion,
 )
 
 Cat, Access, Payer = ChapterResource.Category, ChapterResource.AccessModel, ChapterResource.Payer
 Tier = ChapterResource.DelegationTier
 CredKind, CredStatus = ResourceCredential.Kind, ResourceCredential.Status
 HolderHow = ResourceHolder.How
+DepKind = ResourceDependency.Kind
 CHAPTER_TOOLS_LAST_REVIEWED = datetime.date(2026, 8, 10)
 CHAPTER_TOOLS_REVIEWED_BY = "IT Sub-Committee"
 
@@ -564,7 +576,7 @@ CHAPTER_RESOURCES = [
         blurb="The chapter wiki at wiki.austindsa.org. Meeting notes, committee pages, onboarding guides, and chapter documentation.",
         annualCost=None,
         costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
-        howToGetAccess="Ask in the IT channel on Slack. You get your own login, in your own name, tied to your chapter email address.",
+        howToGetAccess="You sign in with your Slack account, so get into Slack first. Once you are in Slack, ask in the IT channel and somebody will add you.",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.YELLOW,
         revocationNote="Individual accounts, so removing one person is a single action and costs nobody else anything.",
@@ -613,7 +625,10 @@ CHAPTER_RESOURCES = [
         delegationTier=Tier.RED,
         revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
         continuityNote="The second factor is shared through the vault alongside the password. Moving 2FA onto a personal phone silently breaks it for everyone else on the login, so it has to stay where it is.",
-        holders=[],  # genuinely unknown - see rule 2 above
+        holders=[],  # deliberately left empty - see rule 2 above: this is the
+        # one resource on the demo box keeping the honest "Nobody recorded
+        # yet" state, chosen because it is not part of any dependency edge so
+        # the empty state doesn't interfere with pressure-testing those.
         credentials=[
             dict(label="Shared meeting-host login", kind=CredKind.VAULT_SHARED_LOGIN,
                  vaultCollection="zoom", status=CredStatus.LIVE,
@@ -635,7 +650,10 @@ CHAPTER_RESOURCES = [
         delegationTier=Tier.YELLOW,
         revocationNote="Edit rights are granted per address, so removing one person is a single change that leaves everyone else alone.",
         continuityNote="Sits on top of the Workspace account, so whoever holds Workspace super-admin can always restore calendar access.",
-        holders=[],  # genuinely unknown - see rule 2 above
+        holders=[
+            dict(personName="Marisol T.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 note="Holds edit rights on the shared calendar under her own chapter address."),
+        ],
         credentials=[
             dict(label="Per-address edit rights", kind=CredKind.INDIVIDUAL_LOGIN,
                  vaultCollection="", status=CredStatus.LIVE,
@@ -668,6 +686,67 @@ CHAPTER_RESOURCES = [
         ],
         questions=["Decide whether access requests for the other tools on this list should be routed through this site."],
     ),
+    dict(
+        name="Cloudflare", category=Cat.INFRASTRUCTURE,
+        accessModel=Access.SHARED_VAULT, payer=Payer.CHAPTER,
+        blurb="DNS and domain registration for austindsa.org. Nothing else in the chapter's stack routes through Cloudflare's other products.",
+        annualCost=None,
+        costNote="Domain registration renews annually. The exact amount still needs confirming with the Treasurer.",
+        howToGetAccess="Ask the IT Sub-Committee. Domain and DNS changes go through a shared vault login, so you need a vault account first.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.RED,
+        revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
+        continuityNote="Whoever holds the vault collection can restore DNS or transfer the domain if the usual admin is unreachable, but there is no automatic fallback outside the vault - losing the vault means losing the domain.",
+        holders=[
+            dict(personName="Devon K.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
+                 note="In the Cloudflare vault collection. Can manage DNS records and domain settings."),
+            dict(personName="Priya R.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
+                 note="Added to the vault collection. Access not yet confirmed against the live account."),
+        ],
+        credentials=[
+            dict(label="Shared account login", kind=CredKind.VAULT_SHARED_LOGIN,
+                 vaultCollection="cloudflare", status=CredStatus.LIVE,
+                 note="One password, held by everyone who manages DNS or the domain."),
+            dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
+                 vaultCollection="cloudflare", status=CredStatus.LIVE,
+                 note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
+        ],
+        questions=["Confirm who is currently in the Cloudflare vault collection."],
+    ),
+    dict(
+        name="DigitalOcean", category=Cat.INFRASTRUCTURE,
+        accessModel=Access.SHARED_VAULT, payer=Payer.CHAPTER,
+        blurb="Hosts the chapter wiki. No other chapter system currently runs on this account.",
+        annualCost=None,
+        costNote="Monthly droplet cost. The exact amount still needs confirming with the Treasurer.",
+        howToGetAccess="Ask the IT Sub-Committee. Server access goes through a shared vault login, so you need a vault account first.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.RED,
+        revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
+        continuityNote="Whoever holds the vault collection can restore the server if the usual admin is unreachable, but there is no automatic fallback outside the vault - losing the vault means losing the host.",
+        holders=[
+            dict(personName="Theo A.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
+                 note="In the DigitalOcean vault collection. Can manage the droplet running the wiki."),
+            dict(personName="Nadia S.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
+                 note="Added to the vault collection. Access not yet confirmed against the live account."),
+        ],
+        credentials=[
+            dict(label="Shared account login", kind=CredKind.VAULT_SHARED_LOGIN,
+                 vaultCollection="digitalocean", status=CredStatus.LIVE,
+                 note="One password, held by everyone who manages the droplet."),
+            dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
+                 vaultCollection="digitalocean", status=CredStatus.LIVE,
+                 note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
+        ],
+        questions=["Confirm who is currently in the DigitalOcean vault collection."],
+    ),
+]
+
+DEPENDENCY_EDGES = [
+    dict(fromName="Chapter wiki (Outline)", kind=DepKind.SIGN_IN, toName="Slack", note=""),
+    dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="DigitalOcean", note=""),
+    dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="Cloudflare", note="DNS and domain only"),
+    dict(fromName="Echo (this site)", kind=DepKind.RUNS_ON, toName="Cloudflare", note=""),
 ]
 
 CHAPTER_WIDE_QUESTIONS = [
@@ -717,9 +796,20 @@ for question in CHAPTER_WIDE_QUESTIONS:
     _, wasCreated = ResourceQuestion.objects.get_or_create(resource=None, question=question)
     questionsCreated += 1 if wasCreated else 0
 
+dependencyCount = 0
+for edge in DEPENDENCY_EDGES:
+    ResourceDependency.objects.update_or_create(
+        resource=chapterResourcesByName[edge["fromName"]],
+        dependsOn=chapterResourcesByName[edge["toName"]],
+        kind=edge["kind"],
+        defaults=dict(note=edge["note"]),
+    )
+    dependencyCount += 1
+
 report.append(f"chapter resources: now {ChapterResource.objects.count()} (all fields populated)")
 report.append(f"chapter resource holders: {holderCount} seeded (now {ResourceHolder.objects.count()})")
 report.append(f"chapter resource credentials: {credentialCount} seeded (now {ResourceCredential.objects.count()})")
 report.append(f"chapter resource questions: +{questionsCreated} (now {ResourceQuestion.objects.count()})")
+report.append(f"chapter resource dependencies: {dependencyCount} seeded (now {ResourceDependency.objects.count()})")
 
 print("\n".join("  " + line for line in report))
