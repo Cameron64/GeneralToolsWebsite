@@ -236,6 +236,13 @@ class ResourceHolderInline(admin.TabularInline):
     extra = 0
 
 
+class ResourceDependencyInline(admin.TabularInline):
+    model = ResourceDependency
+    extra = 0
+    fk_name = "resource"          # two FKs to ChapterResource - required, or admin.E202
+    autocomplete_fields = ("dependsOn",)
+
+
 class ResourceQuestionInline(admin.TabularInline):
     model = ResourceQuestion
     extra = 0
@@ -250,7 +257,7 @@ class ChapterResourceAdmin(admin.ModelAdmin):
     )
     list_filter = ("category", "accessModel", "payer", "delegationTier", "requestable")
     search_fields = ("name", "blurb")
-    inlines = (ResourceCredentialInline, ResourceHolderInline, ResourceQuestionInline)
+    inlines = (ResourceCredentialInline, ResourceHolderInline, ResourceDependencyInline, ResourceQuestionInline)
 
     @admin.display(description="Stale?", boolean=True)
     def staleLabel(self, obj):
@@ -271,6 +278,15 @@ class ResourceCredentialAdmin(admin.ModelAdmin):
     list_display = ("resource", "label", "kind", "status", "vaultCollection")
     list_filter = ("kind", "status", "resource")
     search_fields = ("label", "resource__name", "vaultCollection")
+
+
+@admin.register(ResourceDependency)
+class ResourceDependencyAdmin(admin.ModelAdmin):
+    """Standalone admin alongside the inline - matches ResourceHolderAdmin's
+    pattern, for a chapter-wide sweep (e.g. every RUNS_ON edge at once)
+    without opening every resource."""
+    list_display = ("resource", "kind", "dependsOn")
+    list_filter = ("kind",)
 
 
 @admin.register(ResourceGrant)

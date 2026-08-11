@@ -8,6 +8,13 @@
 
   <h2 class="section-title">How to get access</h2>
   <p>{{ resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee and this page will be filled in." }}</p>
+
+  {% for dependency in signInDependencies %}
+  <p class="pb-2"><b>You need {{ dependency.dependsOn.name }} first.</b>
+    {{ resource.name }} signs you in through your
+    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.</p>
+  {% endfor %}
+
   <div class="alert alert-info mb-4 pt-2">
     <b>{{ resource.get_accessModel_display }}.</b> {{ resource.getAccessModelExplanation }}
   </div>
@@ -39,6 +46,15 @@
   <p class="text-secondary">Nobody recorded yet. That is an open job for the IT Sub-Committee, not a sign that nobody has access.</p>
   {% endif %}
 
+  {% if signInDependents %}
+  <h2 class="section-title">What signs in through this</h2>
+  <ul>
+    {% for dependency in signInDependents %}
+    <li><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
   {% if hasAudit %}
   <h2 class="section-title">Committee detail</h2>
   <div class="alert alert-info">You're viewing the restricted layer - this read was logged.</div>
@@ -51,6 +67,28 @@
     <dt>Revocation note</dt><dd>{{ resource.revocationNote|default:"-" }}</dd>
     <dt>Continuity note</dt><dd>{{ resource.continuityNote|default:"-" }}</dd>
   </dl>
+
+  <h2 class="section-title">What this runs on</h2>
+  {% if runsOnDependencies %}
+  <ul>
+    {% for dependency in runsOnDependencies %}
+    <li><a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-secondary">Nothing recorded yet.</p>
+  {% endif %}
+
+  <h2 class="section-title">What runs on this</h2>
+  {% if runsOnDependents %}
+  <ul>
+    {% for dependency in runsOnDependents %}
+    <li><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-secondary">Nothing recorded yet. If this is infrastructure, that is a gap rather than an answer.</p>
+  {% endif %}
 
   <h2 class="section-title">Credentials</h2>
   {% if credentials %}

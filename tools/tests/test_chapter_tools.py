@@ -13,11 +13,14 @@ from pathlib import Path
 
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from tools.models import (
-    ChapterResource, ResourceCredential, ResourceHolder, ResourceQuestion, ToolAuditReadLog,
+    ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder, ResourceQuestion,
+    ToolAuditReadLog,
 )
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 
@@ -282,6 +285,194 @@ class ChapterToolsQuestionsWorkflowTests(LoginClientMixin, TestCase):
         self.assertRedirects(resolveResponse, url)
         question.refresh_from_db()
         self.assertFalse(question.isResolved())
+
+
+@fastHashing
+class ResourceDependencyTests(LoginClientMixin, TestCase):
+    """The SIGN_IN / RUNS_ON edges: forward + reverse rendering across the
+    open/restricted split, self-reference and duplicate rejection, and the
+    index prefetch's query-count contract. See the plan
+    (chapter-tools-dependencies) for why these are the two fixed kinds and
+    why cycles are deliberately not prevented.
+    """
+
+    def setUp(self):
+        self.member = UserFactory.make("member")
+        self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        self.wiki = _makeResource(name="Example Wiki")
+        self.identityProvider = _makeResource(
+            name="Example SSO", category=ChapterResource.Category.COMMUNICATION,
+        )
+        # Deliberately named per the plan's own sentinel choice - distinct from
+        # ExampleCredentialSentinel above, which guards a different leak.
+        self.hostingSentinel = _makeResource(
+            name="ExampleHostingSentinel", category=ChapterResource.Category.INFRASTRUCTURE,
+        )
+
+    # --- 1. RUNS_ON never reaches a plain member on the DETAIL page ---
+
+    def test_runs_on_hidden_from_plain_member_on_detail(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(self.wiki.getUrl())
+        self.assertNotContains(resp, "ExampleHostingSentinel")
+
+    def test_runs_on_shown_to_auditor_on_detail(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.auditor)
+        resp = self.client.get(self.wiki.getUrl())
+        self.assertContains(resp, "ExampleHostingSentinel")
+
+    # --- 2. RUNS_ON never reaches a plain member on the INDEX page ---
+    # The single most important test in the change (the plan's own words).
+    # The only thing keeping a restricted edge off the open directory is the
+    # kind=SIGN_IN filter inside the index view's Prefetch. Assert the
+    # rendered EDGE PHRASE, not the bare resource name - resource existence is
+    # already fully open (the index lists every ChapterResource for any
+    # logged-in member), so the sentinel legitimately appears on screen as its
+    # own card and asserting its bare name would fail spuriously.
+
+    def test_runs_on_never_leaks_the_edge_phrase_onto_the_index_for_a_plain_member(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(reverse("chapter-tools"))
+        self.assertContains(resp, "ExampleHostingSentinel")  # its own card - legitimately open
+        self.assertNotContains(resp, "You need ExampleHostingSentinel first")  # the edge - not open
+
+    # --- 3. SIGN_IN does reach a plain member, index and detail ---
+
+    def test_sign_in_reaches_plain_member_on_index_and_detail(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.member)
+
+        indexResp = self.client.get(reverse("chapter-tools"))
+        self.assertContains(indexResp, "You need Example SSO first")
+
+        detailResp = self.client.get(self.wiki.getUrl())
+        self.assertContains(detailResp, "You need Example SSO first")
+
+    # --- 4. Reverse SIGN_IN renders on the depended-upon resource's page ---
+
+    def test_reverse_sign_in_renders_on_depended_upon_resource_for_plain_member(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(self.identityProvider.getUrl())
+        self.assertContains(resp, "What signs in through this")
+        self.assertContains(resp, self.wiki.getUrl())
+
+    # --- 5. Reverse RUNS_ON renders only for an auditor ---
+
+    def test_reverse_runs_on_hidden_from_plain_member(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(self.hostingSentinel.getUrl())
+        self.assertNotContains(resp, "What runs on this")
+
+    def test_reverse_runs_on_shown_to_auditor(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.auditor)
+        resp = self.client.get(self.hostingSentinel.getUrl())
+        self.assertContains(resp, "What runs on this")
+        self.assertContains(resp, self.wiki.getUrl())
+
+    # --- 6. Self-dependency is rejected ---
+
+    def test_self_dependency_rejected_by_clean(self):
+        dependency = ResourceDependency(
+            resource=self.wiki, dependsOn=self.wiki, kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        with self.assertRaises(ValidationError):
+            dependency.clean()
+
+    def test_self_dependency_rejected_by_db_constraint(self):
+        # clean() is a readable-message duplicate, not the only protection - a
+        # raw .create() that skips clean() must still fail on the DB
+        # constraint. Wrapped in transaction.atomic(): an uncaught
+        # IntegrityError inside a TestCase poisons the surrounding test
+        # transaction and every later query in this test would error out.
+        with transaction.atomic():
+            with self.assertRaises(IntegrityError):
+                ResourceDependency.objects.create(
+                    resource=self.wiki, dependsOn=self.wiki, kind=ResourceDependency.Kind.SIGN_IN,
+                )
+
+    # --- 7. Duplicate (resource, dependsOn, kind) is rejected; a different kind is allowed ---
+
+    def test_duplicate_edge_rejected(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        with transaction.atomic():
+            with self.assertRaises(IntegrityError):
+                ResourceDependency.objects.create(
+                    resource=self.wiki, dependsOn=self.identityProvider,
+                    kind=ResourceDependency.Kind.SIGN_IN,
+                )
+
+    def test_same_pair_with_a_different_kind_is_allowed(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.assertEqual(
+            ResourceDependency.objects.filter(resource=self.wiki, dependsOn=self.identityProvider).count(),
+            2,
+        )
+
+    # --- 8. Index query count does not grow with resource count ---
+    # assertNumQueries cannot express this - it takes a fixed expected count,
+    # so there is no way to run it twice and compare. This catches a removed
+    # or broken prefetch (a query per row); it does NOT catch a wrong filter -
+    # case 2 above is the guard for that. The two are complements, not
+    # substitutes.
+
+    def test_index_query_count_does_not_scale_with_resource_count(self):
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.member)
+
+        with CaptureQueriesContext(connection) as small:
+            self.client.get(reverse("chapter-tools"))
+
+        for i in range(4):
+            extra = _makeResource(name=f"Example Extra Resource {i}")
+            ResourceDependency.objects.create(
+                resource=extra, dependsOn=self.identityProvider,
+                kind=ResourceDependency.Kind.SIGN_IN,
+            )
+
+        with CaptureQueriesContext(connection) as large:
+            self.client.get(reverse("chapter-tools"))
+
+        self.assertEqual(len(small.captured_queries), len(large.captured_queries))
 
 
 class SeedChapterToolsCommandTests(TestCase):
