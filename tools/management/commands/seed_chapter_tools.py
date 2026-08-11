@@ -160,6 +160,12 @@ class Command(BaseCommand):
         if stewardUsername:
             steward = User.objects.filter(username=stewardUsername).first()
 
+        # spec.get("annualCost") or None would collapse a real 0 annual cost
+        # to None (0 is falsy) - only missing/blank should map to None.
+        annualCost = spec.get("annualCost")
+        if annualCost == "":
+            annualCost = None
+
         resource, _ = ChapterResource.objects.update_or_create(
             name=spec["name"],
             defaults={
@@ -167,7 +173,7 @@ class Command(BaseCommand):
                 "category": CATEGORY_BY_NAME[spec.get("category", "ORGANIZING")],
                 "accessModel": ACCESS_MODEL_BY_NAME[spec.get("accessModel", "UNCONFIRMED")],
                 "payer": PAYER_BY_NAME[spec.get("payer", "UNCONFIRMED")],
-                "annualCost": spec.get("annualCost") or None,
+                "annualCost": annualCost,
                 "costNote": spec.get("costNote", ""),
                 "howToGetAccess": spec.get("howToGetAccess", ""),
                 "steward": steward,

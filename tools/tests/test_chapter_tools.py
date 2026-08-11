@@ -211,6 +211,32 @@ class ChapterToolsQuestionsWorkflowTests(LoginClientMixin, TestCase):
         question = ResourceQuestion.objects.get()
         self.assertIsNone(question.resource)
 
+    def test_stale_repost_with_non_numeric_ids_redirects_instead_of_500(self):
+        """A stale form / back-button repost can submit a non-numeric
+        resource or questionId. That must redirect back to the questions
+        page, not raise ValueError into a 500."""
+        self.loginAs(self.auditor)
+        url = reverse("chapter-tools-questions")
+
+        addResponse = self.client.post(
+            url, {"action": "add", "resource": "not-an-id", "question": "Stale repost?"},
+        )
+        self.assertRedirects(addResponse, url)
+        question = ResourceQuestion.objects.get()
+        self.assertIsNone(question.resource)
+
+        assignResponse = self.client.post(
+            url, {"action": "assign", "questionId": "not-an-id", "assignedTo": "Nobody"},
+        )
+        self.assertRedirects(assignResponse, url)
+
+        resolveResponse = self.client.post(
+            url, {"action": "resolve", "questionId": "not-an-id", "resolution": "N/A"},
+        )
+        self.assertRedirects(resolveResponse, url)
+        question.refresh_from_db()
+        self.assertFalse(question.isResolved())
+
 
 class SeedChapterToolsCommandTests(TestCase):
     SEED = {

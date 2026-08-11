@@ -33,6 +33,18 @@ def _logRestrictedRead(user, target: str) -> None:
     ToolAuditReadLog.objects.create(user=user, target=target)
 
 
+def _parseId(rawValue) -> int | None:
+    """Defensively parse a POSTed pk. A stale form / back-button repost can
+    submit a non-numeric or missing id; treat that as "no such row" rather
+    than letting the ValueError bubble into a 500."""
+    if not rawValue:
+        return None
+    try:
+        return int(rawValue)
+    except (TypeError, ValueError):
+        return None
+
+
 @login_required
 def chapter_tools_index(request):
     """The directory: open layer for everyone, plus a per-row stale flag for
@@ -98,7 +110,7 @@ def chapter_tools_questions(request):
         if action == "add":
             question = request.POST.get("question", "").strip()
             if question:
-                resourceId = request.POST.get("resource") or None
+                resourceId = _parseId(request.POST.get("resource"))
                 resource = ChapterResource.objects.filter(id=resourceId).first() if resourceId else None
                 ResourceQuestion.objects.create(resource=resource, question=question)
                 logger.info(
@@ -108,12 +120,16 @@ def chapter_tools_questions(request):
                 )
         elif action == "assign":
             assignedTo = request.POST.get("assignedTo", "").strip()
-            ResourceQuestion.objects.filter(id=request.POST.get("questionId")).update(assignedTo=assignedTo)
+            questionId = _parseId(request.POST.get("questionId"))
+            if questionId is not None:
+                ResourceQuestion.objects.filter(id=questionId).update(assignedTo=assignedTo)
         elif action == "resolve":
             resolution = request.POST.get("resolution", "").strip()
-            ResourceQuestion.objects.filter(
-                id=request.POST.get("questionId"), resolvedAt__isnull=True,
-            ).update(resolvedAt=djangoTimezone.now(), resolution=resolution)
+            questionId = _parseId(request.POST.get("questionId"))
+            if questionId is not None:
+                ResourceQuestion.objects.filter(
+                    id=questionId, resolvedAt__isnull=True,
+                ).update(resolvedAt=djangoTimezone.now(), resolution=resolution)
         return redirect("chapter-tools-questions")
 
     _logRestrictedRead(request.user, "questions")

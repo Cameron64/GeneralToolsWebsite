@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
             name='ResourceCredential',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('label', models.CharField(help_text="e.g. 'leadership@ Zoom login #2'.", max_length=200)),
+                ('label', models.CharField(help_text="e.g. 'Example Org shared login #2'.", max_length=200)),
                 ('kind', models.IntegerField(choices=[(0, 'Individual login'), (1, 'Vault shared login'), (2, 'Service-account key'), (3, 'API token'), (4, '2FA token')])),
                 ('vaultCollection', models.CharField(blank=True, help_text='Vault collection name - the hook for a future read-only drift sync.', max_length=200)),
                 ('status', models.IntegerField(choices=[(0, 'Live'), (1, 'Retire candidate'), (2, 'Retired')], default=0)),

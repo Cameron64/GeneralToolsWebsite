@@ -1035,11 +1035,11 @@ class ChapterResource(models.Model):
 
 
 class ResourceCredential(models.Model):
-    """Restricted layer: one row per credential *object*, not per resource -
-    the audit counts credential objects (e.g. four Zoom logins against two
-    licenses), so this is deliberately finer-grained than ChapterResource.
-    Also the hook a later read-only Vaultwarden drift-sync compares against
-    (vaultCollection)."""
+    """Restricted layer: one row per credential *object*, not per resource - a
+    single resource may be reachable through several distinct credentials
+    (multiple shared logins, an API token, a 2FA token), so this is
+    deliberately finer-grained than ChapterResource. Also the hook a later
+    read-only Vaultwarden drift-sync compares against (vaultCollection)."""
 
     class Kind:
         INDIVIDUAL_LOGIN = 0
@@ -1068,7 +1068,7 @@ class ResourceCredential(models.Model):
     )
 
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="credentials")
-    label = models.CharField(max_length=200, help_text="e.g. 'leadership@ Zoom login #2'.")
+    label = models.CharField(max_length=200, help_text="e.g. 'Example Org shared login #2'.")
     kind = models.IntegerField(choices=KIND_CHOICES)
     vaultCollection = models.CharField(
         max_length=200, blank=True,
