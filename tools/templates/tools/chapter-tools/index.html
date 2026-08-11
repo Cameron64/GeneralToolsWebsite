@@ -4,48 +4,55 @@
 <p class="page-subtitle">Every system Austin DSA runs: what it is, how to get into it, and who already has it.</p>
 
 <div class="alert alert-info mb-4">
-  <b>Need access to something?</b> Find it below and read the <b>How to get access</b> column.
-  That column is the whole answer. Everything to the right of it is background, and you can ignore it.
+  <b>Need access to something?</b> Find it below and read the <b>How to get access</b> line.
+  That line is the whole answer. Everything under it is background, and you can ignore it.
 </div>
 
+{# One card per resource rather than one table row.
+
+   This was a 6-column table and it could not be read without scrolling
+   sideways. Two of those columns (the blurb and the how-to-get-access text)
+   hold full sentences, and .page-card sets overflow-x:auto, so table
+   auto-layout gave the prose columns their max-content width and squeezed
+   the rest off the right edge - "How to get access", the one column a member
+   actually came for, ended up ~45px wide and wrapped one word per line.
+   Narrowing columns does not fix that; a table is the wrong container for two
+   paragraphs, so the row became a card that reads top-down instead. #}
+{% for row in rows %}
 <div class="page-card">
-  <table class="data-table">
-    <tr>
-      <th>Resource</th>
-      <th>How to get access</th>
-      <th>How access works</th>
-      <th>Who has it now</th>
-      <th>Category</th>
-      <th>Who pays</th>
-    </tr>
-    {% for row in rows %}
-    <tr{% if hasAudit and row.resource.isStale %} class="row-attention"{% endif %}>
-      <td class="md:whitespace-nowrap">
-        <b><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></b>
-        {% if hasAudit and row.resource.isStale %}<br><span class="badge badge-unresolved">Stale review</span>{% endif %}
-        {% if row.resource.blurb %}<br><span class="text-sm text-secondary">{{ row.resource.blurb }}</span>{% endif %}
-      </td>
-      <td data-label="How to get access">{{ row.resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee." }}</td>
-      <td data-label="How access works">{{ row.resource.get_accessModel_display }}</td>
-      <td data-label="Who has it now">
+  <h2 class="page-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></h2>
+  {% if hasAudit and row.resource.isStale %}<p class="pb-2"><span class="badge badge-unresolved">Stale review</span></p>{% endif %}
+  {% if row.resource.blurb %}<p class="text-sm text-secondary pb-2">{{ row.resource.blurb }}</p>{% endif %}
+
+  <p class="pb-2"><b>How to get access.</b> {{ row.resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee." }}</p>
+
+  <dl class="detail-grid">
+    <dt>How access works</dt><dd>{{ row.resource.get_accessModel_display }}</dd>
+    <dt>Who has it now</dt>
+    <dd>
+      {% if row.holderRows %}
+      <span class="flex flex-wrap gap-2">
         {% for holder in row.holderRows %}
         <span class="badge {% if holder.confirmed %}badge-active{% else %}badge-unresolved{% endif %}">{{ holder.name }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
-        {% empty %}
-        <span class="text-secondary">Nobody recorded yet</span>
         {% endfor %}
-      </td>
-      <td data-label="Category">{{ row.resource.get_category_display }}</td>
-      <td data-label="Who pays">{{ row.resource.get_payer_display }}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="6" class="text-secondary">No chapter resources yet.</td></tr>
-    {% endfor %}
-  </table>
+      </span>
+      {% else %}
+      <span class="text-secondary">Nobody recorded yet</span>
+      {% endif %}
+    </dd>
+    <dt>Category</dt><dd>{{ row.resource.get_category_display }}</dd>
+    <dt>Who pays</dt><dd>{{ row.resource.get_payer_display }}</dd>
+  </dl>
 </div>
+{% empty %}
+<div class="page-card">
+  <p class="text-secondary">No chapter resources yet.</p>
+</div>
+{% endfor %}
 
 {% if accessModelLegend %}
 <div class="page-card">
-  <h2 class="section-title">What the &ldquo;How access works&rdquo; column means</h2>
+  <h2 class="section-title">What the &ldquo;How access works&rdquo; line means</h2>
   <dl class="detail-grid">
     {% for entry in accessModelLegend %}
     <dt>{{ entry.label }}</dt><dd>{{ entry.explanation }}</dd>

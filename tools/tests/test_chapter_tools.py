@@ -133,6 +133,23 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, in use
         self.assertNotContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, unused
 
+    def test_index_does_not_lay_the_directory_out_as_a_table(self):
+        """The directory renders as cards, not rows.
+
+        It was a 6-column data-table and two of those columns held full
+        sentences. .page-card sets overflow-x:auto, so table auto-layout gave
+        the prose its max-content width and pushed the rest off the right edge
+        - a member had to scroll sideways to reach "How to get access", the one
+        thing they came for. Nothing about that is fixable by resizing columns,
+        so this asserts the container itself, which is the part that regressed.
+        """
+        self.loginAs(self.member)
+        resp = self.client.get(reverse("chapter-tools"))
+        self.assertNotContains(resp, "data-table")
+        # ...and the answer still renders in full rather than being truncated
+        # to fit a column.
+        self.assertContains(resp, "Ask in #it-committee.")
+
     def test_questions_view_redirects_plain_member(self):
         self.loginAs(self.member)
         resp = self.client.get(reverse("chapter-tools-questions"))
