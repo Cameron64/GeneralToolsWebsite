@@ -6,29 +6,37 @@
   <h1 class="page-title">{{ resource.name }}</h1>
   {% if resource.blurb %}<p class="page-subtitle">{{ resource.blurb }}</p>{% endif %}
 
+  <h2 class="section-title">How to get access</h2>
+  <p>{{ resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee and this page will be filled in." }}</p>
+  <div class="alert alert-info mb-4 pt-2">
+    <b>{{ resource.get_accessModel_display }}.</b> {{ resource.getAccessModelExplanation }}
+  </div>
+
+  <h2 class="section-title">Reference</h2>
   <dl class="detail-grid">
     <dt>Category</dt><dd>{{ resource.get_category_display }}</dd>
-    <dt>Access model</dt><dd>{{ resource.get_accessModel_display }}</dd>
-    <dt>Payer</dt><dd>{{ resource.get_payer_display }}{% if resource.costNote %} &middot; {{ resource.costNote }}{% endif %}</dd>
+    <dt>Who pays</dt><dd>{{ resource.get_payer_display }}{% if resource.costNote %} &middot; {{ resource.costNote }}{% endif %}</dd>
     {% if resource.annualCost %}<dt>Annual cost</dt><dd>${{ resource.annualCost }}</dd>{% endif %}
-    <dt>How to get access</dt><dd>{{ resource.howToGetAccess|default:"-" }}</dd>
   </dl>
 
-  <h2 class="section-title">Who holds it</h2>
+  <h2 class="section-title">Who has it now</h2>
   {% if holderRows %}
+  <p class="text-sm text-secondary pb-2">
+    &ldquo;Unconfirmed&rdquo; means nobody has checked this yet, not that the person has lost access.
+  </p>
   <table class="data-table">
-    <tr><th>Person</th><th>How</th><th>Status</th><th>Note</th></tr>
+    <tr><th>Person</th><th>How they get in</th><th>Status</th><th>Note</th></tr>
     {% for holder in holderRows %}
     <tr>
       <td>{{ holder.name }}</td>
-      <td data-label="How">{{ holder.how }}</td>
+      <td data-label="How they get in">{{ holder.how }}</td>
       <td data-label="Status">{% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}</td>
       <td data-label="Note">{{ holder.note|default:"-" }}</td>
     </tr>
     {% endfor %}
   </table>
   {% else %}
-  <p class="text-secondary">No holders recorded yet.</p>
+  <p class="text-secondary">Nobody recorded yet. That is an open job for the IT Sub-Committee, not a sign that nobody has access.</p>
   {% endif %}
 
   {% if hasAudit %}

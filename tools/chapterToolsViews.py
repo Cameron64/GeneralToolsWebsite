@@ -63,8 +63,20 @@ def chapter_tools_index(request):
         ],
     } for resource in resources]
 
+    # Legend of only the access models actually on screen. Glossing every row
+    # inline would repeat four lines of prose five times; defining each term
+    # once under the table keeps the table scannable and still leaves no
+    # unexplained phrase on the page.
+    modelsInUse = {resource.accessModel for resource in resources}
+    accessModelLegend = [
+        {"label": label, "explanation": ChapterResource.ACCESS_MODEL_EXPLANATIONS.get(value, "")}
+        for value, label in ChapterResource.ACCESS_MODEL_CHOICES
+        if value in modelsInUse
+    ]
+
     return render(request, "tools/chapter-tools/index.html", {
         "rows": rows,
+        "accessModelLegend": accessModelLegend,
         "hasAudit": hasAudit,
     })
 
