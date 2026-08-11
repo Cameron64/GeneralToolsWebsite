@@ -13,6 +13,7 @@ from pathlib import Path
 
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -23,6 +24,19 @@ from tools.models import (
     ToolAuditReadLog,
 )
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
+
+
+# The rendered marker for a SIGN_IN edge, in one place because the RUNS_ON leak
+# guard asserts its ABSENCE - and an absence assertion that stops matching the
+# markup silently passes forever. That already happened once: the guard used to
+# assert "You need <name> first", then the dependency name became a link
+# ("You need <a href=...>Name</a> first"), which no longer contains that string.
+# The test kept passing while checking nothing.
+#
+# So this phrase is deliberately chosen to be CONTIGUOUS TEXT with no markup
+# inside it. If you restyle the edge, keep one unbroken run of text containing
+# the resource name, or this guard quietly stops guarding.
+EDGE_PHRASE = "How to get {name}"
 
 
 def _makeResource(**overrides):
@@ -346,7 +360,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
         self.loginAs(self.member)
         resp = self.client.get(reverse("chapter-tools"))
         self.assertContains(resp, "ExampleHostingSentinel")  # its own card - legitimately open
-        self.assertNotContains(resp, "You need ExampleHostingSentinel first")  # the edge - not open
+        self.assertNotContains(resp, EDGE_PHRASE.format(name="ExampleHostingSentinel"))  # the edge - not open
 
     # --- 3. SIGN_IN does reach a plain member, index and detail ---
 
@@ -358,10 +372,23 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
         self.loginAs(self.member)
 
         indexResp = self.client.get(reverse("chapter-tools"))
-        self.assertContains(indexResp, "You need Example SSO first")
+        self.assertContains(indexResp, EDGE_PHRASE.format(name="Example SSO"))
 
         detailResp = self.client.get(self.wiki.getUrl())
-        self.assertContains(detailResp, "You need Example SSO first")
+        self.assertContains(detailResp, EDGE_PHRASE.format(name="Example SSO"))
+
+    def test_sign_in_dependency_links_to_the_thing_it_names(self):
+        """Naming a precondition without linking it hands the reader a second
+        task and no route to it. Both surfaces must link."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.member)
+        target = f'href="{self.identityProvider.getUrl()}"'
+
+        self.assertContains(self.client.get(reverse("chapter-tools")), target)
+        self.assertContains(self.client.get(self.wiki.getUrl()), target)
 
     # --- 4. Reverse SIGN_IN renders on the depended-upon resource's page ---
 
@@ -475,6 +502,44 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
         self.assertEqual(len(small.captured_queries), len(large.captured_queries))
 
 
+class ResourceLinkTests(LoginClientMixin, TestCase):
+    """siteUrl / accessRequestUrl. The directory's whole job is answering "how
+    do I get into this", and an answer a member cannot click is not an answer -
+    howToGetAccess renders as plain text, so a URL written into that prose is
+    dead characters the reader has to retype."""
+
+    def setUp(self):
+        self.member = UserFactory.make("member")
+
+    def test_site_host_is_the_bare_hostname(self):
+        resource = _makeResource(siteUrl="https://example-wiki.invalid/home?x=1")
+        self.assertEqual(resource.getSiteHost(), "example-wiki.invalid")
+
+    def test_site_host_is_empty_when_unset(self):
+        self.assertEqual(_makeResource().getSiteHost(), "")
+
+    def test_index_and_detail_render_both_links_when_set(self):
+        resource = _makeResource(
+            siteUrl="https://example-wiki.invalid/",
+            accessRequestUrl="https://example-form.invalid/request",
+        )
+        self.loginAs(self.member)
+        for resp in (self.client.get(reverse("chapter-tools")), self.client.get(resource.getUrl())):
+            self.assertContains(resp, "https://example-form.invalid/request")
+            self.assertContains(resp, "https://example-wiki.invalid/")
+            # The hostname is the visible link text, not a generic "Open site" -
+            # the address is the part a member needs to remember tomorrow.
+            self.assertContains(resp, "example-wiki.invalid")
+
+    def test_no_link_markup_when_urls_are_unset(self):
+        """An empty URLField must not render an <a href=""> that goes nowhere."""
+        resource = _makeResource()
+        self.loginAs(self.member)
+        resp = self.client.get(resource.getUrl())
+        self.assertNotContains(resp, 'href="" target="_blank"')
+        self.assertNotContains(resp, "Request access")
+
+
 class SeedChapterToolsCommandTests(TestCase):
     SEED = {
         "resources": [
@@ -555,3 +620,58 @@ class SeedChapterToolsCommandTests(TestCase):
         self.assertEqual(question.assignedTo, "Example Assignee")
         self.assertEqual(question.resolution, "Confirmed via 1:1.")
         self.assertIsNotNone(question.resolvedAt)
+
+    # --- dependencies: the real inventory must be able to express the same
+    # edges the demo seed can, or the registry is only complete on the demo box.
+
+    def _seedWithDependency(self, **edgeOverrides):
+        """Deliberately declares the edge on the FIRST resource, pointing at one
+        defined LATER in the file - the ordering a one-pass loader would fail on."""
+        edge = {"dependsOn": "Example SSO", "kind": "SIGN_IN", "note": "OAuth"}
+        edge.update(edgeOverrides)
+        return {
+            "resources": [
+                {"name": "Example Wiki", "category": "COMMUNICATION", "dependencies": [edge]},
+                {"name": "Example SSO", "category": "COMMUNICATION"},
+            ],
+        }
+
+    def test_loads_dependencies_declared_before_their_target_is_defined(self):
+        call_command("seed_chapter_tools", file=self._writeSeedFile(self._seedWithDependency()))
+
+        dependency = ResourceDependency.objects.get()
+        self.assertEqual(dependency.resource.name, "Example Wiki")
+        self.assertEqual(dependency.dependsOn.name, "Example SSO")
+        self.assertEqual(dependency.kind, ResourceDependency.Kind.SIGN_IN)
+        self.assertEqual(dependency.note, "OAuth")
+
+    def test_reseeding_does_not_duplicate_dependencies(self):
+        path = self._writeSeedFile(self._seedWithDependency())
+        call_command("seed_chapter_tools", file=path)
+        call_command("seed_chapter_tools", file=path)
+        self.assertEqual(ResourceDependency.objects.count(), 1)
+
+    def test_dependency_on_an_unknown_resource_is_a_hard_error(self):
+        """A dropped edge would leave the registry looking complete when it is
+        not - the exact failure this registry exists to fix."""
+        seed = self._seedWithDependency(dependsOn="Example Typo")
+        with self.assertRaises(CommandError):
+            call_command("seed_chapter_tools", file=self._writeSeedFile(seed))
+
+    def test_unknown_dependency_kind_is_a_hard_error(self):
+        seed = self._seedWithDependency(kind="DEPENDS_SOMEHOW")
+        with self.assertRaises(CommandError):
+            call_command("seed_chapter_tools", file=self._writeSeedFile(seed))
+
+    def test_loads_site_and_request_urls(self):
+        seed = {"resources": [{
+            "name": "Example Wiki", "category": "COMMUNICATION",
+            "siteUrl": "https://example-wiki.invalid/",
+            "accessRequestUrl": "https://example-form.invalid/request",
+        }]}
+        call_command("seed_chapter_tools", file=self._writeSeedFile(seed))
+
+        resource = ChapterResource.objects.get(name="Example Wiki")
+        self.assertEqual(resource.siteUrl, "https://example-wiki.invalid/")
+        self.assertEqual(resource.accessRequestUrl, "https://example-form.invalid/request")
+        self.assertEqual(resource.getSiteHost(), "example-wiki.invalid")

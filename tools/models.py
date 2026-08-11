@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.utils import timezone as djangoTimezone
@@ -1480,6 +1482,23 @@ class ChapterResource(models.Model):
         help_text="Open-layer instructions, e.g. 'Request below' or 'Ask in #it-committee'.",
     )
 
+    # Two URLs, not one, because a member asks two different questions and a
+    # single "link" field can only answer one of them. Prose in howToGetAccess
+    # cannot substitute: it renders as plain text, so a URL written in there is
+    # not clickable and the reader has to retype it.
+    siteUrl = models.URLField(
+        blank=True,
+        help_text="Where this thing actually lives, for somebody who already has access.",
+    )
+    accessRequestUrl = models.URLField(
+        blank=True,
+        help_text=(
+            "The link that starts an access request TODAY - an external form, a signup page. "
+            "This is the M1 stopgap and is unrelated to the 'requestable' flag below, which is "
+            "the M2 in-app front door. Most resources will have this and not that for a while."
+        ),
+    )
+
     steward = models.ForeignKey(
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="stewardedResources",
         help_text="The named owner of this row, and reviewer for its access requests (M2).",
@@ -1537,6 +1556,16 @@ class ChapterResource(models.Model):
 
     def getUrl(self) -> str:
         return reverse("chapter-tool-detail", kwargs={"pk": self.id})
+
+    def getSiteHost(self) -> str:
+        """The bare hostname of siteUrl, e.g. 'wiki.austindsa.org'. Used as the
+        visible link text: a button reading "Open the wiki" teaches the reader
+        nothing they can use tomorrow, whereas the address itself is the thing
+        they actually need to remember. Returns "" when siteUrl is unset so the
+        template can simply fall through."""
+        if not self.siteUrl:
+            return ""
+        return urlparse(self.siteUrl).netloc
 
 
 class ResourceCredential(models.Model):
