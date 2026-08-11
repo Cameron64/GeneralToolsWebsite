@@ -178,13 +178,22 @@ if _missing:
     )
 
 for groupName, (names, codenames) in GROUPS.items():
-    group, wasCreated = Group.objects.get_or_create(name=groupName)
-    if wasCreated:
-        group.permissions.add(*Permission.objects.filter(
-            content_type__app_label="tools",
-            content_type__model="permissionrights",
-            codename__in=codenames,
-        ))
+    group, _ = Group.objects.get_or_create(name=groupName)
+    # Granted on EVERY run, not just `if wasCreated`. That guard is the bug the
+    # comment above GROUPS describes: adding a codename to a group that already
+    # exists on the box silently did nothing, so the account logged in fine and
+    # saw the wrong tier, and no later run repaired it. .add() is idempotent, so
+    # re-granting costs nothing.
+    #
+    # One-way on purpose: this adds but never removes, so a permission deleted
+    # from GROUPS stays granted until somebody revokes it by hand. Using .set()
+    # instead would make GROUPS authoritative, at the cost of wiping any grant
+    # made through the app during a demo - which is the worse surprise.
+    group.permissions.add(*Permission.objects.filter(
+        content_type__app_label="tools",
+        content_type__model="permissionrights",
+        codename__in=codenames,
+    ))
     group.user_set.add(*[users[n] for n in names])
 report.append("group rosters topped up")
 
