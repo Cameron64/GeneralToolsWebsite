@@ -133,7 +133,25 @@ GROUPS = {
 # post_migrate handler, so a codename added on a feature branch does not exist
 # here until that branch is merged AND migrate has run. The entrypoint runs
 # migrate before this script, so the only way to trip this is a half-merge.
-_wanted = {code for _, codes in GROUPS.values() for code in codes}
+# --- Directly-granted permissions ---------------------------------------------
+# Every grant in GROUPS arrives through a group, and a group-granted permission
+# is NOT self-revocable: user_permissions.remove() is a no-op on it, so the
+# self-service access page renders it locked. With groups alone the revoke half
+# of that page has nothing to act on and reads as broken rather than as a role
+# boundary. Two shapes, one each:
+#   priya.patel   - held ONLY directly, so it is the revocable row.
+#   tomas.herrera - held directly AND via Metrics Viewers, so it renders locked
+#                   and proves the direct grant underneath is not droppable.
+# Declared above the guard below so its codenames are covered by it too.
+DIRECT_PERMISSIONS = {
+    "priya.patel":   ["viewPublishedEventList"],
+    "tomas.herrera": ["viewLinkMetrics"],
+}
+
+_wanted = (
+    {code for _, codes in GROUPS.values() for code in codes}
+    | {code for codes in DIRECT_PERMISSIONS.values() for code in codes}
+)
 _found = set(Permission.objects.filter(
     content_type__app_label="tools",
     content_type__model="permissionrights",
@@ -158,6 +176,15 @@ for groupName, (names, codenames) in GROUPS.items():
         ))
     group.user_set.add(*[users[n] for n in names])
 report.append("group rosters topped up")
+
+# Applied after the group loop so My Access shows both sources side by side.
+for username, codenames in DIRECT_PERMISSIONS.items():
+    users[username].user_permissions.add(*Permission.objects.filter(
+        content_type__app_label="tools",
+        content_type__model="permissionrights",
+        codename__in=codenames,
+    ))
+report.append("direct permission grants topped up")
 
 # --- Event owners (the chapter's real standing committees + campaigns) --------
 # Idempotent get_or_create by name; authorizer .add() is idempotent too. The
