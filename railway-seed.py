@@ -576,7 +576,12 @@ CHAPTER_RESOURCES = [
         blurb="The chapter wiki at wiki.austindsa.org. Meeting notes, committee pages, onboarding guides, and chapter documentation.",
         annualCost=None,
         costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
-        howToGetAccess="You sign in with your Slack account, so get into Slack first. Once you are in Slack, ask in the IT channel and somebody will add you.",
+        # Deliberately does NOT repeat the Slack precondition. The SIGN_IN edge
+        # below renders "You need Slack first" directly under this line, so
+        # saying it here too printed the same instruction twice in a row. The
+        # edge is the source of truth for a precondition; this field is only
+        # the step you take once you meet it.
+        howToGetAccess="Ask in the IT channel and somebody will add you.",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.YELLOW,
         revocationNote="Individual accounts, so removing one person is a single action and costs nobody else anything.",
