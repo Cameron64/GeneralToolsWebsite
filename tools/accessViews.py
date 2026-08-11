@@ -1,12 +1,13 @@
 import datetime
 import logging
 import urllib.parse
+import uuid
 
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.models import Group, Permission
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.urls import reverse
@@ -14,8 +15,8 @@ from django.urls import reverse
 import settings
 
 from . import permissions
-from .forms import AccessRequestForm, GroupForm, ManageAccessForm, ReviewAccessRequestForm
-from .models import AccessRequests, User
+from .forms import GroupForm, ManageAccessForm, ReviewAccessRequestForm, SelfServiceAccessForm
+from .models import AccessRequests, DelegatedEvents, EventOwners, User, revokeCommitteeMembership
 
 logger = logging.getLogger(__name__)
 
@@ -54,30 +55,69 @@ def _getApproversFor(accessRequest: AccessRequests):
     )
 
 
-def _sendNewRequestEmails(request, accessRequest: AccessRequests):
-    try:
-        reviewLink = request.build_absolute_uri(accessRequest.getUrl())
-        messageText = f"""{accessRequest.getRequesterName()} has requested the following access on Echo (Austin DSA):
-        {accessRequest.getTargetDescription()}
+def _sendBatchRequestEmails(request, createdRequests: list[AccessRequests]):
+    """Notify approvers about one self-service submission's new rows (plan D7).
 
-        Their reason: {accessRequest.justification}
+    Groups by approver rather than by row: build _getApproversFor per row, then
+    invert to approver -> the items THAT approver may decide, and send each
+    approver exactly ONE email listing only those items. That inversion is the
+    leak-free construction - an approver who can only decide a permission-target
+    row must never see the owner-target row a different requester's committee
+    peer would review (REVIEW.md F5's concern, applied here to email rather
+    than the review-list web surfaces this plan leaves alone).
 
-        Please visit {reviewLink} to approve or deny the request."""
+    Each send is wrapped separately (D7's second half): the old single-row
+    _sendNewRequestEmails sat the whole per-approver loop inside one try, so
+    one bad address silently ate every later recipient's email too.
+    """
+    itemsByApprover: dict[User, list[AccessRequests]] = {}
+    for accessRequest in createdRequests:
         for approver in _getApproversFor(accessRequest):
+            itemsByApprover.setdefault(approver, []).append(accessRequest)
+
+    requester = createdRequests[0].requester
+    for approver, items in itemsByApprover.items():
+        try:
+            itemLines = "\n".join(
+                f"- {item.getTargetDescription()} : {request.build_absolute_uri(item.getUrl())}"
+                for item in items
+            )
+            subject = (
+                f"Access requested: {items[0].getTargetDescription()}"
+                if len(items) == 1
+                else f"Access requested: {len(items)} item(s) from {requester.getUserNameString()}"
+            )
             send_mail(
-                subject=f"Access requested: {accessRequest.getTargetDescription()}",
-                message=messageText,
+                subject=subject,
+                message=(
+                    f"{requester.getUserNameString()} has requested the following access on Echo (Austin DSA):\n"
+                    f"{itemLines}\n\n"
+                    f"Their reason: {items[0].justification}\n\n"
+                    "Please visit the link(s) above to approve or deny each request."
+                ),
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[approver.email],
             )
+        except Exception as err:
+            logger.error("RequestAccess: Failed to send batch notification email to %s", approver.email)
+            logger.exception(err)
+
+    try:
+        totalPending = AccessRequests.objects.filter(
+            requester=requester, status=AccessRequests.Status.REQUESTED
+        ).count()
         send_mail(
             subject="Your access request was submitted",
-            message=f"""Your request for {accessRequest.getTargetDescription()} has been sent to the approvers. You will receive an email once it has been reviewed.""",
+            message=(
+                f"Your request for {len(createdRequests)} item(s) has been sent to the approvers. "
+                f"You have {totalPending} item(s) still pending review overall. "
+                "You will receive an email once each is reviewed."
+            ),
             from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[accessRequest.requester.email],
+            recipient_list=[requester.email],
         )
     except Exception as err:
-        logger.error("RequestAccess: Failed to send request notification emails")
+        logger.error("RequestAccess: Failed to send requester confirmation email")
         logger.exception(err)
 
 
@@ -98,37 +138,463 @@ def _sendDecisionEmail(accessRequest: AccessRequests):
         logger.exception(err)
 
 
+def _permissionSource(user, permission, directIds) -> str:
+    """Where a HELD permission comes from: "Superuser", "Granted directly", or
+    "Via <group>, <group>". Extracted from my_access (plan access-self-service-
+    form step 2) so my_access and the self-service checklist below describe the
+    same permission the same way - two independent computations of "where does
+    this come from" is exactly how the two pages would drift.
+
+    A permission held both directly and via a group is reported as "Granted
+    directly" - group provenance is only surfaced when it's the sole source.
+    Callers that need to know about a dual-source hold for a DIFFERENT reason
+    (the self-service checklist's lock rule, D4) compute that separately; this
+    function only answers "what does my_access print".
+
+    ``directIds`` is passed in rather than recomputed, so a caller looping over
+    many permissions computes it once.
+    """
+    if user.is_superuser:
+        return "Superuser"
+    if permission.id in directIds:
+        return "Granted directly"
+    viaGroups = user.groups.filter(permissions=permission)
+    return "Via " + ", ".join(group.name for group in viaGroups) if viaGroups else "Granted directly"
+
+
+def _ownerKey(ownerId) -> str:
+    return f"{SelfServiceAccessForm.OWNER_PREFIX}:{ownerId}"
+
+
+def _permissionKey(permissionId) -> str:
+    return f"{SelfServiceAccessForm.PERMISSION_PREFIX}:{permissionId}"
+
+
+def _nonSuperuserApproveHolderCount(excludeUserId) -> int:
+    """How many OTHER active, non-superuser members hold approveAccessRequest
+    (directly or via a group) - the D8 count behind "are you the last one".
+
+    Superusers are deliberately excluded from the count: they can always
+    review anything (AccessRequests.canBeReviewedBy), so they are the floor the
+    warning already accounts for ("only site superusers will be able to review
+    requests"), not a peer holder whose presence should suppress the warning.
+    """
+    approvePermission = Permission.objects.filter(
+        codename=permissions.APPROVE_ACCESS_REQUEST.split(".")[1],
+        content_type__app_label="tools",
+    ).first()
+    if approvePermission is None:
+        return 0
+    return (
+        User.objects.filter(
+            Q(user_permissions=approvePermission) | Q(groups__permissions=approvePermission),
+            is_active=True, is_superuser=False,
+        )
+        .exclude(id=excludeUserId)
+        .distinct()
+        .count()
+    )
+
+
+def _reconcileHeldAndPending(user) -> None:
+    """Auto-close any pending AccessRequests the member already effectively
+    holds (plan D6). Reachable without any race: manage_event_owner's
+    add-authorizer auto-close (ownerViews.py) only fires for an add made
+    THROUGH that page, and no surface auto-closes a permission-target request
+    that a later GROUP grant happens to satisfy (manage_group's auto-close
+    matches group_id, never the permission ids that group carries). Run this
+    every time the self-service page is visited so a stale pending row never
+    sits there forever, and so the checklist below only ever has to render
+    "held" XOR "pending" for a given item, never both at once.
+    """
+    pendingRequests = AccessRequests.objects.filter(
+        requester=user, status=AccessRequests.Status.REQUESTED,
+    ).filter(Q(owner__isnull=False) | Q(permission__isnull=False))
+    for pendingRequest in pendingRequests:
+        if pendingRequest.owner_id is not None:
+            satisfied = pendingRequest.owner.authorizers.filter(id=user.id).exists()
+        else:
+            satisfied = user.has_perm("tools." + pendingRequest.permission.codename)
+        if not satisfied:
+            continue
+        logger.info(
+            "RequestAccess: closing pending request %d for %s - access already held",
+            pendingRequest.id, user.getUserNameString(),
+        )
+        pendingRequest.status = AccessRequests.Status.APPROVED
+        pendingRequest.dateReviewed = datetime.datetime.now(datetime.UTC)
+        pendingRequest.reason = "Access already held"
+        pendingRequest.save()
+        _sendDecisionEmail(pendingRequest)
+
+
+def _currentAccessState(user) -> dict:
+    """Fresh read of everything the checklist's diff math needs. Always called
+    again at POST-apply time rather than trusting anything computed at GET
+    time - that is the whole point of the renderedChecked mechanism (plan
+    D1, REVIEW.md F1/F2): removals/additions are judged against what is true
+    RIGHT NOW, scoped down to the rendered-universe snapshot the form carries.
+    """
+    now = datetime.datetime.now(datetime.UTC)
+    activeOwnerIds = set(
+        EventOwners.objects.filter(Q(isPermanent=True) | Q(expiration__gt=now))
+        .values_list("id", flat=True)
+    )
+    authorizedOwnerIds = set(user.eventAuthorizations.values_list("id", flat=True))
+    pendingOwnerIds = set(
+        AccessRequests.objects.filter(
+            requester=user, status=AccessRequests.Status.REQUESTED, owner__isnull=False,
+        ).values_list("owner_id", flat=True)
+    )
+
+    requestablePermissionIds = set(permissions.getRequestablePermissions().values_list("id", flat=True))
+    directPermissionIds = set(
+        user.user_permissions.filter(id__in=requestablePermissionIds).values_list("id", flat=True)
+    )
+    if user.is_superuser:
+        # Nothing direct is meaningfully "unlocked" for a superuser - has_perm
+        # is always True and there is no box that ever does anything (R3).
+        groupGrantedPermissionIds = set()
+        lockedPermissionIds = set(requestablePermissionIds)
+        heldPermissionIds = set(requestablePermissionIds)
+    else:
+        groupGrantedPermissionIds = set(
+            Permission.objects.filter(group__user=user, id__in=requestablePermissionIds)
+            .values_list("id", flat=True)
+        )
+        lockedPermissionIds = set(groupGrantedPermissionIds)
+        heldPermissionIds = directPermissionIds | groupGrantedPermissionIds
+    pendingPermissionIds = set(
+        AccessRequests.objects.filter(
+            requester=user, status=AccessRequests.Status.REQUESTED, permission__isnull=False,
+        ).values_list("permission_id", flat=True)
+    )
+
+    return {
+        "activeOwnerIds": activeOwnerIds,
+        "authorizedOwnerIds": authorizedOwnerIds,
+        "pendingOwnerIds": pendingOwnerIds,
+        "requestablePermissionIds": requestablePermissionIds,
+        "directPermissionIds": directPermissionIds,
+        "lockedPermissionIds": lockedPermissionIds,
+        "heldPermissionIds": heldPermissionIds,
+        "pendingPermissionIds": pendingPermissionIds,
+    }
+
+
+def _buildAccessChecklist(user):
+    """Build the request-access page's render state: which committees and
+    permissions to show, whether each is checked/locked, and the
+    renderedChecked snapshot the form must carry to POST (plan D1/D2/D4/D6).
+
+    Rendering rule (D6): never hide an item the member currently holds - hide
+    only pending AND NOT held. A held-and-pending item renders checked (the
+    reconciliation above already closed the stale pending row by the time this
+    runs, so by construction nothing here is ever both).
+
+    A locked permission (group-granted, or ANY permission for a superuser - R3)
+    is never added to renderedChecked, regardless of whether it's checked -
+    that is D4/F6's "no hidden mirror for locked rows": a locked item is
+    out-of-universe on the server side, full stop, so a forged renderedChecked
+    entry naming one can never make it a removal candidate later.
+    """
+    _reconcileHeldAndPending(user)
+    state = _currentAccessState(user)
+
+    renderedChecked = set()
+
+    pendingDelegatedCounts = dict(
+        DelegatedEvents.objects.filter(
+            owner_id__in=state["authorizedOwnerIds"], status=DelegatedEvents.Status.REQUESTED,
+        ).values("owner_id").annotate(count=Count("id")).values_list("owner_id", "count")
+    )
+    authorizerCounts = dict(
+        EventOwners.objects.filter(id__in=state["activeOwnerIds"])
+        .annotate(authorizerCount=Count("authorizers"))
+        .values_list("id", "authorizerCount")
+    )
+
+    committeeRows = []
+    for owner in EventOwners.objects.filter(id__in=state["activeOwnerIds"]).order_by("name"):
+        held = owner.id in state["authorizedOwnerIds"]
+        pending = owner.id in state["pendingOwnerIds"]
+        if pending and not held:
+            continue
+        key = _ownerKey(owner.id)
+        if held:
+            renderedChecked.add(key)
+        committeeRows.append({
+            "owner": owner,
+            "key": key,
+            "checked": held,
+            "authorizerCount": authorizerCounts.get(owner.id, 0) if held else 0,
+            "pendingDelegatedEventCount": pendingDelegatedCounts.get(owner.id, 0) if held else 0,
+        })
+
+    byCategory = {}
+    approveOtherHolderCount = _nonSuperuserApproveHolderCount(excludeUserId=user.id)
+    approveAccessRequestCodename = permissions.APPROVE_ACCESS_REQUEST.split(".")[1]
+    for permission in permissions.getRequestablePermissions():
+        held = permission.id in state["heldPermissionIds"]
+        pending = permission.id in state["pendingPermissionIds"]
+        if pending and not held:
+            continue
+        locked = permission.id in state["lockedPermissionIds"]
+        key = _permissionKey(permission.id)
+        if held and not locked:
+            renderedChecked.add(key)
+        lockHint = None
+        if locked:
+            if user.is_superuser:
+                lockHint = "Locked - superusers hold every permission implicitly."
+            else:
+                groupNames = ", ".join(
+                    user.groups.filter(permissions=permission).order_by("name").values_list("name", flat=True)
+                )
+                if permission.id in state["directPermissionIds"]:
+                    lockHint = (
+                        f"Locked - also granted via {groupNames}, so the direct grant underneath it "
+                        "can't be dropped here. An admin can remove the direct grant on Manage Member Access."
+                    )
+                else:
+                    lockHint = f"Locked - granted via {groupNames}. Ask an admin to change your groups instead."
+        category = permissions.getPermissionCategory(permission.codename)
+        byCategory.setdefault(category, []).append({
+            "permission": permission,
+            "shortLabel": permissions.shortPermissionLabel(permission.name),
+            "key": key,
+            "checked": held,
+            "locked": locked,
+            "lockHint": lockHint,
+            "isApproveAccessRequest": permission.codename == approveAccessRequestCodename,
+            "otherApproveHolderCount": approveOtherHolderCount,
+        })
+
+    categoryOrder = [title for title, _ in permissions.PERMISSION_CATEGORIES] + ["Other"]
+    permissionSections = [
+        {"title": title, "rows": byCategory[title]}
+        for title in categoryOrder
+        if title in byCategory
+    ]
+    return committeeRows, permissionSections, renderedChecked
+
+
+def _computeSelfServiceDiff(user, form):
+    """The diff math itself (plan D1, REVIEW.md F1/F2's fix):
+
+        removals  = (renderedChecked - submittedChecked) & removalEligible
+        additions = (submittedChecked - renderedChecked) - heldKeys - pendingKeys
+
+    ``removalEligible`` is every currently-authorized committee plus every
+    permission the member holds DIRECTLY and UNLOCKED right now - re-read fresh,
+    never assumed from the stale render. That second condition is D4's teeth: a
+    permission that became group-granted between GET and POST is excluded even
+    if it's (genuinely or by forgery) present in renderedChecked, so the direct
+    grant underneath a locked permission is never droppable via self-service.
+
+    Anything the checklist did not render as an active checkbox - an expired
+    owner's authorization, a locked permission - was never added to
+    renderedChecked in the first place (see _buildAccessChecklist), so it can
+    never appear in ``removals`` regardless of what the POST claims. That is the
+    whole protection for REVIEW.md's Scenario B (an authorizer of an expired
+    owner) and for the stale-tab race (F2) - no special-case code, just scope.
+
+    Returns (removals, additions, state) as sets of opaque item keys plus the
+    fresh state dict _currentAccessState produced, so the caller can reuse it.
+    """
+    state = _currentAccessState(user)
+
+    renderedChecked = set(form.cleaned_data[SelfServiceAccessForm.Keys.RENDERED_CHECKED])
+    submittedChecked = (
+        {_ownerKey(owner.id) for owner in form.cleaned_data[SelfServiceAccessForm.Keys.COMMITTEES]}
+        | {_permissionKey(permission.id) for permission in form.cleaned_data[SelfServiceAccessForm.Keys.PERMISSIONS]}
+    )
+
+    unlockedDirectPermissionKeys = {
+        _permissionKey(permissionId)
+        for permissionId in state["directPermissionIds"] - state["lockedPermissionIds"]
+    }
+    removalEligible = (
+        {_ownerKey(ownerId) for ownerId in state["authorizedOwnerIds"]}
+        | unlockedDirectPermissionKeys
+    )
+    removals = (renderedChecked - submittedChecked) & removalEligible
+
+    heldKeys = (
+        {_ownerKey(ownerId) for ownerId in state["authorizedOwnerIds"]}
+        | {_permissionKey(permissionId) for permissionId in state["heldPermissionIds"]}
+    )
+    pendingKeys = (
+        {_ownerKey(ownerId) for ownerId in state["pendingOwnerIds"]}
+        | {_permissionKey(permissionId) for permissionId in state["pendingPermissionIds"]}
+    )
+    additions = (submittedChecked - renderedChecked) - heldKeys - pendingKeys
+
+    return removals, additions, state
+
+
+def _applySelfServiceDiff(request, user, removals, additions, justification) -> dict:
+    """Apply the diff (plan D1/D3/D9): removals immediately with no approval,
+    then one AccessRequests row per addition sharing a single batchId. One row
+    per addition is not a style choice - AccessRequests.clean() enforces
+    exactly one target per row, and the reviewer tiers differ per target type
+    (a committee's authorizers may decide an owner row; a permission row is
+    admin-only), so one row cannot carry both.
+
+    A stale addition target (deleted between form validation and this loop -
+    genuinely concurrent, not reproducible without a race) is dropped rather
+    than failing the whole batch (D6's "process the rest" rule) - re-fetching
+    with .get() here, instead of trusting the form's already-validated model
+    instances, is what makes that race detectable at all.
+
+    Returns a plain-dict, JSON-safe result (it round-trips through the session
+    across the POST-redirect-GET in request_access - D10).
+    """
+    removedOwners = []
+    removedPermissions = []
+    for key in sorted(removals):
+        kind, _, rawId = key.partition(":")
+        if kind == SelfServiceAccessForm.OWNER_PREFIX:
+            owner = EventOwners.objects.filter(id=rawId).first()
+            if owner is None:
+                continue
+            groupDropped = revokeCommitteeMembership(user, owner)
+            removedOwners.append({"name": owner.name, "groupDropped": groupDropped})
+            logger.info(
+                "RequestAccess: %s left '%s' (self-service, no approval needed, roleGroupDropped=%s)",
+                user.getUserNameString(), owner.name, groupDropped,
+            )
+        else:
+            permission = Permission.objects.filter(id=rawId).first()
+            if permission is None:
+                continue
+            user.user_permissions.remove(permission)
+            removedPermissions.append(permission.name)
+            logger.info(
+                "RequestAccess: %s dropped '%s' (self-service, no approval needed)",
+                user.getUserNameString(), permission.name,
+            )
+
+    batchId = uuid.uuid4() if additions else None
+    createdRequests = []
+    droppedCount = 0
+    for key in sorted(additions):
+        kind, _, rawId = key.partition(":")
+        try:
+            if kind == SelfServiceAccessForm.OWNER_PREFIX:
+                owner = EventOwners.objects.get(id=rawId)
+                accessRequest = AccessRequests.objects.create(
+                    requester=user, owner=owner, justification=justification,
+                    status=AccessRequests.Status.REQUESTED, batchId=batchId,
+                )
+            else:
+                permission = Permission.objects.get(id=rawId)
+                accessRequest = AccessRequests.objects.create(
+                    requester=user, permission=permission, justification=justification,
+                    status=AccessRequests.Status.REQUESTED, batchId=batchId,
+                )
+        except (EventOwners.DoesNotExist, Permission.DoesNotExist) as err:
+            logger.warning(
+                "RequestAccess: dropped stale addition %s for %s (%s)",
+                key, user.getUserNameString(), err,
+            )
+            droppedCount += 1
+            continue
+        logger.info(
+            "RequestAccess: %s requested %s (batch %s)",
+            user.getUserNameString(), accessRequest.getTargetDescription(), batchId,
+        )
+        createdRequests.append(accessRequest)
+
+    if createdRequests:
+        _sendBatchRequestEmails(request, createdRequests)
+
+    totalPending = AccessRequests.objects.filter(
+        requester=user, status=AccessRequests.Status.REQUESTED
+    ).count()
+
+    return {
+        "removedOwners": removedOwners,
+        "removedPermissions": removedPermissions,
+        "createdDescriptions": [accessRequest.getTargetDescription() for accessRequest in createdRequests],
+        "droppedCount": droppedCount,
+        "totalPending": totalPending,
+    }
+
+
 @login_required
 def request_access(request):
-    """Any logged-in member may ask to join an event owner (committee) or for
-    one of the custom tools.* permissions - no permission required, since fresh
-    self-registered accounts start with none."""
+    """The one-form request+revoke page (plan access-self-service-form).
+
+    Any logged-in member may ask to join an event owner (committee) or for one
+    of the custom tools.* permissions (needs approval, unchanged in spirit from
+    the old dropdown), AND may drop access they already hold (new: immediate,
+    no approval - D1). Checked means held; unchecking something the member
+    holds is applied right away, but ONLY within the rendered universe the
+    renderedChecked snapshot captured - see _computeSelfServiceDiff for why a
+    plain absolute diff against DB state is unsafe here.
+
+    POST-redirect-GET (D10): the result is stashed in the session and the
+    response redirects back to this same URL, so a back-button resubmit
+    replays nothing - the GET branch below either shows that one result once
+    (session.pop) or renders a fresh checklist.
+    """
+    user = request.user
     if request.method == "POST":
-        form = AccessRequestForm(request.user, request.POST)
-        if not form.is_valid():
-            return render(request, "tools/access-requests/request.html", {"form": form})
+        form = SelfServiceAccessForm(request.POST)
+        missingJustification = False
+        if form.is_valid():
+            removals, additions, _state = _computeSelfServiceDiff(user, form)
+            justification = form.cleaned_data[SelfServiceAccessForm.Keys.JUSTIFICATION].strip()
+            if additions and not justification:
+                # Removals never need a reason (D1) - only additions do, and
+                # only when there are any - so this is checked here rather than
+                # as a static field requirement.
+                form.add_error(
+                    SelfServiceAccessForm.Keys.JUSTIFICATION,
+                    "Tell the approvers why you need this - only required when you're adding something.",
+                )
+                missingJustification = True
+            else:
+                result = _applySelfServiceDiff(request, user, removals, additions, justification)
+                request.session["accessRequestResult"] = result
+                return redirect("request-access")
 
-        accessRequest = AccessRequests.objects.create(
-            requester=request.user,
-            group=form.cleaned_data["group"],
-            permission=form.cleaned_data["permission"],
-            owner=form.cleaned_data["owner"],
-            justification=form.cleaned_data[AccessRequestForm.Keys.JUSTIFICATION],
-            status=AccessRequests.Status.REQUESTED,
-        )
-        logger.info(
-            "RequestAccess: %s requested %s",
-            request.user.getUserNameString(),
-            accessRequest.getTargetDescription(),
-        )
-        _sendNewRequestEmails(request, accessRequest)
-        return render(
-            request, "tools/access-requests/created.html", {"accessRequest": accessRequest}
-        )
+        committeeRows, permissionSections, renderedChecked = _buildAccessChecklist(user)
+        if missingJustification:
+            # Only the justification textarea failed - re-render the member's
+            # own submitted checkmarks rather than resetting to current DB
+            # state, so fixing the one error doesn't also discard their picks.
+            submittedOwnerIds = {
+                owner.id for owner in form.cleaned_data[SelfServiceAccessForm.Keys.COMMITTEES]
+            }
+            submittedPermissionIds = {
+                permission.id for permission in form.cleaned_data[SelfServiceAccessForm.Keys.PERMISSIONS]
+            }
+            for row in committeeRows:
+                row["checked"] = row["owner"].id in submittedOwnerIds
+            for section in permissionSections:
+                for row in section["rows"]:
+                    if not row["locked"]:
+                        row["checked"] = row["permission"].id in submittedPermissionIds
+        return render(request, "tools/access-requests/request.html", {
+            "form": form,
+            "committeeRows": committeeRows,
+            "permissionSections": permissionSections,
+            "renderedChecked": renderedChecked,
+        })
 
-    return render(
-        request, "tools/access-requests/request.html", {"form": AccessRequestForm(request.user)}
-    )
+    resultData = request.session.pop("accessRequestResult", None)
+    if resultData is not None:
+        return render(request, "tools/access-requests/created.html", {"result": resultData})
+
+    committeeRows, permissionSections, renderedChecked = _buildAccessChecklist(user)
+    return render(request, "tools/access-requests/request.html", {
+        "form": SelfServiceAccessForm(),
+        "committeeRows": committeeRows,
+        "permissionSections": permissionSections,
+        "renderedChecked": renderedChecked,
+    })
 
 
 @login_required
@@ -167,14 +633,10 @@ def my_access(request):
     for permission in permissions.getRequestablePermissions():
         if not request.user.has_perm("tools." + permission.codename):
             continue
-        if request.user.is_superuser:
-            source = "Superuser"
-        elif permission.id in directIds:
-            source = "Granted directly"
-        else:
-            viaGroups = request.user.groups.filter(permissions=permission)
-            source = "Via " + ", ".join(group.name for group in viaGroups) if viaGroups else "Granted directly"
-        heldPermissions.append({"name": permission.name, "source": source})
+        heldPermissions.append({
+            "name": permission.name,
+            "source": _permissionSource(request.user, permission, directIds),
+        })
 
     return render(request, "tools/access/my-access.html", {
         "groupsInfo": groupsInfo,

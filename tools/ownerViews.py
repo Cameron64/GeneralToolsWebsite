@@ -18,9 +18,10 @@ from django.shortcuts import render, redirect
 
 from . import permissions
 from . import utils
+from .accessViews import _sendDecisionEmail
 from .EmailApi import EmailApi
 from .forms import CHAPTER_TIMEZONE, EventOwnerForm
-from .models import DelegatedEvents, EventOwners, User
+from .models import AccessRequests, DelegatedEvents, EventOwners, User, revokeCommitteeMembership
 
 logger = logging.getLogger(__name__)
 
@@ -142,15 +143,47 @@ def manage_event_owner(request, ownerId):
                 owner.isPermanent = form.cleaned_data[EventOwnerForm.Keys.IS_PERMANENT]
                 owner.save()
                 owner.authorizers.add(*addedAuthorizers)
-                owner.authorizers.remove(*removedAuthorizers)
+                # revokeCommitteeMembership, not a bare .remove() - a member who
+                # ends up authorizing no other owner also loses the derived Event
+                # Leads group here, the same rule the self-service revoke path
+                # will use. See EVENT_LEAD_ROLE_GROUP's comment in models.py for
+                # why that group's membership is no longer a free-standing grant.
+                roleGroupDroppedFor = []
+                for authorizer in removedAuthorizers:
+                    if revokeCommitteeMembership(authorizer, owner):
+                        roleGroupDroppedFor.append(authorizer.username)
+                # A direct add here satisfies that member's own pending join
+                # request for this owner - close it out, mirroring the
+                # group/permission auto-close on Manage Member Access
+                # (accessViews.py:237-256). This page previously had no
+                # auto-close at all, which is how a member ended up "held AND
+                # pending" on the same owner - the exact state D6 warns about.
+                if addedAuthorizers:
+                    pendingOwnerRequests = AccessRequests.objects.filter(
+                        owner=owner,
+                        status=AccessRequests.Status.REQUESTED,
+                        requester__in=addedAuthorizers,
+                    )
+                    for pending in pendingOwnerRequests:
+                        logger.info(
+                            "ManageEventOwners: closing pending owner request %d - access granted directly",
+                            pending.id,
+                        )
+                        pending.status = AccessRequests.Status.APPROVED
+                        pending.reviewer = request.user
+                        pending.dateReviewed = datetime.datetime.now(datetime.UTC)
+                        pending.reason = "Access granted directly"
+                        pending.save()
+                        _sendDecisionEmail(pending)
                 logger.info(
-                    "ManageEventOwners: %s saved owner '%s' isPermanent=%s expiration=%s added=%s removed=%s",
+                    "ManageEventOwners: %s saved owner '%s' isPermanent=%s expiration=%s added=%s removed=%s roleGroupDroppedFor=%s",
                     request.user.getUserNameString(),
                     owner.name,
                     owner.isPermanent,
                     owner.expiration,
                     [authorizer.username for authorizer in addedAuthorizers],
                     [authorizer.username for authorizer in removedAuthorizers],
+                    roleGroupDroppedFor,
                 )
                 ownerEditSaved = True
                 # Re-fetch so the roster below reflects the just-saved deltas

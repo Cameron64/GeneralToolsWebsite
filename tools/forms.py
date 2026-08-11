@@ -336,117 +336,6 @@ class RegisterForm(UserCreationForm):
         return email
 
 
-class AccessRequestForm(forms.Form):
-    class Keys:
-        TARGET = "target"
-        JUSTIFICATION = "justification"
-
-    OWNER_PREFIX = "o"
-    PERMISSION_PREFIX = "p"
-
-    # Display-only tweak for this dropdown: the permission-category titles
-    # from permissions.PERMISSION_CATEGORIES render as optgroup headings right
-    # next to "Event Owners" here, and "Events" reads as a sibling of/typo for
-    # "Event Owners" in that spot. Rename just for this rendering rather than
-    # touching the shared category data in permissions.py.
-    _PERMISSION_CATEGORY_DISPLAY_OVERRIDES = {"Events": "Event Permissions"}
-
-    target = forms.ChoiceField(
-        label="What access do you need?",
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
-    )
-    justification = forms.CharField(
-        label="Why do you need it?",
-        widget=forms.Textarea(attrs={"rows": "5", "class": "form-field w-full"}),
-        min_length=1,
-    )
-
-    def __init__(self, user, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.user = user
-        # Members apply to join an event owner (committee) - approval adds them
-        # to owner.authorizers, and the owner's current authorizers become the
-        # peer reviewers (mirrors the old group-peer rule). Only owners that can
-        # still receive events are offered (permanent or unexpired); an expired
-        # owner can't approve anything. RBAC groups are assigned by an admin via
-        # Manage Access, not self-requested here.
-        now = datetime.datetime.now(datetime.UTC)
-        activeOwners = (
-            EventOwners.objects
-            .filter(Q(isPermanent=True) | Q(expiration__gt=now))
-            .order_by("name")
-        )
-        ownerChoices = [
-            (f"{self.OWNER_PREFIX}:{owner.id}", owner.name)
-            for owner in activeOwners
-        ]
-        # One optgroup per permissions.PERMISSION_CATEGORIES category (same
-        # grouping used on the my-access/manage-access pages) instead of one
-        # flat, alphabetical-by-full-name "Permissions" group - every label
-        # starts with "Allowed to", so alphabetical order didn't actually
-        # help anyone choose. getRequestablePermissions() already orders by
-        # name, so appending in that order keeps each category alphabetical
-        # by the short label too.
-        byCategory = {}
-        for permission in permissions.getRequestablePermissions():
-            category = permissions.getPermissionCategory(permission.codename)
-            byCategory.setdefault(category, []).append(permission)
-
-        categoryOrder = [title for title, _ in permissions.PERMISSION_CATEGORIES] + ["Other"]
-        permissionGroups = [
-            (
-                self._PERMISSION_CATEGORY_DISPLAY_OVERRIDES.get(title, title),
-                [
-                    (f"{self.PERMISSION_PREFIX}:{permission.id}", permissions.shortPermissionLabel(permission.name))
-                    for permission in byCategory[title]
-                ],
-            )
-            for title in categoryOrder
-            if title in byCategory
-        ]
-        self.fields[self.Keys.TARGET].choices = [
-            ("Event Owners", ownerChoices),
-            *permissionGroups,
-        ]
-
-    def clean(self):
-        cleanedData = super().clean()
-        targetValue = cleanedData.get(self.Keys.TARGET)
-        if not targetValue:
-            return cleanedData
-        kind, _, targetId = targetValue.partition(":")
-        owner = None
-        permission = None
-        # The ChoiceField already validated the value against the rendered
-        # choices, but the target may have been deleted since the form loaded
-        if kind == self.OWNER_PREFIX:
-            owner = EventOwners.objects.filter(id=targetId).first()
-            if owner is None:
-                raise ValidationError("The selected option is no longer available.")
-            if owner.authorizers.filter(id=self.user.id).exists():
-                raise ValidationError(f"You can already publish events for {owner.name}.")
-            alreadyPending = AccessRequests.objects.filter(
-                requester=self.user, owner=owner, status=AccessRequests.Status.REQUESTED
-            ).exists()
-        else:
-            permission = Permission.objects.filter(id=targetId).first()
-            if permission is None:
-                raise ValidationError("The selected option is no longer available.")
-            if self.user.has_perm("tools." + permission.codename):
-                raise ValidationError(f"You already have the permission {permission.name}.")
-            alreadyPending = AccessRequests.objects.filter(
-                requester=self.user, permission=permission, status=AccessRequests.Status.REQUESTED
-            ).exists()
-        if alreadyPending:
-            raise ValidationError("You already have a pending request for this access.")
-        # group is no longer self-requestable here, but the view reads all three
-        # keys uniformly when creating the row - keep it present and null.
-        cleanedData["group"] = None
-        cleanedData["owner"] = owner
-        cleanedData["permission"] = permission
-        return cleanedData
-
-
 class ReviewAccessRequestForm(forms.Form):
     class Keys:
         APPROVE = "approve"
@@ -494,6 +383,85 @@ class ManageAccessForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields[self.Keys.PERMISSIONS].queryset = permissions.getRequestablePermissions()
+
+
+class _OpaqueMultipleValueField(forms.MultipleChoiceField):
+    """Carries the renderedChecked snapshot (plan access-self-service-form D1):
+    the set of item keys ('o:<id>' / 'p:<id>') the page rendered as checked at
+    GET time. The view diffs against this on POST rather than against absolute
+    DB state - see accessViews.request_access for why (a pure absolute diff
+    silently revokes a held-and-pending item or an authorizer of an expired
+    owner, neither of which the page can render as checked/unchecked).
+
+    A forged value is harmless (D1's forgery analysis: it can only narrow what
+    the view is willing to treat as a removal, never grant new access), so this
+    field must accept ANY string rather than rejecting stale/forged keys as
+    "not a valid choice" - the ordinary MultipleChoiceField behavior would do
+    exactly that and break the mechanism it exists to support.
+    """
+    def valid_value(self, value):
+        return True
+
+
+class SelfServiceAccessForm(ManageAccessForm):
+    """The one-form request+revoke page (plan access-self-service-form D1/D2).
+
+    Checked means held, same convention as ManageAccessForm's admin-side
+    checkboxes - but unlike that form's .set()-everything apply step, POST
+    semantics here are a DELTA against the renderedChecked snapshot, not an
+    absolute diff. See accessViews.request_access for the diff math and
+    REVIEW.md findings F1/F2 for the phantom-revoke failure mode it avoids.
+
+    - drops the inherited ``groups`` field entirely (shadowed to None) - raw
+      RBAC groups are an admin concept, not member-facing.
+    - adds ``committees`` - the EventOwners a member may join/leave, using the
+      same "active" filter as the old AccessRequestForm did (isPermanent OR
+      unexpired). No user-specific filtering needed: unlike permissions, an
+      owner is never "locked" for a particular member.
+    - adds ``justification`` - ManageAccessForm has none; conditionally
+      required only when the submitted diff adds something (enforced in the
+      view, since that requires reading current DB state the form doesn't have).
+    - adds the hidden ``renderedChecked`` snapshot field.
+    - keeps ``permissions`` unchanged (still all requestable permissions -
+      lock status is a per-request, per-member computation the view does when
+      building the checklist rows, not a queryset restriction here).
+    """
+
+    class Keys:
+        COMMITTEES = "committees"
+        PERMISSIONS = ManageAccessForm.Keys.PERMISSIONS
+        JUSTIFICATION = "justification"
+        RENDERED_CHECKED = "renderedChecked"
+
+    OWNER_PREFIX = "o"
+    PERMISSION_PREFIX = "p"
+
+    groups = None
+
+    committees = forms.ModelMultipleChoiceField(
+        queryset=EventOwners.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Committees",
+    )
+    justification = forms.CharField(
+        label="Why do you need any newly-checked access?",
+        widget=forms.Textarea(attrs={"rows": "4", "class": "form-field w-full"}),
+        required=False,
+    )
+    renderedChecked = _OpaqueMultipleValueField(
+        required=False,
+        widget=forms.MultipleHiddenInput,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        now = datetime.datetime.now(datetime.UTC)
+        self.fields[self.Keys.COMMITTEES].queryset = (
+            EventOwners.objects
+            .filter(Q(isPermanent=True) | Q(expiration__gt=now))
+            .order_by("name")
+        )
 
 
 class GroupForm(forms.Form):

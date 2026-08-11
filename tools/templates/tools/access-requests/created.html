@@ -1,12 +1,49 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
-{% block breadcrumbs %}{% url 'request-access' as parentToolUrl %}{% breadcrumbs parentLabel="Request Access" parentUrl=parentToolUrl currentLabel="Submitted" %}{% endblock breadcrumbs %}
+{% block breadcrumbs %}{% url 'request-access' as parentToolUrl %}{% breadcrumbs parentLabel="Request Access" parentUrl=parentToolUrl currentLabel="Updated" %}{% endblock breadcrumbs %}
 {% block page_content %}
 <div class="page-card max-w-2xl">
-  <h1 class="page-title">Request submitted</h1>
-  <div class="alert alert-success">Your request for <b>{{ accessRequest.getTargetDescription }}</b> has been sent to the approvers. You will receive an email once it has been reviewed.</div>
+  <h1 class="page-title">Access updated</h1>
+
+  {% if result.removedOwners or result.removedPermissions %}
+  <div class="alert alert-success">
+    Removed immediately - no approval needed:
+    <ul>
+      {% for row in result.removedOwners %}
+      <li>Left {{ row.name }}{% if row.groupDropped %} - your "Event Leads" role was also removed, since you no longer authorize any committee{% endif %}</li>
+      {% endfor %}
+      {% for name in result.removedPermissions %}
+      <li>Dropped {{ name }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if result.createdDescriptions %}
+  <div class="alert alert-info">
+    Sent to the approvers:
+    <ul>
+      {% for description in result.createdDescriptions %}
+      <li>{{ description }}</li>
+      {% endfor %}
+    </ul>
+    You have {{ result.totalPending }} item{{ result.totalPending|pluralize }} pending review overall. You'll get an email once each is reviewed.
+  </div>
+  {% endif %}
+
+  {% if result.droppedCount %}
+  <div class="alert alert-error">
+    {{ result.droppedCount }} item{{ result.droppedCount|pluralize }} could not be requested - it may have stopped being available while you were filling out the form. Nothing else on this page was affected; you can try again.
+  </div>
+  {% endif %}
+
+  {% if not result.removedOwners and not result.removedPermissions and not result.createdDescriptions and not result.droppedCount %}
+  <div class="alert alert-info">No changes were made.</div>
+  {% endif %}
+
   <p class="py-3">
-    <a class="btn btn-primary" href="{% url 'access-request-list' %}">View your requests</a>
+    <a class="btn btn-primary" href="{% url 'request-access' %}">Back to Request Access</a>
+    <a class="btn btn-secondary" href="{% url 'access-request-list' %}">View your requests</a>
   </p>
 </div>
 {% endblock page_content %}

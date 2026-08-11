@@ -15,6 +15,7 @@
   {% if not ownerIsActive %}
   <div class="alert alert-warning">This owner has expired and can no longer receive event requests. Extend the expiration or mark it permanent to reactivate it.</div>
   {% endif %}
+  <div class="alert alert-info">Removing someone's last committee also removes their "Event Leads" group membership (publish + approve delegated events), if this is the only committee they authorize. That group now follows committee authorization automatically - it is not a separate grant to manage here or on Manage Member Access. If someone only needs to view events, put them in a narrower group instead (e.g. "Event Publishers" / "Event Approvers") rather than Event Leads.</div>
 
   <form action="" method="post">
     {% csrf_token %}
