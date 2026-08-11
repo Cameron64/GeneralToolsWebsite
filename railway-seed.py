@@ -1,10 +1,25 @@
-# Demo seed for the auth-self-service branch demo DB. Idempotent: each section
-# checks before inserting, so reruns are safe. Run with:
+# Demo seed for the demo DB. Run with:
 #   manage.py shell --command "exec(open(r'<this file>', encoding='utf-8').read())"
+#
+# READ THIS BEFORE POINTING IT AT ANYTHING.
+#
+# "Idempotent" here means ROW COUNTS are stable across reruns. It does NOT mean
+# field values are left alone. The Chapter Tools section upserts by name, so
+# every rerun rewrites blurb, howToGetAccess, delegationTier, revocationNote,
+# lastReviewed and the rest back to what this file says. A human edit made in
+# the Django admin is silently reverted on the next deploy. That is fine on a
+# throwaway demo box and is destructive anywhere else, which is what the guard
+# below exists to enforce.
+#
+# It is also only partly resumable. The Events, Delegated Events and Link Trees
+# sections guard on "does ANY row exist", so a crash halfway through one of them
+# leaves the section permanently half-populated - the next run sees rows and
+# skips. The Resolutions and Chapter Tools sections guard per row and do heal.
 import datetime
 import random
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.contrib.auth.models import Group, Permission
 from django.utils import timezone as djtz
 
@@ -12,6 +27,27 @@ from tools.models import (
     User, EventOwners, PostedEvents, DelegatedEvents, AccessRequests,
     LinkTree, LinkTreeItem, QRCode, LinkEvent,
 )
+
+# The guard. Until now the ONLY thing standing between this script and a real
+# database was SEED_DEMO_DATA=1 in the entrypoint - one env var, set once, in a
+# dashboard nobody reviews. DATABASE_URL decides which database that env var
+# points at, and the two are set independently, so "demo seed" and "production
+# data" was a two-variable accident away.
+#
+# DEMO_MODE is the switch that already means "this box is not real": it is what
+# stubs event publishing in tools/tasks.py so the demo cannot post to Zoom or
+# Action Network for real. Binding the seed to the same switch makes the
+# contradictory state impossible - a box cannot be real enough to publish
+# events and fake enough to be seeded.
+if not getattr(settings, "DEMO_MODE", False):
+    raise SystemExit(
+        "railway-seed.py refused to run: DEMO_MODE is not on.\n"
+        "This script overwrites Chapter Tools rows by name and would revert any "
+        "hand-entered registry data on this database.\n"
+        "If you meant to seed a demo box, set DEMO_MODE=1 there. If you are "
+        "trying to load the REAL registry, you want:\n"
+        "    manage.py seed_chapter_tools --file <absolute path> --dry-run"
+    )
 
 random.seed(42)
 CT = ZoneInfo("America/Chicago")

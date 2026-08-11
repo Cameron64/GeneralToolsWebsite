@@ -38,10 +38,28 @@ if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
         --email "$DJANGO_SUPERUSER_EMAIL" || true
 fi
 
-# Idempotent demo seed (members, events, requests, link metrics).
+# Demo seed (members, events, requests, link metrics, chapter tools).
+#
+# It REWRITES Chapter Tools rows by name on every boot, so a hand edit made in
+# the admin does not survive a redeploy. railway-seed.py refuses to run unless
+# DEMO_MODE is on; SEED_DEMO_DATA below only decides whether we try.
+#
+# The failure is still swallowed on purpose - railway.json sets
+# restartPolicyType ON_FAILURE with 10 retries, so a hard exit here would
+# restart-loop the service instead of giving you a box you can log into and
+# inspect. But it no longer swallows QUIETLY: a half-seeded database used to
+# look exactly like a clean deploy, because the healthcheck only hits the login
+# page and that comes up either way.
 if [ "$SEED_DEMO_DATA" = "1" ]; then
-    python3 /app/manage.py shell --command \
-        "exec(open('/app/railway-seed.py', encoding='utf-8').read())" || true
+    if python3 /app/manage.py shell --command \
+        "exec(open('/app/railway-seed.py', encoding='utf-8').read())"; then
+        echo "SEED OK"
+    else
+        echo "!!! SEED FAILED (exit $?) - this database may be HALF-SEEDED."
+        echo "!!! The app is still starting and the healthcheck will still pass."
+        echo "!!! Some sections guard on 'does any row exist' and will not self-heal"
+        echo "!!! on the next deploy. Check the traceback above before trusting the data."
+    fi
 fi
 
 # No nginx here: runserver --insecure serves staticfiles even with DEBUG=False.

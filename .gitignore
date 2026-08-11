@@ -46,8 +46,18 @@ Thumbs.db
 .playwright-mcp/
 staged-add-note-hidden.png
 
-# --- Railway demo deploy (party-line-dev): intentionally NOT ignored ---
-# railway.json / railway-entrypoint.sh / railway-seed.py are local-only and
-# must never be committed to the upstream PR branch - but they must NOT be
-# gitignored either: `railway up` only uploads files that aren't gitignored,
-# so ignoring them would stop them deploying. Leave them untracked.
+# --- Railway demo deploy (Echo demo box): intentionally NOT ignored ---
+# railway.json / railway-entrypoint.sh / railway-seed.py must NOT be gitignored:
+# `railway up` only uploads files that aren't gitignored, so ignoring them would
+# stop them deploying.
+#
+# They are TRACKED, on the `resolutions-demo` branch only. This comment used to
+# say "leave them untracked", which stopped being true and was misleading about
+# the thing that actually matters. The real rule is:
+#
+#   they must never reach an UPSTREAM-BOUND branch (`chapter-tools` and friends),
+#   because railway.json's startCommand auto-runs railway-seed.py on boot and
+#   nobody reviewing a feature PR expects a deploy config that seeds the database.
+#
+# Before opening any upstream PR, check the branch is clean:
+#   git ls-files | grep -i railway     # must print nothing
