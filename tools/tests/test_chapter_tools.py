@@ -7,6 +7,7 @@ gate, the read-log write-exactly-on-restricted-render contract, and the
 seed_chapter_tools management command's idempotency.
 """
 import datetime
+import io
 import json
 import tempfile
 from pathlib import Path
@@ -662,6 +663,71 @@ class SeedChapterToolsCommandTests(TestCase):
         seed = self._seedWithDependency(kind="DEPENDS_SOMEHOW")
         with self.assertRaises(CommandError):
             call_command("seed_chapter_tools", file=self._writeSeedFile(seed))
+
+    # --- controllability: preview before writing, and write only one section.
+    # The loader overwrites hand-entered registry fields by design, so "what is
+    # this about to change" must be answerable without finding out afterwards.
+
+    def _run(self, seed, **options):
+        out = io.StringIO()
+        call_command("seed_chapter_tools", file=self._writeSeedFile(seed), stdout=out, **options)
+        return out.getvalue()
+
+    def test_dry_run_writes_nothing(self):
+        output = self._run(self.SEED, dry_run=True)
+        self.assertIn("DRY RUN", output)
+        self.assertEqual(ChapterResource.objects.count(), 0)
+        self.assertEqual(ResourceCredential.objects.count(), 0)
+        self.assertEqual(ResourceQuestion.objects.count(), 0)
+
+    def test_dry_run_previews_the_same_changes_a_real_run_makes(self):
+        """The preview must be the real code path rolled back, not a second
+        implementation that can drift from it."""
+        preview = self._run(self.SEED, dry_run=True)
+        real = self._run(self.SEED)
+        self.assertEqual(
+            [line for line in preview.splitlines() if line.startswith("  ")],
+            [line for line in real.splitlines() if line.startswith("  ")],
+        )
+
+    def test_report_names_the_field_it_overwrites(self):
+        self._run(self.SEED)
+        edited = dict(self.SEED)
+        edited["resources"] = [dict(self.SEED["resources"][0], blurb="Edited in admin.")]
+
+        output = self._run(edited, dry_run=True)
+        self.assertIn("overwrote blurb", output)
+        # Only the changed field is named - a report that lists every field on
+        # every run is noise, and noise is how people learn to skip the preview.
+        self.assertNotIn("category", output)
+
+    def test_unchanged_input_reports_no_changes(self):
+        self._run(self.SEED)
+        self.assertIn("No changes", self._run(self.SEED))
+
+    def test_only_limits_which_sections_are_written(self):
+        self._run(self.SEED)
+        ResourceCredential.objects.all().delete()
+        ChapterResource.objects.update(blurb="Edited in admin.")
+
+        self._run(self.SEED, only=["credentials"])
+
+        self.assertEqual(ResourceCredential.objects.count(), 1)  # restored
+        self.assertEqual(  # left alone
+            ChapterResource.objects.get(name="Example Bank").blurb, "Edited in admin.",
+        )
+
+    def test_only_child_section_does_not_conjure_a_missing_resource(self):
+        output = self._run(self.SEED, only=["credentials"])
+        self.assertEqual(ChapterResource.objects.count(), 0)
+        self.assertIn("skipped", output)
+
+    def test_unresolvable_steward_username_is_an_error_not_a_silent_unassign(self):
+        seed = {"resources": [{
+            "name": "Example Bank", "category": "FINANCE", "stewardUsername": "nosuchperson",
+        }]}
+        with self.assertRaises(CommandError):
+            self._run(seed)
 
     def test_loads_site_and_request_urls(self):
         seed = {"resources": [{
