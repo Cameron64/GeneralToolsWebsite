@@ -685,6 +685,7 @@ Cat, Access, Payer = ChapterResource.Category, ChapterResource.AccessModel, Chap
 Tier = ChapterResource.DelegationTier
 CredKind, CredStatus = ResourceCredential.Kind, ResourceCredential.Status
 HolderHow = ResourceHolder.How
+HolderLevel = ResourceHolder.AccessLevel
 DepKind = ResourceDependency.Kind
 CHAPTER_TOOLS_LAST_REVIEWED = datetime.date(2026, 8, 10)
 CHAPTER_TOOLS_REVIEWED_BY = "IT Sub-Committee"
@@ -775,7 +776,11 @@ CHAPTER_RESOURCES = [
         revocationNote="Deactivating one member's account affects nobody else's.",
         continuityNote="Primary Owner is a single role that can only be transferred, never granted, so it should always sit with someone currently active.",
         holders=[
+            # Ordinary, not unconfirmed: we DO know this is a member account. The
+            # gap is that no Owner or Admin is recorded, which is what the
+            # privileged-access page reports as "no owner recorded".
             dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 accessLevel=HolderLevel.ORDINARY,
                  note="Holds a member account. Who holds Owner and Admin is still to be confirmed."),
         ],
         credentials=[
@@ -912,8 +917,12 @@ CHAPTER_RESOURCES = [
         revocationNote="Per-person accounts with per-permission grants, so access can be taken back one permission at a time without touching anyone else.",
         continuityNote="The source code lives in the chapter GitHub organisation, so the site can be rebuilt and redeployed without depending on any one person's account.",
         holders=[
+            # Admin, deliberately not Owner: an admin can change other people's
+            # access but cannot recover or delete the account, so this row still
+            # reads as "no owner recorded" - which is the distinction the level
+            # ladder exists to make.
             dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
-                 note="Site admin."),
+                 accessLevel=HolderLevel.ADMIN, note="Site admin."),
         ],
         credentials=[
             dict(label="Per-person app account", kind=CredKind.INDIVIDUAL_LOGIN,
@@ -945,17 +954,27 @@ CHAPTER_RESOURCES = [
         revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
         continuityNote="Whoever holds the vault collection can restore DNS or transfer the domain if the usual admin is unreachable, but there is no automatic fallback outside the vault - losing the vault means losing the domain.",
         holders=[
+            # One primary owner and one admin - so this row reads as
+            # "one owner only", which is the bus-factor finding rather than a
+            # gap in the register.
             dict(personName="Devon K.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
+                 accessLevel=HolderLevel.PRIMARY_OWNER,
                  note="In the Cloudflare vault collection. Can manage DNS records and domain settings."),
             dict(personName="Priya R.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
+                 accessLevel=HolderLevel.ADMIN,
                  note="Added to the vault collection. Access not yet confirmed against the live account."),
         ],
         credentials=[
+            # Dated deliberately far back so the demo box shows the overdue flag.
             dict(label="Shared account login", kind=CredKind.VAULT_SHARED_LOGIN,
                  vaultCollection="cloudflare", status=CredStatus.LIVE,
+                 addedAt=datetime.date(2024, 6, 1), lastRotated=datetime.date(2025, 1, 15),
                  note="One password, held by everyone who manages DNS or the domain."),
+            # Added recently and never rotated: a distinct state from overdue,
+            # and from having no dates at all.
             dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
                  vaultCollection="cloudflare", status=CredStatus.LIVE,
+                 addedAt=datetime.date(2026, 3, 1),
                  note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
         ],
         questions=["Confirm who is currently in the Cloudflare vault collection."],
@@ -979,14 +998,19 @@ CHAPTER_RESOURCES = [
         revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
         continuityNote="Whoever holds the vault collection can restore the server if the usual admin is unreachable, but there is no automatic fallback outside the vault - losing the vault means losing the host.",
         holders=[
+            # Two owners - the only shape on this demo register that is not a
+            # finding, so the page has something healthy to contrast against.
             dict(personName="Theo A.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
+                 accessLevel=HolderLevel.OWNER,
                  note="In the DigitalOcean vault collection. Can manage the droplet running the wiki."),
             dict(personName="Nadia S.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
+                 accessLevel=HolderLevel.OWNER,
                  note="Added to the vault collection. Access not yet confirmed against the live account."),
         ],
         credentials=[
             dict(label="Shared account login", kind=CredKind.VAULT_SHARED_LOGIN,
                  vaultCollection="digitalocean", status=CredStatus.LIVE,
+                 addedAt=datetime.date(2025, 9, 1), lastRotated=datetime.date(2026, 7, 12),
                  note="One password, held by everyone who manages the droplet."),
             dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
                  vaultCollection="digitalocean", status=CredStatus.LIVE,
@@ -1039,17 +1063,25 @@ for spec in CHAPTER_RESOURCES:
     )
     chapterResourcesByName[spec["name"]] = resource
 
+    # accessLevel and the two credential dates are read with .get() rather than
+    # [], so a spec that does not state them lands on the model's own honest
+    # default (UNCONFIRMED / not recorded) instead of this loader inventing one.
+    # That is the same rule the rest of this block follows: a demo row may be
+    # invented, but it must not claim a fact nobody decided.
     for holder in spec["holders"]:
         ResourceHolder.objects.update_or_create(
             resource=resource, personName=holder["personName"],
-            defaults=dict(how=holder["how"], confirmed=holder["confirmed"], note=holder["note"]),
+            defaults=dict(how=holder["how"], confirmed=holder["confirmed"], note=holder["note"],
+                          accessLevel=holder.get("accessLevel", HolderLevel.UNCONFIRMED)),
         )
         holderCount += 1
     for credential in spec["credentials"]:
         ResourceCredential.objects.update_or_create(
             resource=resource, label=credential["label"],
             defaults=dict(kind=credential["kind"], vaultCollection=credential["vaultCollection"],
-                          status=credential["status"], note=credential["note"]),
+                          status=credential["status"], note=credential["note"],
+                          addedAt=credential.get("addedAt"),
+                          lastRotated=credential.get("lastRotated")),
         )
         credentialCount += 1
 
