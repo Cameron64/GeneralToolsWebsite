@@ -200,6 +200,11 @@ def chapter_tool_detail(request, pk):
         context["holderRows"] = [{
             "name": holder.getDisplayName(),
             "how": holder.get_how_display(),
+            # `how` is which door they come through, `accessLevel` is what they
+            # can do once inside - two facts the registry used to conflate, so
+            # "who has Slack" and "who could delete Slack" were one list.
+            "accessLevel": holder.get_accessLevel_display(),
+            "privileged": holder.isPrivileged(),
             "confirmed": holder.confirmed,
             "note": holder.note,
         } for holder in resource.holders.all()]
@@ -219,6 +224,85 @@ def chapter_tool_detail(request, pk):
         )
 
     return render(request, "tools/chapter-tools/detail.html", context)
+
+
+@login_required
+def chapter_tools_privileged(request):
+    """Who holds owner or admin rights across the whole register, and - the
+    point of the page - which resources have nobody recorded as owner at all.
+
+    Why this is a page and not a column on the directory. The useful question is
+    not "who has access to this one tool", which the detail page already answers;
+    it is "where is the chapter one person away from losing something", and that
+    only reads across resources. A registry that can only be read one row at a
+    time cannot answer it.
+
+    Gated on the holder tier OR audit, matching _hasHolders - holder identity is
+    exactly what this page shows, so it is the same tier as the roster on the
+    detail page and not a new one. Http404 rather than 403 for somebody without
+    it, following the same rule as the restricted child routes: a 403 confirms
+    the page exists.
+    """
+    if not _hasHolders(request.user):
+        raise Http404
+
+    hasAudit = _hasAudit(request.user)
+    if hasAudit:
+        _logRestrictedRead(request.user, "privileged-access")
+
+    ownerLevels = (
+        ResourceHolder.AccessLevel.OWNER,
+        ResourceHolder.AccessLevel.PRIMARY_OWNER,
+    )
+    rows = []
+    for resource in ChapterResource.objects.prefetch_related("holders").order_by("category", "name"):
+        holders = list(resource.holders.all())
+        owners = [holder for holder in holders if holder.accessLevel in ownerLevels]
+        privileged = [holder for holder in holders if holder.isPrivileged()]
+        unconfirmed = [
+            holder for holder in holders
+            if holder.accessLevel == ResourceHolder.AccessLevel.UNCONFIRMED
+        ]
+
+        # Three distinct findings, deliberately not collapsed into one "risk"
+        # score. "Nobody is recorded" is a gap in the register; "one person is
+        # recorded" is a fact about the chapter. They prompt different work -
+        # one is a question to answer, the other a decision to make - and a
+        # single number would hide which of the two you are looking at.
+        if not holders:
+            finding = "no-holders"
+        elif not owners and unconfirmed:
+            finding = "unconfirmed-only"
+        elif not owners:
+            finding = "no-owner"
+        elif len(owners) == 1:
+            finding = "single-owner"
+        else:
+            finding = "ok"
+
+        rows.append({
+            "resource": resource,
+            "privileged": privileged,
+            "unconfirmedCount": len(unconfirmed),
+            "holderCount": len(holders),
+            "ownerCount": len(owners),
+            "finding": finding,
+        })
+
+    # Gaps first. The page exists to surface what is missing, and a register
+    # sorted by name buries the empty rows among the healthy ones.
+    ranking = {"no-holders": 0, "unconfirmed-only": 1, "no-owner": 2, "single-owner": 3, "ok": 4}
+    rows.sort(key=lambda row: (ranking[row["finding"]], row["resource"].name))
+
+    return render(request, "tools/chapter-tools/privileged.html", {
+        "rows": rows,
+        "hasAudit": hasAudit,
+        "canManage": request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS),
+        "needsAttention": sum(
+            1 for row in rows if row["finding"] in ("no-holders", "unconfirmed-only", "no-owner")
+        ),
+        "singleOwnerCount": sum(1 for row in rows if row["finding"] == "single-owner"),
+    })
 
 
 @login_required
@@ -310,18 +394,23 @@ class _ChildSpec:
     formClass: type
     relatedName: str            # ChapterResource.<relatedName>
     requiresAudit: bool         # the whole child kind is restricted
+    # Which chapterToolsHelp entry this kind's form needs, or "" for none. Lives
+    # on the spec rather than as a branch in child.html because everything else
+    # that differs between the three kinds is already decided here - a template
+    # branching on childKind is the start of the drift this table prevents.
+    explainSlug: str = ""
 
 
 CHILD_SPECS = {
     "holders": _ChildSpec(
         label="holder", model=ResourceHolder, formClass=forms.ResourceHolderForm,
-        relatedName="holders", requiresAudit=False,
+        relatedName="holders", requiresAudit=False, explainSlug="access-level",
     ),
     # Credentials have no open-layer half at all - the model's own docstring
     # calls it restricted - so the kind is gated, not just some of its fields.
     "credentials": _ChildSpec(
         label="credential", model=ResourceCredential, formClass=forms.ResourceCredentialForm,
-        relatedName="credentials", requiresAudit=True,
+        relatedName="credentials", requiresAudit=True, explainSlug="credential-age",
     ),
     # NOT audit-gated as a whole: SIGN_IN and REACHED_THROUGH are open kinds and
     # are the two a member actually needs. The restricted kind (RUNS_ON) is
@@ -549,6 +638,7 @@ def chapter_tool_child_edit(request, pk, childKind, childId=None):
         "resource": resource,
         "childLabel": spec.label,
         "childKind": childKind,
+        "explainSlug": spec.explainSlug,
         "isCreate": childId is None,
     })
 

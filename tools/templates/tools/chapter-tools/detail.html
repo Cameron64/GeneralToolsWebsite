@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
+{% load chapter_tools_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
 {% block page_content %}
 <div class="page-card max-w-3xl">
@@ -60,21 +61,28 @@
   <dl class="detail-grid">
     <dt>Steward</dt><dd>{{ resource.getStewardDisplayName|default:"-" }}</dd>
   </dl>
+  {% explain "steward" %}
   {% if holderRows %}
-  <p class="text-sm text-secondary pb-2">
-    &ldquo;Unconfirmed&rdquo; means nobody has checked this yet, not that the person has lost access.
-  </p>
-  <table class="data-table">
-    <tr><th>Person</th><th>How they get in</th><th>Status</th><th>Note</th></tr>
+  {% explain "access-level" label="What these access levels mean" %}
+  {% comment %} A record list rather than a table: this gained an access-level column, and five columns with a prose Note among them is the exact squeeze index.html and the questions workbench were both rebuilt to remove. {% endcomment %}
+  <div class="record-list">
     {% for holder in holderRows %}
-    <tr>
-      <td>{{ holder.name }}</td>
-      <td data-label="How they get in">{{ holder.how }}</td>
-      <td data-label="Status">{% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}</td>
-      <td data-label="Note">{{ holder.note|default:"-" }}</td>
-    </tr>
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-title">{{ holder.name }}</span>
+        <span>
+          {% if holder.privileged %}<span class="badge badge-denied">{{ holder.accessLevel }}</span>{% else %}<span class="badge badge-inactive">{{ holder.accessLevel }}</span>{% endif %}
+          {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
+        </span>
+      </div>
+      <p class="record-meta">
+        <span><span class="record-meta-label">How they get in</span> {{ holder.how }}</span>
+      </p>
+      {% if holder.note %}<p class="record-prose">{{ holder.note }}</p>{% endif %}
+    </div>
     {% endfor %}
-  </table>
+  </div>
+  {% explain "holders" label="What this list is and is not" %}
   {% else %}
   <p class="text-secondary">Nobody recorded yet. That is an open job for the IT Sub-Committee, not a sign that nobody has access.</p>
   {% endif %}
@@ -112,14 +120,22 @@
   {% if hasAudit %}
   <h2 class="section-title">Committee detail</h2>
   <div class="alert alert-info">You're viewing the restricted layer - this read was logged.</div>
+  {% comment %} The tier is rendered with its meaning attached, not as a bare colour name: "Red" on its own told a reader nothing about what they may or may not do. {% endcomment %}
+  <div class="alert alert-info mb-4 pt-2">
+    <b>Delegation tier: {{ resource.get_delegationTier_display }}.</b>
+    {{ resource.getDelegationTierExplanation }}
+  </div>
+  {% explain "delegation-tier" label="What all four tiers mean" %}
+
   <dl class="detail-grid">
-    <dt>Delegation tier</dt><dd>{{ resource.get_delegationTier_display }}</dd>
     <dt>Last reviewed</dt><dd>{{ resource.lastReviewed|default:"Never" }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}</dd>
     <dt>Reviewed by</dt><dd>{{ resource.reviewedBy|default:"-" }}</dd>
     <dt>Requestable</dt><dd>{% if resource.requestable %}Yes{% else %}No{% endif %}</dd>
     <dt>Revocation note</dt><dd>{{ resource.revocationNote|default:"-" }}</dd>
     <dt>Continuity note</dt><dd>{{ resource.continuityNote|default:"-" }}</dd>
   </dl>
+  {% explain "review" label="What “reviewed” and “stale” mean" %}
+  {% explain "requestable" label="What decides whether members can request this" %}
 
   <h2 class="section-title">What this runs on</h2>
   {% if runsOnDependencies %}
@@ -145,17 +161,33 @@
 
   <h2 class="section-title">Credentials</h2>
   {% if credentials %}
-  <table class="data-table">
-    <tr><th>Label</th><th>Kind</th><th>Vault collection</th><th>Status</th></tr>
+  {% explain "credential-age" label="How age and rotation are counted" %}
+  <div class="record-list">
     {% for credential in credentials %}
-    <tr>
-      <td>{{ credential.label }}</td>
-      <td data-label="Kind">{{ credential.get_kind_display }}</td>
-      <td data-label="Vault collection">{{ credential.vaultCollection|default:"-" }}</td>
-      <td data-label="Status">{{ credential.get_status_display }}</td>
-    </tr>
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-title">{{ credential.label }}</span>
+        <span>
+          {% if credential.getRotationStatus == "overdue" %}<span class="badge badge-denied">Rotation overdue</span>{% endif %}
+          {% if credential.getRotationStatus == "never-rotated" %}<span class="badge badge-unresolved">Never rotated</span>{% endif %}
+          {% if credential.getRotationStatus == "unknown" %}<span class="badge badge-unresolved">No dates recorded</span>{% endif %}
+          {% if credential.getRotationStatus == "ok" %}<span class="badge badge-active">Rotated</span>{% endif %}
+          <span class="badge badge-inactive">{{ credential.get_status_display }}</span>
+        </span>
+      </div>
+      <p class="record-meta">
+        <span><span class="record-meta-label">Kind</span> {{ credential.get_kind_display }}</span>
+        <span><span class="record-meta-label">Last rotated</span> {{ credential.lastRotated|default:"not recorded" }}</span>
+        <span><span class="record-meta-label">First existed</span> {{ credential.addedAt|default:"not recorded" }}</span>
+        {% comment %} "is not None", not truthiness: a credential rotated today has an age of 0, which {% if %} would treat as falsy and report as unknown. {% endcomment %}
+        <span><span class="record-meta-label">Age</span>
+          {% if credential.getAgeDays is not None %}{{ credential.getAgeDays }} day{{ credential.getAgeDays|pluralize }}{% else %}unknown{% endif %}</span>
+        {% if credential.vaultCollection %}<span><span class="record-meta-label">Vault collection</span> {{ credential.vaultCollection }}</span>{% endif %}
+      </p>
+      {% if credential.note %}<p class="record-prose">{{ credential.note }}</p>{% endif %}
+    </div>
     {% endfor %}
-  </table>
+  </div>
   {% else %}
   <p class="text-secondary">No credential objects recorded.</p>
   {% endif %}

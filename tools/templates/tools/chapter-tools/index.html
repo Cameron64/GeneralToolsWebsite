@@ -8,9 +8,11 @@
   That line is the whole answer. Everything under it is background, and you can ignore it.
 </div>
 
-{% if canManage %}
-<p class="pb-4"><a href="{% url 'chapter-tool-new' %}" class="btn btn-primary">Add a chapter tool</a></p>
-{% endif %}
+<p class="pb-4 flex flex-wrap gap-2">
+  {% if canManage %}<a href="{% url 'chapter-tool-new' %}" class="btn btn-primary">Add a chapter tool</a>{% endif %}
+  {% comment %} The privileged-access read is register-wide, so it belongs here rather than on any one resource: the question it answers ("where is the chapter one person away from losing something") cannot be read a row at a time. {% endcomment %}
+  {% if hasHolders %}<a href="{% url 'chapter-tools-privileged' %}" class="btn btn-secondary">Who has owner access</a>{% endif %}
+</p>
 
 {% comment %}
 One card per resource rather than one table row.

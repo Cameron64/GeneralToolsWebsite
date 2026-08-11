@@ -29,6 +29,11 @@ urlpatterns = [
     # --- Chapter Tools (IT access registry: directory + detail + questions + CRUD) ---
     path("chapter-tools", chapterToolsViews.chapter_tools_index, name="chapter-tools"),
     path("chapter-tools/questions", chapterToolsViews.chapter_tools_questions, name="chapter-tools-questions"),
+    # Before the <int:pk> detail route is irrelevant here ("privileged" is not an
+    # int so it could not match), but it sits with questions because both are
+    # register-wide reads rather than one-resource pages.
+    path("chapter-tools/privileged", chapterToolsViews.chapter_tools_privileged,
+         name="chapter-tools-privileged"),
     # Literal segments before the <int:pk> catch-all. "new" and "questions" could
     # not match <int:pk> anyway, but keeping the order explicit means adding a
     # non-numeric route later does not depend on remembering that.

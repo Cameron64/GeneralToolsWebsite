@@ -150,3 +150,121 @@
   color: var(--color-secondary);
   padding-block: calc(var(--spacing) * 2);
 }
+
+/* ------------------------------------------------------------------------
+   Inline definitions (the `explain` template tag)
+   ------------------------------------------------------------------------
+   A native <details>, matching the masthead dropdowns and the user menu
+   (_dropdowns.css) - so no JavaScript, opens on tap as well as click, and is
+   keyboard-reachable without anything added for that.
+
+   The panel stays IN FLOW at every width rather than floating over the page,
+   which is a deliberate choice and not a missing feature:
+
+   - .page-card sets overflow-x:auto, and an absolutely positioned child of a
+     scroll container is clipped by it. A floating panel near the right edge of
+     a card would be cut off, and it would be cut off only at some widths,
+     which is the worst kind of bug to find.
+   - The longest entry is the delegation-tier ladder: four rungs, each a
+     sentence or two. As an overlay that is a tall floating slab; in flow it is
+     just a passage of text that pushed the rest of the page down, which is what
+     a reader opening a definition actually wants.
+   - Hover tooltips are unreachable on a phone, and this registry gets read on
+     phones. A disclosure has one behaviour on every input device. */
+.explain {
+  display: block;
+  padding-top: calc(var(--spacing) * 1);
+}
+
+.explain > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 1);
+  width: fit-content;
+  cursor: pointer;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-secondary);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  /* The default disclosure triangle reads as a collapsed section heading, which
+     this is not - it is a footnote marker. Removing it needs both this and the
+     WebKit pseudo-element below. */
+  list-style: none;
+}
+
+.explain > summary::-webkit-details-marker {
+  display: none;
+}
+
+.explain > summary::before {
+  content: "?";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--color-neutral-300);
+  border-radius: 999px;
+  font-size: 0.625rem;
+  text-decoration: none;
+}
+
+.explain > summary:hover {
+  color: var(--color-dark);
+}
+
+.explain > summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.explain-body {
+  max-width: 44rem;
+  margin-top: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 3);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-dark);
+}
+
+.explain-body > * + * {
+  margin-top: calc(var(--spacing) * 2);
+}
+
+.explain-title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.explain-list {
+  list-style: disc;
+  padding-left: calc(var(--spacing) * 5);
+}
+
+.explain-list > li + li {
+  margin-top: calc(var(--spacing) * 1);
+}
+
+.explain-closing {
+  color: var(--color-secondary);
+}
+
+/* The ladders (delegation tier, access level). A dl rather than a table for the
+   same reason the records are not tables: the value column is prose, and prose
+   in a table column dictates the layout. */
+.explain-ladder dt {
+  font-weight: var(--font-weight-semibold);
+  padding-top: calc(var(--spacing) * 2);
+}
+
+.explain-ladder dt:first-child {
+  padding-top: 0;
+}
+
+.explain-ladder dd {
+  color: var(--color-secondary);
+}

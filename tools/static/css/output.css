@@ -1936,6 +1936,83 @@
     color: var(--color-secondary);
     padding-block: calc(var(--spacing) * 2);
   }
+  .explain {
+    display: block;
+    padding-top: calc(var(--spacing) * 1);
+  }
+  .explain > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+    width: fit-content;
+    cursor: pointer;
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-secondary);
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    list-style: none;
+  }
+  .explain > summary::-webkit-details-marker {
+    display: none;
+  }
+  .explain > summary::before {
+    content: "?";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid var(--color-neutral-300);
+    border-radius: 999px;
+    font-size: 0.625rem;
+    text-decoration: none;
+  }
+  .explain > summary:hover {
+    color: var(--color-dark);
+  }
+  .explain > summary:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  .explain-body {
+    max-width: 44rem;
+    margin-top: calc(var(--spacing) * 2);
+    padding: calc(var(--spacing) * 3);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-md);
+    background: var(--color-paper);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    color: var(--color-dark);
+  }
+  .explain-body > * + * {
+    margin-top: calc(var(--spacing) * 2);
+  }
+  .explain-title {
+    font-weight: var(--font-weight-semibold);
+  }
+  .explain-list {
+    list-style: disc;
+    padding-left: calc(var(--spacing) * 5);
+  }
+  .explain-list > li + li {
+    margin-top: calc(var(--spacing) * 1);
+  }
+  .explain-closing {
+    color: var(--color-secondary);
+  }
+  .explain-ladder dt {
+    font-weight: var(--font-weight-semibold);
+    padding-top: calc(var(--spacing) * 2);
+  }
+  .explain-ladder dt:first-child {
+    padding-top: 0;
+  }
+  .explain-ladder dd {
+    color: var(--color-secondary);
+  }
 }
 @property --tw-rotate-x {
   syntax: "*";

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
+{% load chapter_tools_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% if isCreate %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Add a Chapter Tool" %}{% else %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endif %}{% endblock breadcrumbs %}
 {% block page_content %}
 
@@ -53,6 +54,14 @@
     {% include "tools/common/formRow.html" with field=field %}
     {% endfor %}
 
+    {% comment %} Definitions for the words on this form that look ordinary and are not. Steward applies to every editor; the other three describe fields only an audit editor is shown, so offering them to somebody whose form does not contain those fields would explain a control they cannot see. {% endcomment %}
+    {% explain "steward" %}
+    {% if hasAudit %}
+    {% explain "delegation-tier" label="What all four tiers mean" %}
+    {% explain "review" label="What “reviewed” and “stale” mean" %}
+    {% explain "requestable" label="What decides whether members can request this" %}
+    {% endif %}
+
     <div class="flex flex-wrap items-center gap-3 pt-4">
       <button type="submit" class="btn btn-primary">{% if isCreate %}Create chapter tool{% else %}Save changes{% endif %}</button>
       <a href="{% if isCreate %}{% url 'chapter-tools' %}{% else %}{{ resource.getUrl }}{% endif %}" class="btn btn-secondary">Cancel</a>
@@ -79,7 +88,10 @@
     <div class="record-item">
       <div class="record-head">
         <span class="record-title">{{ holder.getDisplayName }}</span>
-        {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
+        <span>
+          {% if holder.isPrivileged %}<span class="badge badge-denied">{{ holder.get_accessLevel_display }}</span>{% else %}<span class="badge badge-inactive">{{ holder.get_accessLevel_display }}</span>{% endif %}
+          {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
+        </span>
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">How they get in</span> {{ holder.get_how_display }}</span>
@@ -167,10 +179,18 @@
     <div class="record-item">
       <div class="record-head">
         <span class="record-title">{{ credential.label }}</span>
-        <span class="badge">{{ credential.get_status_display }}</span>
+        <span>
+          {% if credential.getRotationStatus == "overdue" %}<span class="badge badge-denied">Rotation overdue</span>{% endif %}
+          {% if credential.getRotationStatus == "never-rotated" %}<span class="badge badge-unresolved">Never rotated</span>{% endif %}
+          {% if credential.getRotationStatus == "unknown" %}<span class="badge badge-unresolved">No dates recorded</span>{% endif %}
+          <span class="badge">{{ credential.get_status_display }}</span>
+        </span>
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">Kind</span> {{ credential.get_kind_display }}</span>
+        <span><span class="record-meta-label">Last rotated</span> {{ credential.lastRotated|default:"not recorded" }}</span>
+        <span><span class="record-meta-label">Age</span>
+          {% if credential.getAgeDays is not None %}{{ credential.getAgeDays }} day{{ credential.getAgeDays|pluralize }}{% else %}unknown{% endif %}</span>
         <span><span class="record-meta-label">Vault collection</span> {{ credential.vaultCollection|default:"-" }}</span>
       </p>
       {% if credential.note %}<p class="record-meta"><span>{{ credential.note }}</span></p>{% endif %}

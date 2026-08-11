@@ -6,6 +6,7 @@
     <title>{% block title %}Echo - Austin DSA{% endblock title %}</title>
     {% load static %}
     {% load navigation_tags %}
+    {% load asset_tags %}
     <!-- Favicon/OG block mirrors tree.html - update both on asset rename -->
     <!-- theme-color mirrors --color-primary in custom.css -->
     <meta name="theme-color" content="#ec1f27" />
@@ -22,7 +23,8 @@
     <link rel="icon" href="{% static 'images/favicon-32.png' %}" sizes="32x32" />
     <link rel="icon" href="{% static 'images/bat-circle-red.svg' %}" type="image/svg+xml" />
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'images/apple-touch-icon.png' %}" />
-    <link rel="stylesheet" href="{% static 'css/output.css' %}" />
+    {% comment %} versionedStatic, not static: the demo box serves static through runserver, which sends no Cache-Control and no ETag, so an unversioned URL lets a browser pair new HTML with a pre-deploy stylesheet. See tools/templatetags/asset_tags.py. {% endcomment %}
+    <link rel="stylesheet" href="{% versionedStatic 'css/output.css' %}" />
     <script>
       // Saves the users timezone in a cookie
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // e.g. "America/New_York"

@@ -1,0 +1,35 @@
+{% comment %}
+One glossary entry as an openable disclosure. Rendered by the `explain` tag, not
+included directly - the tag is what resolves the slug to text.
+
+Django template comments must stay on one line each or they render as body text
+(that bug shipped once on this feature), so this block is the only multi-line
+comment here and it is the {% comment %} form, which is safe.
+{% endcomment %}
+{% if entry %}
+<details class="explain">
+  <summary>{{ label }}</summary>
+  <div class="explain-body">
+    <p class="explain-title">{{ entry.title }}</p>
+    <p>{{ entry.body }}</p>
+    {% if entry.bullets %}
+    <ul class="explain-list">
+      {% for bullet in entry.bullets %}<li>{{ bullet }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if entry.closing %}<p class="explain-closing">{{ entry.closing }}</p>{% endif %}
+    {% if entry.items %}
+    <dl class="explain-ladder">
+      {% for item in entry.items %}
+      <dt>
+        {{ item.label }}
+        {% if item.privileged %}<span class="badge badge-denied">Privileged</span>{% endif %}
+        {% if item.requestable %}<span class="badge badge-active">Can be requested</span>{% endif %}
+      </dt>
+      <dd>{{ item.explanation }}</dd>
+      {% endfor %}
+    </dl>
+    {% endif %}
+  </div>
+</details>
+{% endif %}

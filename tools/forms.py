@@ -1198,7 +1198,10 @@ class ChapterResourceForm(forms.Form):
         label="Cost note",
         required=False,
         max_length=300,
-        help_text="Seat caps or per-seat pricing. Shown to every member.",
+        help_text=(
+            "Seat caps or per-seat pricing. Shown to every member. Example: "
+            "“Five seats on the paid plan; a sixth is $8/month more.”"
+        ),
         widget=forms.TextInput(attrs={"class": "form-field w-full"}),
     )
     howToGetAccess = forms.CharField(
@@ -1225,7 +1228,11 @@ class ChapterResourceForm(forms.Form):
         label="Steward (Echo account)",
         required=False,
         queryset=User.objects.none(),
-        help_text="The named owner of this row.",
+        help_text=(
+            "The one person answerable for this tool: they keep this row true and "
+            "they review requests for it. Not necessarily the only person with "
+            "access, and not necessarily on the committee."
+        ),
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
     stewardName = forms.CharField(
@@ -1238,19 +1245,28 @@ class ChapterResourceForm(forms.Form):
     requestable = forms.BooleanField(
         label="Members can request this in Echo",
         required=False,
-        help_text="Requires a steward with an Echo account - a request button needs a resolvable reviewer.",
+        help_text=(
+            "Needs all three: a steward with an Echo account, a Green or Yellow "
+            "delegation tier, and no power over other members. Open the "
+            "definition below before ticking this."
+        ),
         widget=forms.CheckboxInput(),
     )
     lastReviewed = forms.DateField(
         label="Last reviewed",
         required=False,
-        help_text="Blank, or older than 90 days, shows a stale flag to the committee.",
+        help_text=(
+            "The day somebody last checked this row against reality - a check, not "
+            f"an edit. Blank, or older than {ChapterResource.STALE_AFTER_DAYS} days, "
+            "shows a stale flag to the committee."
+        ),
         widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
     )
     reviewedBy = forms.CharField(
         label="Reviewed by",
         required=False,
         max_length=200,
+        help_text="Who did that check, so the claim has a name attached to it.",
         widget=forms.TextInput(attrs={"class": "form-field w-full"}),
     )
     delegationTier = forms.TypedChoiceField(
@@ -1258,18 +1274,27 @@ class ChapterResourceForm(forms.Form):
         choices=ChapterResource.DELEGATION_TIER_CHOICES,
         coerce=int,
         empty_value=ChapterResource.DelegationTier.UNCLASSIFIED,
+        help_text="How freely this may be handed to somebody else. See the ladder below.",
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
     revocationNote = forms.CharField(
         label="Revocation note",
         required=False,
-        help_text="What revoking or rotating access actually costs here.",
+        help_text=(
+            "What taking access away actually costs here. Write the cost, not the "
+            "intention. Example: “One shared password, so removing one person "
+            "means changing it and telling the other four.”"
+        ),
         widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
     )
     continuityNote = forms.CharField(
         label="Continuity note",
         required=False,
-        help_text="Break-glass guidance if the steward is unreachable.",
+        help_text=(
+            "How somebody gets in if the steward is unreachable. Name a second "
+            "person or a second route, not a hope. Example: “Recovery codes are "
+            "in the vault collection; two other committee members can read it.”"
+        ),
         widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
     )
 
@@ -1320,6 +1345,27 @@ class ChapterResourceForm(forms.Form):
                     "This resource is currently marked requestable by members, so it cannot "
                     "be left without a steward."
                 ))
+
+        # The tier rule, also re-implemented from ChapterResource.clean() for the
+        # same reason. Enforced only for an audit editor, and deliberately so:
+        # both fields in this rule are restricted, so a non-audit editor can
+        # neither create the violation nor fix one. Raising it at them would make
+        # a row with legacy data permanently unsaveable by the only person in
+        # front of it, and the error would name a tier they are not allowed to
+        # see.
+        if self._includeRestricted:
+            tier = cleaned.get(self.Keys.DELEGATION_TIER)
+            if (
+                cleaned.get(self.Keys.REQUESTABLE, False)
+                and tier is not None
+                and tier not in ChapterResource.REQUESTABLE_TIERS
+            ):
+                label = dict(ChapterResource.DELEGATION_TIER_CHOICES).get(tier, tier)
+                self.add_error(self.Keys.REQUESTABLE, (
+                    f"A {label}-tier tool cannot be opened for member requests. Classify it "
+                    "Green or Yellow first if that is genuinely what it is, or leave requests "
+                    "closed and keep handing this out deliberately."
+                ))
         return cleaned
 
 
@@ -1335,6 +1381,7 @@ class ResourceHolderForm(forms.Form):
         PERSON_NAME = "personName"
         USER = "user"
         HOW = "how"
+        ACCESS_LEVEL = "accessLevel"
         CONFIRMED = "confirmed"
         NOTE = "note"
 
@@ -1358,6 +1405,17 @@ class ResourceHolderForm(forms.Form):
         empty_value=ResourceHolder.How.INDIVIDUAL_LOGIN,
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
+    accessLevel = forms.TypedChoiceField(
+        label="What they can do here",
+        choices=ResourceHolder.ACCESS_LEVEL_CHOICES,
+        coerce=int,
+        empty_value=ResourceHolder.AccessLevel.UNCONFIRMED,
+        help_text=(
+            "How much power they hold, which is a different question from which "
+            "door they come through. See the ladder below."
+        ),
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
     confirmed = forms.BooleanField(
         label="Confirmed",
         required=False,
@@ -1367,7 +1425,11 @@ class ResourceHolderForm(forms.Form):
     note = forms.CharField(
         label="Note",
         required=False,
-        help_text="Shown to every holder of viewResourceHolders (organizers), not only the IT committee.",
+        help_text=(
+            "Shown to every holder of viewResourceHolders (organizers), not only "
+            "the IT committee - so write it for that audience. Example: “Added "
+            "for the newsletter, only needs it until the drive ends.”"
+        ),
         widget=forms.Textarea(attrs={"rows": "2", "class": "form-field w-full"}),
     )
 
@@ -1392,6 +1454,8 @@ class ResourceCredentialForm(forms.Form):
         KIND = "kind"
         VAULT_COLLECTION = "vaultCollection"
         STATUS = "status"
+        ADDED_AT = "addedAt"
+        LAST_ROTATED = "lastRotated"
         NOTE = "note"
 
     label = forms.CharField(
@@ -1421,11 +1485,46 @@ class ResourceCredentialForm(forms.Form):
         empty_value=ResourceCredential.Status.LIVE,
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
+    addedAt = forms.DateField(
+        label="First existed",
+        required=False,
+        help_text=(
+            "As far as anybody knows. Leave it blank rather than guessing - blank "
+            "reads as “not recorded”, and a guess reads as a fact."
+        ),
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+    )
+    lastRotated = forms.DateField(
+        label="Last rotated",
+        required=False,
+        help_text=(
+            "The day the secret was last actually changed. Not the day somebody "
+            f"looked at it. Flagged as overdue after {ResourceCredential.ROTATE_AFTER_DAYS} days."
+        ),
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+    )
     note = forms.CharField(
         label="Note",
         required=False,
+        help_text=(
+            "What somebody needs to know before touching this. Example: “Rotating "
+            "this signs everybody out, so do it after a meeting, not during one.”"
+        ),
         widget=forms.Textarea(attrs={"rows": "2", "class": "form-field w-full"}),
     )
+
+    def clean(self):
+        cleaned = super().clean()
+        # A secret cannot have been changed before it existed. Caught here rather
+        # than left to the reader, because getAgeDays() prefers lastRotated and
+        # would otherwise report a negative age as though it were fresh.
+        addedAt = cleaned.get(self.Keys.ADDED_AT)
+        lastRotated = cleaned.get(self.Keys.LAST_ROTATED)
+        if addedAt and lastRotated and lastRotated < addedAt:
+            self.add_error(self.Keys.LAST_ROTATED, (
+                "A credential cannot have been rotated before it existed."
+            ))
+        return cleaned
 
     def clean_kind(self):
         # `kind` has no model default on purpose, and TypedChoiceField coerces
