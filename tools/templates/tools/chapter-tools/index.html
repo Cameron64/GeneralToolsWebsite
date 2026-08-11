@@ -31,11 +31,30 @@ multi-line one renders as visible body text on the page.
 
   <p class="pb-2"><b>How to get access.</b> {{ row.resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee." }}</p>
 
+  {% comment %}
+  The dependency name is a link, not bare text. A member who reads "You need
+  Slack first" and has no Slack has been handed a second task with no route to
+  it - they have to go back to the directory and find Slack themselves. Naming
+  the precondition without linking it is the same failure as naming a resource
+  without saying where it lives.
+  {% endcomment %}
   {% for dependency in row.signInDependencies %}
-  <p class="pb-2"><b>You need {{ dependency.dependsOn.name }} first.</b>
+  <p class="pb-2"><b>You need <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a> first.</b>
     {{ row.resource.name }} signs you in through your
-    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.</p>
+    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+    <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a></p>
   {% endfor %}
+
+  {% if row.resource.accessRequestUrl or row.resource.siteUrl %}
+  <p class="pb-2 flex flex-wrap gap-2">
+    {% if row.resource.accessRequestUrl %}
+    <a class="btn btn-primary btn-small" href="{{ row.resource.accessRequestUrl }}" target="_blank" rel="noopener">Request access</a>
+    {% endif %}
+    {% if row.resource.siteUrl %}
+    <a class="btn btn-secondary btn-small" href="{{ row.resource.siteUrl }}" target="_blank" rel="noopener">{{ row.resource.getSiteHost }}</a>
+    {% endif %}
+  </p>
+  {% endif %}
 
   <dl class="detail-grid">
     <dt>How access works</dt><dd>{{ row.resource.get_accessModel_display }}</dd>

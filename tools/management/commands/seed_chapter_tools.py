@@ -19,6 +19,8 @@ JSON schema (top-level keys - "resources" is the only required one):
       "annualCost": "60.00",                   // string or number, optional
       "costNote": "",
       "howToGetAccess": "Ask in #it-committee",
+      "siteUrl": "https://wiki.example.org",   // where the thing lives
+      "accessRequestUrl": "https://form.example.org",  // the link that starts a request today
       "stewardUsername": "",                   // optional - resolves to an existing Echo User
       "stewardName": "Jordan Steward",         // text fallback when there's no Echo account
       "requestable": false,
@@ -45,6 +47,13 @@ JSON schema (top-level keys - "resources" is the only required one):
           "note": ""
         }
       ],
+      "dependencies": [
+        {
+          "dependsOn": "Slack",                 // another resource's name, in this same file
+          "kind": "SIGN_IN",                    // ResourceDependency.Kind member name: SIGN_IN | RUNS_ON
+          "note": ""
+        }
+      ],
       "questions": [
         {"question": "Who else has recovery codes?", "assignedTo": "", "resolution": ""}
       ]
@@ -64,13 +73,24 @@ them. ResourceQuestion rows are create-only, keyed on (resource, question
 text): the questions workbench is a live meeting tool where assign/resolve
 happen in the app, so re-seeding must never clobber progress already made
 there.
+
+Dependencies are wired in a SECOND PASS, after every resource in the file
+exists, because an edge names its target by name and a one-pass loader would
+fail on any file that mentions a target before defining it - i.e. it would
+depend on key order, which JSON does not promise and a human editing the file
+should not have to think about. An edge naming a resource that is not in the
+file is a hard error, not a skip: silently dropping it would leave a registry
+that looks complete and is not, which is the exact failure this whole thing
+exists to fix.
 """
 import json
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from tools.models import ChapterResource, ResourceCredential, ResourceHolder, ResourceQuestion, User
+from tools.models import (
+    ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder, ResourceQuestion, User,
+)
 
 CATEGORY_BY_NAME = {
     "COMMUNICATION": ChapterResource.Category.COMMUNICATION,
@@ -116,6 +136,14 @@ HOLDER_HOW_BY_NAME = {
     "VAULT_COLLECTION": ResourceHolder.How.VAULT_COLLECTION,
     "SERVICE_ACCOUNT": ResourceHolder.How.SERVICE_ACCOUNT,
 }
+# No default kind, matching the model: a forgotten "kind" must fail loudly
+# rather than quietly pick one. Guessing SIGN_IN would publish a restricted
+# RUNS_ON edge to the open directory; guessing RUNS_ON would hide a sign-in
+# precondition members need. Both silent failures are worse than a KeyError.
+DEPENDENCY_KIND_BY_NAME = {
+    "SIGN_IN": ResourceDependency.Kind.SIGN_IN,
+    "RUNS_ON": ResourceDependency.Kind.RUNS_ON,
+}
 
 
 class Command(BaseCommand):
@@ -138,10 +166,16 @@ class Command(BaseCommand):
         except json.JSONDecodeError as err:
             raise CommandError(f"Invalid JSON in {filePath}: {err}")
 
-        resourceCount = 0
-        for resourceSpec in data.get("resources", []):
+        resourceSpecs = data.get("resources", [])
+        for resourceSpec in resourceSpecs:
             self._upsertResource(resourceSpec)
-            resourceCount += 1
+        resourceCount = len(resourceSpecs)
+
+        # Second pass - see the module docstring for why edges cannot be wired
+        # inline with their resource.
+        dependencyCount = 0
+        for resourceSpec in resourceSpecs:
+            dependencyCount += self._wireDependencies(resourceSpec)
 
         newChapterWideQuestions = 0
         for questionSpec in data.get("questions", []):
@@ -150,8 +184,8 @@ class Command(BaseCommand):
                 newChapterWideQuestions += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f"Loaded {resourceCount} resource(s); added {newChapterWideQuestions} new "
-            "chapter-wide question(s)."
+            f"Loaded {resourceCount} resource(s); wired {dependencyCount} dependency edge(s); "
+            f"added {newChapterWideQuestions} new chapter-wide question(s)."
         ))
 
     def _upsertResource(self, spec):
@@ -176,6 +210,8 @@ class Command(BaseCommand):
                 "annualCost": annualCost,
                 "costNote": spec.get("costNote", ""),
                 "howToGetAccess": spec.get("howToGetAccess", ""),
+                "siteUrl": spec.get("siteUrl", ""),
+                "accessRequestUrl": spec.get("accessRequestUrl", ""),
                 "steward": steward,
                 "stewardName": spec.get("stewardName", ""),
                 "requestable": spec.get("requestable", False),
@@ -217,6 +253,40 @@ class Command(BaseCommand):
 
         for questionSpec in spec.get("questions", []):
             self._getOrCreateQuestion(resource, questionSpec)
+
+    def _wireDependencies(self, spec) -> int:
+        dependencySpecs = spec.get("dependencies", [])
+        if not dependencySpecs:
+            return 0
+
+        resource = ChapterResource.objects.get(name=spec["name"])
+        wired = 0
+        for dependencySpec in dependencySpecs:
+            targetName = dependencySpec["dependsOn"]
+            target = ChapterResource.objects.filter(name=targetName).first()
+            if target is None:
+                raise CommandError(
+                    f'"{spec["name"]}" declares a dependency on "{targetName}", which is not a '
+                    "resource in this file. Add it, or fix the name - an edge to nothing would "
+                    "leave the registry looking complete while a real dependency goes unrecorded."
+                )
+            try:
+                kind = DEPENDENCY_KIND_BY_NAME[dependencySpec["kind"]]
+            except KeyError:
+                raise CommandError(
+                    f'"{spec["name"]}" -> "{targetName}" has kind '
+                    f'{dependencySpec.get("kind")!r}; expected one of '
+                    f"{sorted(DEPENDENCY_KIND_BY_NAME)}."
+                )
+            if target.id == resource.id:
+                raise CommandError(f'"{spec["name"]}" cannot depend on itself.')
+
+            ResourceDependency.objects.update_or_create(
+                resource=resource, dependsOn=target, kind=kind,
+                defaults={"note": dependencySpec.get("note", "")},
+            )
+            wired += 1
+        return wired
 
     def _getOrCreateQuestion(self, resource, spec):
         """Create-only: never overwrite assignedTo/resolvedAt/resolution the

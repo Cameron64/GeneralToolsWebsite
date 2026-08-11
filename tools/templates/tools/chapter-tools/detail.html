@@ -10,10 +10,22 @@
   <p>{{ resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee and this page will be filled in." }}</p>
 
   {% for dependency in signInDependencies %}
-  <p class="pb-2"><b>You need {{ dependency.dependsOn.name }} first.</b>
+  <p class="pb-2"><b>You need <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a> first.</b>
     {{ resource.name }} signs you in through your
-    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.</p>
+    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+    <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a></p>
   {% endfor %}
+
+  {% if resource.accessRequestUrl or resource.siteUrl %}
+  <p class="pb-2 flex flex-wrap gap-2">
+    {% if resource.accessRequestUrl %}
+    <a class="btn btn-primary" href="{{ resource.accessRequestUrl }}" target="_blank" rel="noopener">Request access</a>
+    {% endif %}
+    {% if resource.siteUrl %}
+    <a class="btn btn-secondary" href="{{ resource.siteUrl }}" target="_blank" rel="noopener">{{ resource.getSiteHost }}</a>
+    {% endif %}
+  </p>
+  {% endif %}
 
   <div class="alert alert-info mb-4 pt-2">
     <b>{{ resource.get_accessModel_display }}.</b> {{ resource.getAccessModelExplanation }}
