@@ -9,6 +9,20 @@
   <h2 class="section-title">How to get access</h2>
   <p>{{ resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee and this page will be filled in." }}</p>
 
+  {% comment %}
+  Placed above the sign-in line and styled as a callout because it does not
+  add a step, it replaces the question. A reader who has just read "how to get
+  access" needs to be told, before anything else, that there is no access to
+  get here and that their actual task is somewhere else.
+  {% endcomment %}
+  {% for dependency in reachedThroughDependencies %}
+  <div class="alert alert-info mb-4 pt-2">
+    <b>You do not get access to this directly.</b>
+    Things reach {{ resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+    <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a>
+  </div>
+  {% endfor %}
+
   {% for dependency in signInDependencies %}
   <p class="pb-2"><b>You need <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a> first.</b>
     {{ resource.name }} signs you in through your
@@ -62,6 +76,18 @@
   <h2 class="section-title">What signs in through this</h2>
   <ul>
     {% for dependency in signInDependents %}
+    <li><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if reachedThroughDependents %}
+  <h2 class="section-title">What people reach through this</h2>
+  <p class="text-sm text-secondary pb-2">
+    Members do not get their own access to these. They get access here, and this puts things there.
+  </p>
+  <ul>
+    {% for dependency in reachedThroughDependents %}
     <li><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a></li>
     {% endfor %}
   </ul>

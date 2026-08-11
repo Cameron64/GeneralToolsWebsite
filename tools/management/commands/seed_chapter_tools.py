@@ -140,9 +140,15 @@ HOLDER_HOW_BY_NAME = {
 # rather than quietly pick one. Guessing SIGN_IN would publish a restricted
 # RUNS_ON edge to the open directory; guessing RUNS_ON would hide a sign-in
 # precondition members need. Both silent failures are worse than a KeyError.
+# Derived from the model rather than retyped, so a new Kind is loadable the day
+# it is added. The hand-written version of this dict silently omitted
+# REACHED_THROUGH when that kind landed, which turns a valid seed file into
+# "expected one of [RUNS_ON, SIGN_IN]" - an error that blames the file for a
+# gap in the loader.
 DEPENDENCY_KIND_BY_NAME = {
-    "SIGN_IN": ResourceDependency.Kind.SIGN_IN,
-    "RUNS_ON": ResourceDependency.Kind.RUNS_ON,
+    name: value
+    for name, value in vars(ResourceDependency.Kind).items()
+    if not name.startswith("_")
 }
 
 

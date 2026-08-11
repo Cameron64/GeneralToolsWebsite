@@ -38,6 +38,12 @@ multi-line one renders as visible body text on the page.
   the precondition without linking it is the same failure as naming a resource
   without saying where it lives.
   {% endcomment %}
+  {% for dependency in row.reachedThroughDependencies %}
+  <p class="pb-2"><b>You do not get access to this directly.</b>
+    Things reach {{ row.resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+    <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a></p>
+  {% endfor %}
+
   {% for dependency in row.signInDependencies %}
   <p class="pb-2"><b>You need <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a> first.</b>
     {{ row.resource.name }} signs you in through your
