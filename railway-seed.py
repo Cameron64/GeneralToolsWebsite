@@ -517,4 +517,204 @@ report.append("resolutions: now %d (%s)" % (
     Resolution.objects.count(),
     dict((s, Resolution.objects.filter(status=s).count()) for s, _ in S.CHOICES)))
 
+# --- Chapter Tools (IT access registry) -----------------------------------------
+# Five real chapter systems, seeded exactly as approved for the demo box - no
+# additional services. Every field is populated so the pages can be pressure
+# tested with nothing rendering as a dash.
+#
+# TWO RULES THIS BLOCK EXISTS TO KEEP, both easy to break by "just adding one
+# more row" and neither caught by any test:
+#
+#   1. OPEN-LAYER FIELDS ARE REAL, RESTRICTED-LAYER PROSE IS GENERIC. The
+#      delegation tiers, revocation notes, continuity notes, credential rows and
+#      open questions below describe how a *category* of credential behaves
+#      (shared password, own login, service account). None of them state an
+#      Austin DSA weakness, because this box is reachable by URL. The chapter's
+#      actual posture goes in the off-repo seed JSON, run locally only.
+#   2. NO INVENTED PEOPLE. Holder rows name only people whose access is already
+#      known. Where the holder list is genuinely unknown the row is left empty
+#      on purpose: "Nobody recorded yet" is the honest answer and is the point
+#      the registry is making, so do not pad it with plausible names.
+#
+# Resources/holders/credentials are upserted (this block is the refresh source
+# every boot). Questions are create-only, keyed on their text, so assigning or
+# resolving one in the app survives the next redeploy.
+import decimal
+
+from tools.models import (
+    ChapterResource, ResourceCredential, ResourceHolder, ResourceQuestion,
+)
+
+Cat, Access, Payer = ChapterResource.Category, ChapterResource.AccessModel, ChapterResource.Payer
+Tier = ChapterResource.DelegationTier
+CredKind, CredStatus = ResourceCredential.Kind, ResourceCredential.Status
+HolderHow = ResourceHolder.How
+CHAPTER_TOOLS_LAST_REVIEWED = datetime.date(2026, 8, 10)
+CHAPTER_TOOLS_REVIEWED_BY = "IT Sub-Committee"
+
+CHAPTER_RESOURCES = [
+    dict(
+        name="Chapter wiki (Outline)", category=Cat.COMMUNICATION,
+        accessModel=Access.INDIVIDUAL, payer=Payer.CHAPTER,
+        blurb="The chapter wiki at wiki.austindsa.org. Meeting notes, committee pages, onboarding guides, and chapter documentation.",
+        annualCost=None,
+        costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
+        howToGetAccess="Ask in the IT channel on Slack. You get your own login, in your own name, tied to your chapter email address.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.YELLOW,
+        revocationNote="Individual accounts, so removing one person is a single action and costs nobody else anything.",
+        continuityNote="Self-hosted, so continuity depends on the server underneath rather than on any one person's login.",
+        holders=[
+            dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 note="Reads and writes through the API. The full admin list is still to be confirmed."),
+        ],
+        credentials=[
+            dict(label="Per-person wiki account", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One account per person. There is no shared login for this service."),
+        ],
+        questions=["Confirm the full list of people who hold wiki admin."],
+    ),
+    dict(
+        name="Slack", category=Cat.COMMUNICATION,
+        accessModel=Access.INDIVIDUAL, payer=Payer.UNCONFIRMED,
+        blurb="The chapter's day-to-day communication workspace. Committee channels, announcements, and most coordination between meetings.",
+        annualCost=None,
+        costNote="Plan and payer both still to be confirmed with the Treasurer.",
+        howToGetAccess="Fill in the chapter's Slack request form and you will be invited by email. You get your own account, not a shared one.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.GREEN,
+        revocationNote="Deactivating one member's account affects nobody else's.",
+        continuityNote="Primary Owner is a single role that can only be transferred, never granted, so it should always sit with someone currently active.",
+        holders=[
+            dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 note="Holds a member account. Who holds Owner and Admin is still to be confirmed."),
+        ],
+        credentials=[
+            dict(label="Per-person Slack account", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One account per person, with per-person roles on top."),
+        ],
+        questions=["Confirm who holds the Slack Owner and Admin roles."],
+    ),
+    dict(
+        name="Zoom", category=Cat.COMMUNICATION,
+        accessModel=Access.SHARED_VAULT, payer=Payer.CHAPTER,
+        blurb="Chapter Zoom licenses for general meetings, committee meetings, and virtual events. Two licenses, used interchangeably.",
+        annualCost=decimal.Decimal("299.80"),
+        costNote="Two licenses at Zoom's published list price. The amount the chapter is actually invoiced still needs confirming with the Treasurer.",
+        howToGetAccess="Ask the IT Sub-Committee. Access is a shared login handed out through the chapter password vault, so you need a vault account first.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.RED,
+        revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
+        continuityNote="The second factor is shared through the vault alongside the password. Moving 2FA onto a personal phone silently breaks it for everyone else on the login, so it has to stay where it is.",
+        holders=[],  # genuinely unknown - see rule 2 above
+        credentials=[
+            dict(label="Shared meeting-host login", kind=CredKind.VAULT_SHARED_LOGIN,
+                 vaultCollection="zoom", status=CredStatus.LIVE,
+                 note="One password, held by everyone who runs meetings."),
+            dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
+                 vaultCollection="zoom", status=CredStatus.LIVE,
+                 note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
+        ],
+        questions=["Confirm who is currently in the Zoom vault collection."],
+    ),
+    dict(
+        name="Google Calendar", category=Cat.ORGANIZING,
+        accessModel=Access.INDIVIDUAL, payer=Payer.CHAPTER,
+        blurb="The one shared chapter calendar. Events published through Echo land here automatically.",
+        annualCost=None,
+        costNote="No separate bill. Included in the chapter's Google Workspace subscription.",
+        howToGetAccess="Ask the IT Sub-Committee with your chapter email address. You are given edit rights on the shared calendar under your own account.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.YELLOW,
+        revocationNote="Edit rights are granted per address, so removing one person is a single change that leaves everyone else alone.",
+        continuityNote="Sits on top of the Workspace account, so whoever holds Workspace super-admin can always restore calendar access.",
+        holders=[],  # genuinely unknown - see rule 2 above
+        credentials=[
+            dict(label="Per-address edit rights", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="Granted to a person's own chapter address, not to a shared login."),
+        ],
+        questions=["Confirm which chapter addresses currently hold edit rights on the calendar."],
+    ),
+    dict(
+        name="Echo (this site)", category=Cat.INFRASTRUCTURE,
+        accessModel=Access.INDIVIDUAL, payer=Payer.CHAPTER,
+        blurb="The chapter tools site itself. Publishes an event to Zoom, Action Network, and Google Calendar in one step, and holds this registry.",
+        annualCost=None,
+        costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
+        howToGetAccess="Register an account on this site, then apply through Request Access for the permission you need. A brand new account starts with no permissions and an empty menu: that is expected, not a fault.",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.GREEN,
+        revocationNote="Per-person accounts with per-permission grants, so access can be taken back one permission at a time without touching anyone else.",
+        continuityNote="The source code lives in the chapter GitHub organisation, so the site can be rebuilt and redeployed without depending on any one person's account.",
+        holders=[
+            dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 note="Site admin."),
+        ],
+        credentials=[
+            dict(label="Per-person app account", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One account per person, with permissions granted individually in the app."),
+            dict(label="Publishing service-account key", kind=CredKind.SERVICE_ACCOUNT_KEY,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="Used by the site itself to publish events. No person signs in with it."),
+        ],
+        questions=["Decide whether access requests for the other tools on this list should be routed through this site."],
+    ),
+]
+
+CHAPTER_WIDE_QUESTIONS = [
+    "Confirm the payer and the annual amount for every row with an unconfirmed cost, in time for the next budget cycle.",
+    "Agree how often this list gets reviewed, so it stays true rather than drifting.",
+]
+
+# Retired: an earlier boot seeded a single placeholder question. Remove it by its
+# exact text so the demo box does not accumulate two generations of examples.
+ResourceQuestion.objects.filter(question__startswith="(Demo placeholder)").delete()
+
+chapterResourcesByName = {}
+credentialCount = holderCount = questionsCreated = 0
+for spec in CHAPTER_RESOURCES:
+    resource, _ = ChapterResource.objects.update_or_create(
+        name=spec["name"],
+        defaults=dict(
+            category=spec["category"], accessModel=spec["accessModel"], payer=spec["payer"],
+            blurb=spec["blurb"], annualCost=spec["annualCost"], costNote=spec["costNote"],
+            howToGetAccess=spec["howToGetAccess"], stewardName=spec["stewardName"],
+            requestable=False,  # the request button is M2 and is not gated yet
+            lastReviewed=CHAPTER_TOOLS_LAST_REVIEWED, reviewedBy=CHAPTER_TOOLS_REVIEWED_BY,
+            delegationTier=spec["delegationTier"], revocationNote=spec["revocationNote"],
+            continuityNote=spec["continuityNote"],
+        ),
+    )
+    chapterResourcesByName[spec["name"]] = resource
+
+    for holder in spec["holders"]:
+        ResourceHolder.objects.update_or_create(
+            resource=resource, personName=holder["personName"],
+            defaults=dict(how=holder["how"], confirmed=holder["confirmed"], note=holder["note"]),
+        )
+        holderCount += 1
+    for credential in spec["credentials"]:
+        ResourceCredential.objects.update_or_create(
+            resource=resource, label=credential["label"],
+            defaults=dict(kind=credential["kind"], vaultCollection=credential["vaultCollection"],
+                          status=credential["status"], note=credential["note"]),
+        )
+        credentialCount += 1
+    for question in spec["questions"]:
+        _, wasCreated = ResourceQuestion.objects.get_or_create(resource=resource, question=question)
+        questionsCreated += 1 if wasCreated else 0
+
+for question in CHAPTER_WIDE_QUESTIONS:
+    _, wasCreated = ResourceQuestion.objects.get_or_create(resource=None, question=question)
+    questionsCreated += 1 if wasCreated else 0
+
+report.append(f"chapter resources: now {ChapterResource.objects.count()} (all fields populated)")
+report.append(f"chapter resource holders: {holderCount} seeded (now {ResourceHolder.objects.count()})")
+report.append(f"chapter resource credentials: {credentialCount} seeded (now {ResourceCredential.objects.count()})")
+report.append(f"chapter resource questions: +{questionsCreated} (now {ResourceQuestion.objects.count()})")
+
 print("\n".join("  " + line for line in report))
