@@ -9,7 +9,7 @@ from . import permissions
 from . import utils
 from .resolutionText import normalizedTextHash
 from .ActionNetworkAPI.migValidator import MIGStatus
-
+from .timezones import DateTimeWithAcceptedTimeZone
 # Approving a committee (EventOwner) join grants the full event-lead capability
 # through this managed role group. The EventOwner's authorizer list scopes which
 # owner the member may act for; this group carries the page-level event
@@ -137,8 +137,8 @@ class PostedEvents(models.Model):
     
     def getEventInfo(self) -> EventInfo:
         return EventInfo(title=self.title,
-                         start=self.getStartLocalized(),
-                         end=self.getEndLocalized(),
+                         start=DateTimeWithAcceptedTimeZone(wallTime=self.getStartLocalized().replace(tzinfo=None), zoneName=self.timezone),
+                         end=DateTimeWithAcceptedTimeZone(wallTime=self.getEndLocalized().replace(tzinfo=None), zoneName=self.timezone),
                          locationName=self.locationName,
                          streetAddress=self.streetAddress,
                          city=self.city,
@@ -256,8 +256,8 @@ class DelegatedEvents(models.Model):
 
     def getEventInfo(self) -> EventInfo:
         return EventInfo(title=self.title,
-                         start=self.getStartLocalized(),
-                         end=self.getEndLocalized(),
+                         start=DateTimeWithAcceptedTimeZone(wallTime=self.getStartLocalized().replace(tzinfo=None), zoneName=self.timezone),
+                         end=DateTimeWithAcceptedTimeZone(wallTime=self.getEndLocalized().replace(tzinfo=None), zoneName=self.timezone),
                          locationName=self.locationName,
                          streetAddress=self.streetAddress,
                          city=self.city,
@@ -295,7 +295,11 @@ class PublishJob(models.Model):
     # Schema version stamped into every payload; publishEventJob refuses any
     # other version so a future schema change fails loudly instead of
     # publishing garbage from a stale queued job.
-    PAYLOAD_VERSION = 1
+    # v2 (issue #26): startIso/endIso changed from tz-aware local ISO to the
+    # literal local WALL time (naive ISO), with the zone carried in "timezone"
+    # and reapplied on rehydrate. Any v1 job still queued is rejected rather
+    # than misread.
+    PAYLOAD_VERSION = 2
 
     kind = models.IntegerField()
     status = models.IntegerField(default=Status.PENDING)
@@ -362,15 +366,13 @@ class PublishJob(models.Model):
                 "zoomAccount": event.zoomAccount if event else "",
             }
         if self.status in (PublishJob.Status.CONFLICT, PublishJob.Status.UNRESOLVEABLE):
-            # Reconstruct naive datetimes so conflictList.html renders through
-            # Django's default formatting exactly as the inline views did.
             return {"conflicts": [
                 {
                     "type": conflict["type"],
                     "title": conflict["title"],
                     "zoomUser": conflict["zoomUser"],
-                    "start": datetime.datetime.fromisoformat(conflict["startIso"]),
-                    "end": datetime.datetime.fromisoformat(conflict["endIso"]),
+                    "start": DateTimeWithAcceptedTimeZone.fromDict(conflict["start"]),
+                    "end": DateTimeWithAcceptedTimeZone.fromDict(conflict["end"]),
                 }
                 for conflict in self.conflicts
             ]}
@@ -1341,3 +1343,341 @@ class ResolutionEvent(models.Model):
 
     def getToDisplay(self) -> str:
         return dict(Resolution.Status.CHOICES).get(self.toStatus, self.toStatus)
+# Chapter Tools (IT access registry) - M1
+#
+# The chapter-wide inventory of what systems Austin DSA runs, how access to
+# each one works, and who currently holds it. Two visibility layers share one
+# table: the open layer (name/blurb/category/access model/holders/payer/
+# how-to-get-access) is visible to any logged-in member; the restricted layer
+# (delegation tier, revocation/continuity notes, credential objects, review/
+# staleness detail, open questions) requires the viewChapterToolAudit
+# permission and is read-logged via ToolAuditReadLog on every render - see
+# chapterToolsViews.py.
+#
+# M1 is directory + detail + the questions workbench only; all other CRUD is
+# admin-only (no in-app edit views). Request-access integration
+# (AccessRequests gaining a `resource` target) is M2 and explicitly out of
+# scope here - ResourceGrant exists now purely as a hook for it so a later
+# migration isn't needed just to add the ledger table.
+# ---------------------------------------------------------------------------
+
+
+class ChapterResource(models.Model):
+    class Category:
+        COMMUNICATION = 0
+        INFRASTRUCTURE = 1
+        FINANCE = 2
+        SOCIAL = 3
+        ORGANIZING = 4
+
+    CATEGORY_CHOICES = (
+        (Category.COMMUNICATION, "Communication"),
+        (Category.INFRASTRUCTURE, "Infrastructure"),
+        (Category.FINANCE, "Finance"),
+        (Category.SOCIAL, "Social"),
+        (Category.ORGANIZING, "Organizing"),
+    )
+
+    class AccessModel:
+        INDIVIDUAL = 0
+        SHARED_VAULT = 1
+        SERVICE_ACCOUNT = 2
+        MIXED = 3
+        UNCONFIRMED = 4
+
+    ACCESS_MODEL_CHOICES = (
+        (AccessModel.INDIVIDUAL, "Individual logins"),
+        (AccessModel.SHARED_VAULT, "Shared vault login"),
+        (AccessModel.SERVICE_ACCOUNT, "Service account"),
+        (AccessModel.MIXED, "Mixed"),
+        (AccessModel.UNCONFIRMED, "Unconfirmed"),
+    )
+
+    class Payer:
+        CHAPTER = 0
+        NATIONAL = 1
+        MIXED = 2
+        FREE = 3
+        UNCONFIRMED = 4
+
+    PAYER_CHOICES = (
+        (Payer.CHAPTER, "Chapter"),
+        (Payer.NATIONAL, "National"),
+        (Payer.MIXED, "Mixed"),
+        (Payer.FREE, "Free"),
+        (Payer.UNCONFIRMED, "Unconfirmed"),
+    )
+
+    class DelegationTier:
+        GREEN = 0
+        YELLOW = 1
+        RED = 2
+        UNCLASSIFIED = 3
+
+    DELEGATION_TIER_CHOICES = (
+        (DelegationTier.GREEN, "Green"),
+        (DelegationTier.YELLOW, "Yellow"),
+        (DelegationTier.RED, "Red"),
+        (DelegationTier.UNCLASSIFIED, "Unclassified"),
+    )
+
+    # A row with no lastReviewed, or one older than this, shows a stale flag -
+    # restricted-layer detail (see Visibility in the plan), not open-layer.
+    STALE_AFTER_DAYS = 90
+
+    name = models.CharField(max_length=200, unique=True)
+    blurb = models.TextField(
+        blank=True, help_text="One or two sentences: what this is and what the chapter uses it for.",
+    )
+    category = models.IntegerField(choices=CATEGORY_CHOICES, default=Category.ORGANIZING)
+
+    accessModel = models.IntegerField(
+        choices=ACCESS_MODEL_CHOICES, default=AccessModel.UNCONFIRMED,
+        help_text="A summary only - the real access story lives on this resource's credential rows.",
+    )
+    payer = models.IntegerField(choices=PAYER_CHOICES, default=Payer.UNCONFIRMED)
+    annualCost = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    costNote = models.CharField(
+        max_length=300, blank=True, help_text="Seat caps, per-seat pricing, or other budget notes.",
+    )
+
+    howToGetAccess = models.TextField(
+        blank=True,
+        help_text="Open-layer instructions, e.g. 'Request below' or 'Ask in #it-committee'.",
+    )
+
+    steward = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="stewardedResources",
+        help_text="The named owner of this row, and reviewer for its access requests (M2).",
+    )
+    stewardName = models.CharField(
+        max_length=200, blank=True,
+        help_text="Text fallback when the steward has no Echo account yet - most stewards won't at launch.",
+    )
+
+    requestable = models.BooleanField(
+        default=False,
+        help_text="Whether members can request access to this resource (M2 front door). Requires a steward.",
+    )
+
+    lastReviewed = models.DateField(null=True, blank=True)
+    reviewedBy = models.CharField(max_length=200, blank=True)
+
+    # --- restricted layer (viewChapterToolAudit) ---
+    delegationTier = models.IntegerField(choices=DELEGATION_TIER_CHOICES, default=DelegationTier.UNCLASSIFIED)
+    revocationNote = models.TextField(
+        blank=True, help_text="What revocation or rotation actually costs for this resource.",
+    )
+    continuityNote = models.TextField(
+        blank=True, help_text="Break-glass / continuity guidance if the steward is unreachable.",
+    )
+
+    class Meta:
+        verbose_name = "Chapter Resource"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.requestable and self.steward_id is None:
+            raise ValidationError(
+                "A requestable resource must have a steward - a request button with no "
+                "resolvable reviewer would be a dead letter."
+            )
+
+    def getStewardName(self) -> str:
+        if self.steward is not None:
+            return self.steward.getUserNameString()
+        return self.stewardName
+
+    def isStale(self) -> bool:
+        if self.lastReviewed is None:
+            return True
+        return (djangoTimezone.now().date() - self.lastReviewed).days > self.STALE_AFTER_DAYS
+
+    def getUrl(self) -> str:
+        return reverse("chapter-tool-detail", kwargs={"pk": self.id})
+
+
+class ResourceCredential(models.Model):
+    """Restricted layer: one row per credential *object*, not per resource - a
+    single resource may be reachable through several distinct credentials
+    (multiple shared logins, an API token, a 2FA token), so this is
+    deliberately finer-grained than ChapterResource. Also the hook a later
+    read-only Vaultwarden drift-sync compares against (vaultCollection)."""
+
+    class Kind:
+        INDIVIDUAL_LOGIN = 0
+        VAULT_SHARED_LOGIN = 1
+        SERVICE_ACCOUNT_KEY = 2
+        API_TOKEN = 3
+        TWO_FACTOR_TOKEN = 4
+
+    KIND_CHOICES = (
+        (Kind.INDIVIDUAL_LOGIN, "Individual login"),
+        (Kind.VAULT_SHARED_LOGIN, "Vault shared login"),
+        (Kind.SERVICE_ACCOUNT_KEY, "Service-account key"),
+        (Kind.API_TOKEN, "API token"),
+        (Kind.TWO_FACTOR_TOKEN, "2FA token"),
+    )
+
+    class Status:
+        LIVE = 0
+        RETIRE_CANDIDATE = 1
+        RETIRED = 2
+
+    STATUS_CHOICES = (
+        (Status.LIVE, "Live"),
+        (Status.RETIRE_CANDIDATE, "Retire candidate"),
+        (Status.RETIRED, "Retired"),
+    )
+
+    resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="credentials")
+    label = models.CharField(max_length=200, help_text="e.g. 'Example Org shared login #2'.")
+    kind = models.IntegerField(choices=KIND_CHOICES)
+    vaultCollection = models.CharField(
+        max_length=200, blank=True,
+        help_text="Vault collection name - the hook for a future read-only drift sync.",
+    )
+    status = models.IntegerField(choices=STATUS_CHOICES, default=Status.LIVE)
+    note = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Resource Credential"
+        ordering = ["resource__name", "label"]
+
+    def __str__(self) -> str:
+        return f"{self.resource.name}: {self.label}"
+
+
+class ResourceHolder(models.Model):
+    """Open layer: the 'who holds it' map - the wiki draft's own biggest
+    named gap. Pre-existing access is state (this model); a grant made
+    through the app is an event (ResourceGrant, below) - the two are
+    deliberately not merged."""
+
+    class How:
+        INDIVIDUAL_LOGIN = 0
+        VAULT_COLLECTION = 1
+        SERVICE_ACCOUNT = 2
+
+    HOW_CHOICES = (
+        (How.INDIVIDUAL_LOGIN, "Individual login"),
+        (How.VAULT_COLLECTION, "Vault collection"),
+        (How.SERVICE_ACCOUNT, "Service account"),
+    )
+
+    resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="holders")
+    personName = models.CharField(
+        max_length=200, help_text="Primary - most holders have no Echo account.",
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceHolderRows",
+    )
+    how = models.IntegerField(choices=HOW_CHOICES, default=How.INDIVIDUAL_LOGIN)
+    confirmed = models.BooleanField(
+        default=False, help_text="Unconfirmed holders render as open work, not silence.",
+    )
+    note = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Resource Holder"
+        ordering = ["resource__name", "personName"]
+
+    def __str__(self) -> str:
+        return f"{self.resource.name}: {self.personName}"
+
+    def getDisplayName(self) -> str:
+        if self.user is not None:
+            return self.user.getDisplayName()
+        return self.personName
+
+
+class ResourceGrant(models.Model):
+    """The grant ledger - an M2 hook only. Not read by any M1 view; exists so
+    the M2 request/approve/fulfill flow (AccessRequests gaining a `resource`
+    target) has somewhere to land without another migration. Grants made
+    through the app are events; pre-existing access is state (ResourceHolder,
+    above) - the two must not be merged."""
+
+    resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="grants")
+    personName = models.CharField(max_length=200, blank=True)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceGrantsReceived",
+    )
+    grantedBy = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceGrantsMade",
+    )
+    grantedAt = models.DateTimeField(auto_now_add=True)
+    fulfilledAt = models.DateTimeField(null=True, blank=True, default=None)
+    revokedAt = models.DateTimeField(null=True, blank=True, default=None)
+    revokedBy = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceGrantsRevoked",
+    )
+    request = models.ForeignKey(
+        AccessRequests, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceGrants",
+    )
+
+    class Meta:
+        verbose_name = "Resource Grant"
+        ordering = ["-grantedAt"]
+
+    def __str__(self) -> str:
+        who = self.personName or (self.user.getDisplayName() if self.user else "unknown")
+        return f"{self.resource.name}: {who}"
+
+
+class ResourceQuestion(models.Model):
+    """Restricted layer: the UNCONFIRMED-item workbench (the 08-20 agenda
+    item - split the open questions among the room, in the tool). `resource`
+    is nullable so chapter-wide questions (not tied to one resource) are
+    representable. Unlike the other Chapter Tools models this one IS edited
+    in-app (add/assign/resolve) rather than admin-only - see
+    chapterToolsViews.chapter_tools_questions."""
+
+    resource = models.ForeignKey(
+        ChapterResource, on_delete=models.SET_NULL, blank=True, null=True, related_name="questions",
+    )
+    question = models.TextField()
+    assignedTo = models.CharField(
+        max_length=200, blank=True, help_text="Free-text name - most assignees have no Echo account.",
+    )
+    raisedAt = models.DateTimeField(auto_now_add=True)
+    resolvedAt = models.DateTimeField(null=True, blank=True, default=None)
+    resolution = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Resource Question"
+        ordering = ["-raisedAt"]
+
+    def __str__(self) -> str:
+        target = self.resource.name if self.resource_id else "Chapter-wide"
+        return f"{target}: {self.question[:60]}"
+
+    def isResolved(self) -> bool:
+        return self.resolvedAt is not None
+
+
+class ToolAuditReadLog(models.Model):
+    """Append-only: every restricted-section render writes one row (index,
+    a resource detail, or the questions workbench). The plan's own briefing
+    rule is 'reads are logged, and the log protects you too' - the sensitive
+    layer audits itself, and this covers every viewer equally, superusers
+    included."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, blank=True, null=True, related_name="toolAuditReads",
+    )
+    at = models.DateTimeField(auto_now_add=True)
+    target = models.CharField(max_length=200, help_text="Resource name, 'index', or 'questions'.")
+
+    class Meta:
+        verbose_name = "Tool Audit Read Log"
+        ordering = ["-at"]
+
+    def __str__(self) -> str:
+        who = self.user.username if self.user else "unknown"
+        return f"{who} read {self.target} @ {self.at:%Y-%m-%d %H:%M}"

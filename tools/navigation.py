@@ -140,6 +140,12 @@ NAV_TOOLS = [
     NavTool(routeName="resolution-status", title="On Deck", permission=permissions.ADMINISTER_RESOLUTIONS,
             icon="inbox", domainSlug="resolutions", breadcrumbLabel="On Deck",
             description="The Secretary's view: everything in flight, with sign-on counts, deadlines, and the actions that drive each to a vote."),
+    NavTool(routeName="chapter-tools", title="Chapter Tools", permission=None,
+            icon="archive", domainSlug="access",
+            description="The chapter's systems and services: what each one is, who holds access, and how to get it."),
+    NavTool(routeName="chapter-tools-questions", title="Chapter Tools: Open Questions", permission=permissions.VIEW_CHAPTER_TOOL_AUDIT,
+            icon="lock", domainSlug="access", breadcrumbLabel="Open Questions",
+            description="Unresolved access questions for the IT sub-committee to assign and resolve."),
 ]
 
 # Which domain owns each gated route, by URL name - this is what lights up the
@@ -189,6 +195,8 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "access-request-list": "access",
     "manage-access": "access",
     "manage-groups": "access",
+    "chapter-tools": "access",
+    "chapter-tools-questions": "access",
     # Access: detail/review/sub pages
     "review-access-request": "access",
     "manage-access-user": "access",
@@ -212,6 +220,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "resolution-lapse": "resolutions",
     "resolution-supersede": "resolutions",
     "resolution-export": "resolutions",
+    "chapter-tool-detail": "access",
 }
 
 

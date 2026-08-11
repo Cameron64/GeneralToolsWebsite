@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block page_content %}
+<h1 class="page-title">Chapter Tools: Open Questions</h1>
+<p class="page-subtitle">The UNCONFIRMED-item workbench - assign questions to people in the room, and resolve them once answered.</p>
+
+<div class="page-card">
+  <h2 class="section-title pt-0">Add a question</h2>
+  <form action="" method="post" class="max-w-xl">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add" />
+    <div class="form-row">
+      <label for="question-resource">Resource (optional)</label>
+      <select name="resource" id="question-resource" class="form-field">
+        <option value="">Chapter-wide</option>
+        {% for resource in resources %}
+        <option value="{{ resource.id }}">{{ resource.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="question-text">Question</label>
+      <textarea name="question" id="question-text" class="form-field" required></textarea>
+    </div>
+    <input type="submit" value="Add question" class="btn btn-primary my-3" />
+  </form>
+</div>
+
+<div class="page-card">
+  <h2 class="section-title pt-0">Open ({{ openQuestions|length }})</h2>
+  <table class="data-table">
+    <tr>
+      <th>Question</th>
+      <th>Resource</th>
+      <th>Assigned to</th>
+      <th>Raised</th>
+      <th>Assign</th>
+      <th>Resolve</th>
+    </tr>
+    {% for question in openQuestions %}
+    <tr>
+      <td>{{ question.question }}</td>
+      <td data-label="Resource">{% if question.resource %}<a href="{{ question.resource.getUrl }}">{{ question.resource.name }}</a>{% else %}Chapter-wide{% endif %}</td>
+      <td data-label="Assigned to">{{ question.assignedTo|default:"-" }}</td>
+      <td data-label="Raised" class="md:whitespace-nowrap">{{ question.raisedAt|date:"M j, Y" }}</td>
+      <td>
+        <form action="" method="post" class="flex gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="assign" />
+          <input type="hidden" name="questionId" value="{{ question.id }}" />
+          <input type="text" name="assignedTo" class="form-field" placeholder="Name" value="{{ question.assignedTo }}" />
+          <button type="submit" class="btn btn-secondary btn-small">Assign</button>
+        </form>
+      </td>
+      <td>
+        <form action="" method="post" class="flex gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="resolve" />
+          <input type="hidden" name="questionId" value="{{ question.id }}" />
+          <input type="text" name="resolution" class="form-field" placeholder="Resolution" />
+          <button type="submit" class="btn btn-primary btn-small">Resolve</button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-secondary">No open questions.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="page-card">
+  <h2 class="section-title pt-0">Resolved ({{ resolvedQuestions|length }})</h2>
+  <table class="data-table">
+    <tr>
+      <th>Question</th>
+      <th>Resource</th>
+      <th>Resolution</th>
+      <th>Resolved</th>
+    </tr>
+    {% for question in resolvedQuestions %}
+    <tr>
+      <td>{{ question.question }}</td>
+      <td data-label="Resource">{% if question.resource %}{{ question.resource.name }}{% else %}Chapter-wide{% endif %}</td>
+      <td data-label="Resolution">{{ question.resolution|default:"-" }}</td>
+      <td data-label="Resolved" class="md:whitespace-nowrap">{{ question.resolvedAt|date:"M j, Y" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="text-secondary">Nothing resolved yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock page_content %}

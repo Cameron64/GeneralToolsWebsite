@@ -216,3 +216,93 @@ class LinkEventAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# --- Chapter Tools (IT access registry) --------------------------------
+#
+# M1: all CRUD for the inventory rows is admin-only (no in-app edit views).
+# ResourceQuestion is the one exception - it also has an in-app add/assign/
+# resolve workflow (tools/chapterToolsViews.chapter_tools_questions) for the
+# 08-20 meeting, but stays editable here too for out-of-meeting cleanup.
+
+
+class ResourceCredentialInline(admin.TabularInline):
+    model = ResourceCredential
+    extra = 0
+
+
+class ResourceHolderInline(admin.TabularInline):
+    model = ResourceHolder
+    extra = 0
+
+
+class ResourceQuestionInline(admin.TabularInline):
+    model = ResourceQuestion
+    extra = 0
+    fields = ("question", "assignedTo", "resolvedAt", "resolution")
+
+
+@admin.register(ChapterResource)
+class ChapterResourceAdmin(admin.ModelAdmin):
+    list_display = (
+        "name", "category", "accessModel", "payer", "requestable",
+        "delegationTier", "lastReviewed", "staleLabel",
+    )
+    list_filter = ("category", "accessModel", "payer", "delegationTier", "requestable")
+    search_fields = ("name", "blurb")
+    inlines = (ResourceCredentialInline, ResourceHolderInline, ResourceQuestionInline)
+
+    @admin.display(description="Stale?", boolean=True)
+    def staleLabel(self, obj):
+        return obj.isStale()
+
+
+@admin.register(ResourceHolder)
+class ResourceHolderAdmin(admin.ModelAdmin):
+    """Standalone admin alongside the inline - handy for a chapter-wide sweep
+    of unconfirmed holders without opening every resource."""
+    list_display = ("resource", "personName", "user", "how", "confirmed")
+    list_filter = ("how", "confirmed", "resource")
+    search_fields = ("personName", "resource__name")
+
+
+@admin.register(ResourceCredential)
+class ResourceCredentialAdmin(admin.ModelAdmin):
+    list_display = ("resource", "label", "kind", "status", "vaultCollection")
+    list_filter = ("kind", "status", "resource")
+    search_fields = ("label", "resource__name", "vaultCollection")
+
+
+@admin.register(ResourceGrant)
+class ResourceGrantAdmin(admin.ModelAdmin):
+    """M2 hook - unused by any M1 view, registered for completeness."""
+    list_display = ("resource", "personName", "user", "grantedBy", "grantedAt", "fulfilledAt", "revokedAt")
+    list_filter = ("resource",)
+
+
+@admin.register(ResourceQuestion)
+class ResourceQuestionAdmin(admin.ModelAdmin):
+    list_display = ("resource", "questionPreview", "assignedTo", "raisedAt", "resolvedAt")
+    list_filter = ("resource",)
+
+    @admin.display(description="Question")
+    def questionPreview(self, obj):
+        return obj.question[:80]
+
+
+@admin.register(ToolAuditReadLog)
+class ToolAuditReadLogAdmin(admin.ModelAdmin):
+    """Read-only - the log protects everyone, including whoever's logged in
+    to admin, so it must not be editable from here."""
+    list_display = ("at", "user", "target")
+    list_filter = ("target", "at")
+    readonly_fields = ("user", "at", "target")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

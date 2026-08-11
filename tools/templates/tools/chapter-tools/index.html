@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block page_content %}
+<h1 class="page-title">Chapter Tools</h1>
+<p class="page-subtitle">Every system Austin DSA runs: what it is, how access works, who holds it, and how to get it.</p>
+
+<div class="page-card">
+  <table class="data-table">
+    <tr>
+      <th>Resource</th>
+      <th>Category</th>
+      <th>Access model</th>
+      <th>Holders</th>
+      <th>Payer</th>
+      <th>How to get access</th>
+    </tr>
+    {% for row in rows %}
+    <tr{% if hasAudit and row.resource.isStale %} class="row-attention"{% endif %}>
+      <td class="md:whitespace-nowrap">
+        <b><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></b>
+        {% if hasAudit and row.resource.isStale %}<br><span class="badge badge-unresolved">Stale review</span>{% endif %}
+        {% if row.resource.blurb %}<br><span class="text-sm text-secondary">{{ row.resource.blurb }}</span>{% endif %}
+      </td>
+      <td data-label="Category">{{ row.resource.get_category_display }}</td>
+      <td data-label="Access model">{{ row.resource.get_accessModel_display }}</td>
+      <td data-label="Holders">
+        {% for holder in row.holderRows %}
+        <span class="badge {% if holder.confirmed %}badge-active{% else %}badge-unresolved{% endif %}">{{ holder.name }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
+        {% empty %}
+        <span class="text-secondary">Unconfirmed</span>
+        {% endfor %}
+      </td>
+      <td data-label="Payer">{{ row.resource.get_payer_display }}</td>
+      <td data-label="How to get access">{{ row.resource.howToGetAccess|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-secondary">No chapter resources yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if hasAudit %}
+<p class="pt-4 text-sm"><a href="{% url 'chapter-tools-questions' %}">Open questions for the IT sub-committee &rarr;</a></p>
+{% endif %}
+{% endblock page_content %}

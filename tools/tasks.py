@@ -26,6 +26,7 @@ from .EmailApi import EmailApi
 from .EventAutomation import EventAutomationDriver
 from .SecretManager import SecretManager
 from .models import DelegatedEvents, PostedEvents, PublishJob, User
+from .timezones import DateTimeWithAcceptedTimeZone
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +77,19 @@ def lapseExpiredResolutions():
 def _rehydrateEventInfo(payload: dict) -> EventAutomationDriver.EventInfo:
     """Rebuild the EventInfo serialized by eventViews._buildEventPayload.
 
-    startIso/endIso are tz-aware isoformat strings (already localized by the
-    form/model at enqueue time); fromisoformat() yields aware fixed-offset
-    datetimes, which satisfies the driver's aware-input guard without
-    re-localizing."""
+    startIso/endIso are the literal LOCAL WALL time (naive ISO) and "timezone"
+    is the accepted IANA zone name."""
+    startDt = DateTimeWithAcceptedTimeZone.fromWallIso(
+        payload["startIso"], payload["timezone"]
+    )
+    endDt = DateTimeWithAcceptedTimeZone.fromWallIso(
+        payload["endIso"], payload["timezone"]
+    )
     return EventAutomationDriver.EventInfo(
         title=payload["title"],
         eventType=payload["eventType"],
-        start=datetime.datetime.fromisoformat(payload["startIso"]),
-        end=datetime.datetime.fromisoformat(payload["endIso"]),
+        start=startDt,
+        end=endDt,
         locationName=payload["locationName"],
         streetAddress=payload["streetAddress"],
         city=payload["city"],
@@ -97,22 +102,15 @@ def _rehydrateEventInfo(payload: dict) -> EventAutomationDriver.EventInfo:
     )
 
 
-def _serializeConflicts(conflicts, timezoneStr: str) -> list:
-    """Conflict times go into the job row as NAIVE ISO strings localized to the
-    payload timezone - exactly the localize-then-strip the views used to do
-    inline before rendering, so getResultContext() can hand conflictList.html
-    the same naive datetimes it has always rendered."""
-    timezone = pytz.timezone(timezoneStr)
+def _serializeConflicts(conflicts : list[EventAutomationDriver.Conflict]) -> list:
     serialized = []
     for conflict in conflicts:
-        start = conflict.start.astimezone(timezone).replace(tzinfo=None)
-        end = conflict.end.astimezone(timezone).replace(tzinfo=None)
         serialized.append({
             "type": conflict.type,
             "title": conflict.title,
             "zoomUser": conflict.zoomUser,
-            "startIso": start.isoformat(),
-            "endIso": end.isoformat(),
+            "start": conflict.start.toDict(),
+            "end": conflict.end.toDict()
         })
     return serialized
 
@@ -121,8 +119,8 @@ def _finishDirectPublish(job: PublishJob, eventInfo, result) -> None:
     """Persist a successful DIRECT publish: the PostedEvents row and the
     confirmation email, mirroring what new_event used to do inline."""
     # Convert event start and end dates to utc
-    utcStart = eventInfo.start.astimezone(pytz.utc)
-    utcEnd = eventInfo.end.astimezone(pytz.utc)
+    utcStart = eventInfo.start.utc()
+    utcEnd = eventInfo.end.utc()
     utcNow = datetime.datetime.now(datetime.UTC)
     e = PostedEvents.objects.create(title = eventInfo.title,
                                     start = utcStart,
@@ -301,11 +299,11 @@ def publishEventJob(jobId):
             job.status = PublishJob.Status.PUBLISHED
         elif result.type == EventAutomationDriver.Result.ResultType.UNRESOLVEABLE_CONFLICT:
             logger.info("PublishEventJob: Publish failed with unresolveable conflicts %s", str(result))
-            job.conflicts = _serializeConflicts(result.conflicts, payload["timezone"])
+            job.conflicts = _serializeConflicts(result.conflicts)
             job.status = PublishJob.Status.UNRESOLVEABLE
         elif result.type == EventAutomationDriver.Result.ResultType.CONFLICT:
             logger.info("PublishEventJob: Publish failed with resolveable conflicts %s", str(result))
-            job.conflicts = _serializeConflicts(result.conflicts, payload["timezone"])
+            job.conflicts = _serializeConflicts(result.conflicts)
             job.status = PublishJob.Status.CONFLICT
         else:
             logger.error("PublishEventJob: Unexpected error when publishing event %s", str(result))

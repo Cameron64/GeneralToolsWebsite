@@ -19,6 +19,7 @@ from .forms import NewEventForm, ApproveDelegatedEventForm
 from .EmailApi import EmailApi
 from .permissions import *
 from .tasks import publishEventJob
+from .timezones import DateTimeWithAcceptedTimeZone
 import dataclasses
 from .models import *
 
@@ -58,18 +59,25 @@ class PostedEventListView(LoginRequiredMixin, PermissionRequiredMixin, ListView)
 
 # MARK: Publish New Event
 
-def _buildEventPayload(eventInfo, timezoneStr, ignoreResolveableConflicts) -> dict:
+def _buildEventPayload(eventInfo, ignoreResolveableConflicts) -> dict:
     """Serialize an EventInfo into the PublishJob payload (schema
-    PublishJob.PAYLOAD_VERSION). start/end are already localized (by
-    convertToEventInfo / getEventInfo), so their tz-aware isoformat round-trips
-    through tasks._rehydrateEventInfo without re-localizing."""
+    PublishJob.PAYLOAD_VERSION).
+
+    start/end are stored as the literal LOCAL WALL time (naive ISO), with the
+    accepted IANA zone carried once in "timezone". The datetime's own tzinfo is
+    deliberately NOT used to convey the zone: isoformat() would preserve only
+    the offset, and tasks._rehydrateEventInfo would get back a fixed-offset
+    tzinfo with no zone name (the issue #26 regression). DateTimeWithAcceptedTimeZone
+    keeps the wall time and the zone name as the two explicit facts they are, so
+    the round trip is lossless and stores exactly what the user entered. start/end
+    are already localized here (by convertToEventInfo / getEventInfo)."""
     return {
         "payloadVersion": PublishJob.PAYLOAD_VERSION,
         "title": eventInfo.title,
         "eventType": eventInfo.eventType,
-        "timezone": timezoneStr,
-        "startIso": eventInfo.start.isoformat(),
-        "endIso": eventInfo.end.isoformat(),
+        "timezone": eventInfo.start.zoneName,
+        "startIso": eventInfo.start.wallIso(),
+        "endIso": eventInfo.end.wallIso(),
         "locationName": eventInfo.locationName,
         "streetAddress": eventInfo.streetAddress,
         "city": eventInfo.city,
@@ -128,7 +136,6 @@ def new_event(request):
             kind=PublishJob.Kind.DIRECT,
             payload=_buildEventPayload(
                 eventInfo,
-                form.cleaned_data[NewEventForm.Keys.TIMEZONE],
                 ignoreResolveableConflicts,
             ),
             creator=request.user,
@@ -209,8 +216,8 @@ def new_delegated_event(request):
         if result.type == EventAutomationDriver.Result.ResultType.NO_CONFLICTS:
             logger.info("PublishDelegatedEvent: Event Request has no conflicts. Creating request for %s", eventInfo.title)
             # Convert event start and end dates to utc
-            utcStart = eventInfo.start.astimezone(pytz.utc)
-            utcEnd = eventInfo.end.astimezone(pytz.utc)
+            utcStart = eventInfo.start.utc()
+            utcEnd = eventInfo.end.utc()
             utcNow = datetime.datetime.now(datetime.UTC)
             e = DelegatedEvents.objects.create(title = eventInfo.title,
                                                start = utcStart,
@@ -265,16 +272,6 @@ def new_delegated_event(request):
                 str(result),
             )
             # Convert conflict times to timezone specified in form, then make naiive
-            timezone = pytz.timezone(form.cleaned_data[NewEventForm.Keys.TIMEZONE])
-            for i in range(len(result.conflicts)):
-                result.conflicts[i].start = result.conflicts[i].start.astimezone(
-                    timezone
-                )
-                result.conflicts[i].start = result.conflicts[i].start.replace(
-                    tzinfo=None
-                )
-                result.conflicts[i].end = result.conflicts[i].end.astimezone(timezone)
-                result.conflicts[i].end = result.conflicts[i].end.replace(tzinfo=None)
             return render(
                 request,
                 "tools/new-delegated-event/unresolveable.html",
@@ -286,17 +283,6 @@ def new_delegated_event(request):
                 "PublishDelegatedEvent: Event Request Failed with Unresolveable Conflict %s",
                 str(result),
             )
-            # Convert conflict times to timezone specified in form, , then make naiive
-            timezone = pytz.timezone(form.cleaned_data[NewEventForm.Keys.TIMEZONE])
-            for i in range(len(result.conflicts)):
-                result.conflicts[i].start = result.conflicts[i].start.astimezone(
-                    timezone
-                )
-                result.conflicts[i].start = result.conflicts[i].start.replace(
-                    tzinfo=None
-                )
-                result.conflicts[i].end = result.conflicts[i].end.astimezone(timezone)
-                result.conflicts[i].end = result.conflicts[i].end.replace(tzinfo=None)
             return render(
                 request, "tools/new-delegated-event/resolveable.html", dataclasses.asdict(result)
             )
@@ -358,7 +344,7 @@ def approve_delegated_event(request, id):
             # ignoreResolveableConflicts - the requester's dry run already
             # surfaced gCal conflicts at request time.
             logger.info("ApprovedDelegateEvent: Enqueueing publish job for event %d", id)
-            payload = _buildEventPayload(eventInfo, event.timezone, ignoreResolveableConflicts=True)
+            payload = _buildEventPayload(eventInfo, ignoreResolveableConflicts=True)
             payload["reason"] = formData[ApproveDelegatedEventForm.Keys.REASON]
             payload["approverId"] = request.user.id
             job = PublishJob.objects.create(
