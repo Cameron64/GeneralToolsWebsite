@@ -917,13 +917,47 @@ class ChapterResource(models.Model):
         MIXED = 3
         UNCONFIRMED = 4
 
+    # Labels are written for a member who just wants to get into something, not
+    # for the committee - "Individual logins" told a first-time reader nothing.
     ACCESS_MODEL_CHOICES = (
-        (AccessModel.INDIVIDUAL, "Individual logins"),
-        (AccessModel.SHARED_VAULT, "Shared vault login"),
-        (AccessModel.SERVICE_ACCOUNT, "Service account"),
-        (AccessModel.MIXED, "Mixed"),
-        (AccessModel.UNCONFIRMED, "Unconfirmed"),
+        (AccessModel.INDIVIDUAL, "Your own login"),
+        (AccessModel.SHARED_VAULT, "Shared login, handed out from the vault"),
+        (AccessModel.SERVICE_ACCOUNT, "Automated service account"),
+        (AccessModel.MIXED, "Mixed - some of both"),
+        (AccessModel.UNCONFIRMED, "Not confirmed yet"),
     )
+
+    # The label alone still can't carry what the model *costs* the reader (do I
+    # need a vault account first? does removing me affect anyone else?), so every
+    # surface that shows a label shows this alongside it. One source of truth:
+    # the directory builds its legend from this dict, the detail page reads it
+    # through getAccessModelExplanation().
+    ACCESS_MODEL_EXPLANATIONS = {
+        AccessModel.INDIVIDUAL: (
+            "You get your own login in your own name. Nobody shares a password, "
+            "and removing one person's access does not affect anybody else."
+        ),
+        AccessModel.SHARED_VAULT: (
+            "Everybody signs in with the same login. The password is handed out "
+            "through the chapter password vault, so you need a vault account "
+            "before you can get in. Because the password is shared, taking access "
+            "away later means changing it for everyone on it."
+        ),
+        AccessModel.SERVICE_ACCOUNT: (
+            "No person signs in here. An automated account does the work on the "
+            "chapter's behalf, so getting access means being able to change how "
+            "that automation is set up."
+        ),
+        AccessModel.MIXED: (
+            "Some parts of this use your own login and some parts use a shared "
+            "one. Read the How to get access note for which applies to you."
+        ),
+        AccessModel.UNCONFIRMED: (
+            "Nobody has checked yet how access to this actually works. Treat it "
+            "as an open question rather than a settled answer, and expect to ask "
+            "a person."
+        ),
+    }
 
     class Payer:
         CHAPTER = 0
@@ -1025,6 +1059,9 @@ class ChapterResource(models.Model):
             return self.steward.getUserNameString()
         return self.stewardName
 
+    def getAccessModelExplanation(self) -> str:
+        return self.ACCESS_MODEL_EXPLANATIONS.get(self.accessModel, "")
+
     def isStale(self) -> bool:
         if self.lastReviewed is None:
             return True
@@ -1097,9 +1134,9 @@ class ResourceHolder(models.Model):
         SERVICE_ACCOUNT = 2
 
     HOW_CHOICES = (
-        (How.INDIVIDUAL_LOGIN, "Individual login"),
-        (How.VAULT_COLLECTION, "Vault collection"),
-        (How.SERVICE_ACCOUNT, "Service account"),
+        (How.INDIVIDUAL_LOGIN, "Their own login"),
+        (How.VAULT_COLLECTION, "Shared login from the vault"),
+        (How.SERVICE_ACCOUNT, "Through the service account"),
     )
 
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="holders")

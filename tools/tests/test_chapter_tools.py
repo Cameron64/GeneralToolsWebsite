@@ -65,8 +65,12 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         ResourceHolder.objects.create(
             resource=self.resource, personName="Example Holder", confirmed=False,
         )
+        # Deliberately distinctive: this label is the sentinel for "a credential
+        # row leaked to a plain member", so it must not collide with any word the
+        # open layer legitimately prints (an earlier "Shared login" collided with
+        # the access-model label and made the leak test pass for the wrong reason).
         ResourceCredential.objects.create(
-            resource=self.resource, label="Shared login",
+            resource=self.resource, label="ExampleCredentialSentinel",
             kind=ResourceCredential.Kind.VAULT_SHARED_LOGIN,
         )
 
@@ -100,14 +104,34 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         resp = self.client.get(self.resource.getUrl())
         self.assertNotContains(resp, "Committee detail")
         self.assertNotContains(resp, "Rotate the shared vault login.")
-        self.assertNotContains(resp, "Shared login")
+        self.assertNotContains(resp, "ExampleCredentialSentinel")
 
     def test_detail_shows_restricted_section_to_auditor(self):
         self.loginAs(self.auditor)
         resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, "Committee detail")
         self.assertContains(resp, "Rotate the shared vault login.")
-        self.assertContains(resp, "Shared login")
+        self.assertContains(resp, "ExampleCredentialSentinel")
+
+    def test_detail_explains_the_access_model_in_plain_language(self):
+        """A member who has never met the phrase "shared vault login" must not
+        have to guess what it costs them - the label always ships with its
+        explanation."""
+        self.loginAs(self.member)
+        resp = self.client.get(self.resource.getUrl())
+        self.assertContains(resp, "you need a vault account")
+
+    def test_index_legend_covers_every_access_model_shown_and_nothing_else(self):
+        """The legend is built from the rows actually on screen, so a member
+        never reads a definition for a model the page doesn't use."""
+        _makeResource(name="Example Bank", accessModel=ChapterResource.AccessModel.INDIVIDUAL)
+        self.loginAs(self.member)
+        resp = self.client.get(reverse("chapter-tools"))
+        # Sentinels avoid apostrophes on purpose - the template escapes them to
+        # &#x27; and a raw "person's" would never match the rendered HTML.
+        self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, in use
+        self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, in use
+        self.assertNotContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, unused
 
     def test_questions_view_redirects_plain_member(self):
         self.loginAs(self.member)

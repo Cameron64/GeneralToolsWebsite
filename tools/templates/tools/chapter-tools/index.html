@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block page_content %}
 <h1 class="page-title">Chapter Tools</h1>
-<p class="page-subtitle">Every system Austin DSA runs: what it is, how access works, who holds it, and how to get it.</p>
+<p class="page-subtitle">Every system Austin DSA runs: what it is, how to get into it, and who already has it.</p>
+
+<div class="alert alert-info mb-4">
+  <b>Need access to something?</b> Find it below and read the <b>How to get access</b> column.
+  That column is the whole answer. Everything to the right of it is background, and you can ignore it.
+</div>
 
 <div class="page-card">
   <table class="data-table">
     <tr>
       <th>Resource</th>
-      <th>Category</th>
-      <th>Access model</th>
-      <th>Holders</th>
-      <th>Payer</th>
       <th>How to get access</th>
+      <th>How access works</th>
+      <th>Who has it now</th>
+      <th>Category</th>
+      <th>Who pays</th>
     </tr>
     {% for row in rows %}
     <tr{% if hasAudit and row.resource.isStale %} class="row-attention"{% endif %}>
@@ -20,23 +25,38 @@
         {% if hasAudit and row.resource.isStale %}<br><span class="badge badge-unresolved">Stale review</span>{% endif %}
         {% if row.resource.blurb %}<br><span class="text-sm text-secondary">{{ row.resource.blurb }}</span>{% endif %}
       </td>
-      <td data-label="Category">{{ row.resource.get_category_display }}</td>
-      <td data-label="Access model">{{ row.resource.get_accessModel_display }}</td>
-      <td data-label="Holders">
+      <td data-label="How to get access">{{ row.resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee." }}</td>
+      <td data-label="How access works">{{ row.resource.get_accessModel_display }}</td>
+      <td data-label="Who has it now">
         {% for holder in row.holderRows %}
         <span class="badge {% if holder.confirmed %}badge-active{% else %}badge-unresolved{% endif %}">{{ holder.name }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
         {% empty %}
-        <span class="text-secondary">Unconfirmed</span>
+        <span class="text-secondary">Nobody recorded yet</span>
         {% endfor %}
       </td>
-      <td data-label="Payer">{{ row.resource.get_payer_display }}</td>
-      <td data-label="How to get access">{{ row.resource.howToGetAccess|default:"-" }}</td>
+      <td data-label="Category">{{ row.resource.get_category_display }}</td>
+      <td data-label="Who pays">{{ row.resource.get_payer_display }}</td>
     </tr>
     {% empty %}
     <tr><td colspan="6" class="text-secondary">No chapter resources yet.</td></tr>
     {% endfor %}
   </table>
 </div>
+
+{% if accessModelLegend %}
+<div class="page-card">
+  <h2 class="section-title">What the &ldquo;How access works&rdquo; column means</h2>
+  <dl class="detail-grid">
+    {% for entry in accessModelLegend %}
+    <dt>{{ entry.label }}</dt><dd>{{ entry.explanation }}</dd>
+    {% endfor %}
+  </dl>
+  <p class="text-sm text-secondary pt-2">
+    &ldquo;Unconfirmed&rdquo; next to a person's name means we have not yet checked that they still
+    have access, not that they don't. It is a job for the IT Sub-Committee, not a warning.
+  </p>
+</div>
+{% endif %}
 
 {% if hasAudit %}
 <p class="pt-4 text-sm"><a href="{% url 'chapter-tools-questions' %}">Open questions for the IT sub-committee &rarr;</a></p>
