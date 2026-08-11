@@ -39,6 +39,9 @@ ADMINISTER_RESOLUTIONS = _publicPermissionName(_ADMINISTER_RESOLUTIONS)
 _VIEW_CHAPTER_TOOL_AUDIT = "viewChapterToolAudit"
 VIEW_CHAPTER_TOOL_AUDIT = _publicPermissionName(_VIEW_CHAPTER_TOOL_AUDIT)
 
+_VIEW_RESOURCE_HOLDERS = "viewResourceHolders"
+VIEW_RESOURCE_HOLDERS = _publicPermissionName(_VIEW_RESOURCE_HOLDERS)
+
 
 # Display taxonomy for the access pages - mirrors the home-menu categories.
 # A permission missing from every tuple lands in "Other", so new permissions
@@ -47,7 +50,7 @@ PERMISSION_CATEGORIES = (
     ("Events", (_PUBLISH_EVENT, _VIEW_PUBLISHED_EVENTS, _REQUEST_DELEGATED_EVENT,
                 _APPROVE_DELEGATED_EVENT, _VIEW_DELEGATED_EVENTS, _MANAGE_EVENT_OWNERS)),
     ("Link Trees", (_MANAGE_LINK_TREE, _VIEW_LINK_METRICS)),
-    ("Access", (_APPROVE_ACCESS_REQUEST, _VIEW_CHAPTER_TOOL_AUDIT)),
+    ("Access", (_APPROVE_ACCESS_REQUEST, _VIEW_CHAPTER_TOOL_AUDIT, _VIEW_RESOURCE_HOLDERS)),
     ("Resolutions", (_ADMINISTER_RESOLUTIONS,)),
 )
 
@@ -102,4 +105,5 @@ class PermissionRights(models.Model):
             (_APPROVE_ACCESS_REQUEST, 'Allowed to approve or deny any access request'),
             (_ADMINISTER_RESOLUTIONS, 'Allowed to administer resolutions (Secretary dashboard)'),
             (_VIEW_CHAPTER_TOOL_AUDIT, 'Allowed to view chapter-tool audit details'),
+            (_VIEW_RESOURCE_HOLDERS, 'Allowed to see who holds access to chapter tools'),
         )

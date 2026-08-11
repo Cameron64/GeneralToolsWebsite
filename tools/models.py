@@ -1463,7 +1463,9 @@ class ChapterResource(models.Model):
 
     name = models.CharField(max_length=200, unique=True)
     blurb = models.TextField(
-        blank=True, help_text="One or two sentences: what this is and what the chapter uses it for.",
+        blank=True,
+        help_text="One or two sentences: what this is and what the chapter uses it for. "
+                   "Shown to every logged-in member.",
     )
     category = models.IntegerField(choices=CATEGORY_CHOICES, default=Category.ORGANIZING)
 
@@ -1474,12 +1476,15 @@ class ChapterResource(models.Model):
     payer = models.IntegerField(choices=PAYER_CHOICES, default=Payer.UNCONFIRMED)
     annualCost = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     costNote = models.CharField(
-        max_length=300, blank=True, help_text="Seat caps, per-seat pricing, or other budget notes.",
+        max_length=300, blank=True,
+        help_text="Seat caps, per-seat pricing, or other budget notes. "
+                   "Shown to every logged-in member.",
     )
 
     howToGetAccess = models.TextField(
         blank=True,
-        help_text="Open-layer instructions, e.g. 'Request below' or 'Ask in #it-committee'.",
+        help_text="Open-layer instructions, e.g. 'Request below' or 'Ask in #it-committee'. "
+                   "Shown to every logged-in member.",
     )
 
     # Two URLs, not one, because a member asks two different questions and a
@@ -1542,8 +1547,27 @@ class ChapterResource(models.Model):
             )
 
     def getStewardName(self) -> str:
+        """Name AND email ("First Last - email"). Currently has no caller: the
+        one template that used it now renders getStewardDisplayName instead,
+        because the steward line moved a permission tier wider.
+
+        Kept, not deleted, because the audit tier may legitimately want the
+        contact address - but do not reach for this just because it is the
+        shorter name. Anything rendered outside a viewChapterToolAudit block
+        wants getStewardDisplayName below."""
         if self.steward is not None:
             return self.steward.getUserNameString()
+        return self.stewardName
+
+    def getStewardDisplayName(self) -> str:
+        """Name only, no email - for the holder tier (viewResourceHolders).
+        getStewardName's getUserNameString() form ("First Last - email") is
+        fine for the audit ring, which already sees every credential on this
+        resource, but rendering it a permission tier lower would hand the
+        wider organizer ring a contact address nobody consented to publish
+        (REVIEW.md F3)."""
+        if self.steward is not None:
+            return self.steward.getDisplayName()
         return self.stewardName
 
     def getAccessModelExplanation(self) -> str:
@@ -1647,7 +1671,11 @@ class ResourceHolder(models.Model):
     confirmed = models.BooleanField(
         default=False, help_text="Unconfirmed holders render as open work, not silence.",
     )
-    note = models.TextField(blank=True)
+    note = models.TextField(
+        blank=True,
+        help_text="Note that this is shown to every holder of the viewResourceHolders "
+                   "permission (organizers), not just the IT committee.",
+    )
 
     class Meta:
         verbose_name = "Resource Holder"

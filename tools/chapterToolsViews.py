@@ -30,6 +30,16 @@ def _hasAudit(user) -> bool:
     return user.has_perm(permissions.VIEW_CHAPTER_TOOL_AUDIT)
 
 
+def _hasHolders(user) -> bool:
+    """Whether the holder-identity tier (names, how, confirmed, note) renders
+    for this user. Audit implies holders: the restricted ring is already
+    trusted with every resource's weaknesses, which is strictly more
+    sensitive than who holds it, so a second explicit grant would buy
+    nothing (see REVIEW.md finding F4, which resolves PROPOSAL.md's own
+    self-contradiction in favor of this `or`)."""
+    return _hasAudit(user) or user.has_perm(permissions.VIEW_RESOURCE_HOLDERS)
+
+
 def _logRestrictedRead(user, target: str) -> None:
     ToolAuditReadLog.objects.create(user=user, target=target)
 
@@ -61,13 +71,22 @@ def _parseId(rawValue) -> int | None:
 def chapter_tools_index(request):
     """The directory: open layer for everyone, plus a per-row stale flag for
     viewChapterToolAudit holders (restricted-layer detail, per the plan - the
-    open directory itself stays clean)."""
+    open directory itself stays clean), plus the holder roster for
+    viewResourceHolders holders (or audit - see _hasHolders)."""
     hasAudit = _hasAudit(request.user)
+    hasHolders = _hasHolders(request.user)
     if hasAudit:
         _logRestrictedRead(request.user, "index")
 
-    resources = ChapterResource.objects.prefetch_related(
-        "holders",
+    # Holder identity is tier 1 (PROPOSAL.md, REVIEW.md F4/F9) - the "holders"
+    # prefetch is added to the queryset only when the viewer is permitted to
+    # see it, following the same build-only-if-permitted rule as
+    # chapter_tool_detail's runsOnDependencies. Passing an un-prefetched
+    # accessor to the template would still be safe (no rows), but it would run
+    # a query per resource - and more importantly a future edit could start
+    # reading resource.holders.all() unconditionally, so the rows must never be
+    # loaded into memory in the first place for someone without the permission.
+    prefetches = [
         # OPEN_KINDS, not a named kind: the directory shows every edge a member
         # needs to act on, and the model decides which those are. Naming kinds
         # here is how a new open kind gets silently dropped from the directory.
@@ -78,26 +97,34 @@ def chapter_tools_index(request):
             ).select_related("dependsOn"),
             to_attr="openDependencies",
         ),
-    ).order_by("category", "name")
-    rows = [{
-        "resource": resource,
-        "holderRows": [
-            {"name": holder.getDisplayName(), "confirmed": holder.confirmed}
-            for holder in resource.holders.all()
-        ],
-        "signInDependencies": [
-            dependency for dependency in resource.openDependencies
-            if dependency.kind == ResourceDependency.Kind.SIGN_IN
-        ],
-        # Split out rather than rendered from one list, because the two read as
-        # different sentences: "you need Slack first" is a prerequisite, while
-        # "you never get this directly" redirects the reader somewhere else
-        # entirely.
-        "reachedThroughDependencies": [
-            dependency for dependency in resource.openDependencies
-            if dependency.kind == ResourceDependency.Kind.REACHED_THROUGH
-        ],
-    } for resource in resources]
+    ]
+    if hasHolders:
+        prefetches.append("holders")
+
+    resources = ChapterResource.objects.prefetch_related(*prefetches).order_by("category", "name")
+    rows = []
+    for resource in resources:
+        row = {
+            "resource": resource,
+            "signInDependencies": [
+                dependency for dependency in resource.openDependencies
+                if dependency.kind == ResourceDependency.Kind.SIGN_IN
+            ],
+            # Split out rather than rendered from one list, because the two
+            # read as different sentences: "you need Slack first" is a
+            # prerequisite, while "you never get this directly" redirects the
+            # reader somewhere else entirely.
+            "reachedThroughDependencies": [
+                dependency for dependency in resource.openDependencies
+                if dependency.kind == ResourceDependency.Kind.REACHED_THROUGH
+            ],
+        }
+        if hasHolders:
+            row["holderRows"] = [
+                {"name": holder.getDisplayName(), "confirmed": holder.confirmed}
+                for holder in resource.holders.all()
+            ]
+        rows.append(row)
 
     # Legend of only the access models actually on screen. Glossing every row
     # inline would repeat four lines of prose five times; defining each term
@@ -114,24 +141,21 @@ def chapter_tools_index(request):
         "rows": rows,
         "accessModelLegend": accessModelLegend,
         "hasAudit": hasAudit,
+        "hasHolders": hasHolders,
     })
 
 
 @login_required
 def chapter_tool_detail(request, pk):
-    """One resource: open section for everyone; the restricted section
-    (delegation tier, revocation/continuity notes, credentials, review
-    detail, open questions) only for viewChapterToolAudit holders - and only
-    that render writes a read-log row."""
+    """One resource: open section for everyone; the holder roster (names,
+    how, confirmed, note, steward) for viewResourceHolders holders (or audit
+    - see _hasHolders); the restricted section (delegation tier,
+    revocation/continuity notes, credentials, review detail, open questions)
+    only for viewChapterToolAudit holders - and only that render writes a
+    read-log row."""
     resource = get_object_or_404(ChapterResource, pk=pk)
     hasAudit = _hasAudit(request.user)
-
-    holderRows = [{
-        "name": holder.getDisplayName(),
-        "how": holder.get_how_display(),
-        "confirmed": holder.confirmed,
-        "note": holder.note,
-    } for holder in resource.holders.all()]
+    hasHolders = _hasHolders(request.user)
 
     # Open kinds stay open in BOTH directions - each is the same public fact
     # read backwards, and the reverse is often the more useful half:
@@ -140,8 +164,8 @@ def chapter_tool_detail(request, pk):
     # is the front door for more than one system.
     context = {
         "resource": resource,
-        "holderRows": holderRows,
         "hasAudit": hasAudit,
+        "hasHolders": hasHolders,
         "signInDependencies": _edges(resource.dependencies, ResourceDependency.Kind.SIGN_IN, "dependsOn"),
         "signInDependents": _edges(resource.dependents, ResourceDependency.Kind.SIGN_IN, "resource"),
         "reachedThroughDependencies": _edges(
@@ -151,6 +175,18 @@ def chapter_tool_detail(request, pk):
             resource.dependents, ResourceDependency.Kind.REACHED_THROUGH, "resource",
         ),
     }
+    if hasHolders:
+        # Holder identity is tier 1 - built only here, same build-only-if-
+        # permitted rule as runsOnDependencies below. A template-only guard
+        # would still pull every holder row (names, how, note) into context on
+        # every request, which is exactly the aggregate the permission exists
+        # to gate.
+        context["holderRows"] = [{
+            "name": holder.getDisplayName(),
+            "how": holder.get_how_display(),
+            "confirmed": holder.confirmed,
+            "note": holder.note,
+        } for holder in resource.holders.all()]
     if hasAudit:
         _logRestrictedRead(request.user, resource.name)
         context["credentials"] = list(resource.credentials.all())

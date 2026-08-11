@@ -64,6 +64,17 @@ multi-line one renders as visible body text on the page.
 
   <dl class="detail-grid">
     <dt>How access works</dt><dd>{{ row.resource.get_accessModel_display }}</dd>
+    {% comment %}
+    "Who has it now" is holder identity - tier 1 (viewResourceHolders or
+    audit). Per the plan, a viewer without that permission sees nothing here
+    at all on the index card (no row, not even a placeholder) - their job
+    never needed the roster, it needed the door, and that's answered above by
+    "How to get access". row.holderRows is itself only built by the view when
+    hasHolders is true, so this guard is redundant with the data but kept
+    anyway: a template-only future edit that starts reading row.holderRows
+    unconditionally must still not render for a plain member.
+    {% endcomment %}
+    {% if hasHolders %}
     <dt>Who has it now</dt>
     <dd>
       {% if row.holderRows %}
@@ -76,6 +87,7 @@ multi-line one renders as visible body text on the page.
       <span class="text-secondary">Nobody recorded yet</span>
       {% endif %}
     </dd>
+    {% endif %}
     <dt>Category</dt><dd>{{ row.resource.get_category_display }}</dd>
     <dt>Who pays</dt><dd>{{ row.resource.get_payer_display }}</dd>
   </dl>
@@ -94,10 +106,12 @@ multi-line one renders as visible body text on the page.
     <dt>{{ entry.label }}</dt><dd>{{ entry.explanation }}</dd>
     {% endfor %}
   </dl>
+  {% if hasHolders %}
   <p class="text-sm text-secondary pt-2">
     &ldquo;Unconfirmed&rdquo; next to a person's name means we have not yet checked that they still
     have access, not that they don't. It is a job for the IT Sub-Committee, not a warning.
   </p>
+  {% endif %}
 </div>
 {% endif %}
 

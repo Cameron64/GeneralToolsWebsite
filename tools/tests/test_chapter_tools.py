@@ -39,6 +39,16 @@ from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 # the resource name, or this guard quietly stops guarding.
 EDGE_PHRASE = "How to get {name}"
 
+# The holder name - the thing viewResourceHolders/viewChapterToolAudit gates.
+# Every assertNotContains(HOLDER_SENTINEL) for a viewer without either
+# permission is paired with an assertContains(HOLDER_SENTINEL) for one who has
+# one, using this exact literal. That pairing is the mechanism, not decoration:
+# it is what stops the guard from going stale the way the EDGE_PHRASE guard
+# once did above - if a markup change ever stops the name from rendering at
+# all, the PRESENCE assertion fails loudly instead of the absence assertion
+# quietly passing for the wrong reason.
+HOLDER_SENTINEL = "Example Holder"
+
 
 def _makeResource(**overrides):
     defaults = {
@@ -74,6 +84,9 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
     def setUp(self):
         self.member = UserFactory.make("member")
         self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        # Holds ONLY the new tier-1 permission - not audit - so it exercises
+        # the "or" side of _hasHolders independently of _hasAudit.
+        self.organizer = UserFactory.make("organizer", perms=("viewResourceHolders",))
         self.resource = _makeResource(
             delegationTier=ChapterResource.DelegationTier.RED,
             revocationNote="Rotate the shared vault login.",
@@ -81,7 +94,7 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
             lastReviewed=None,  # stale by default
         )
         ResourceHolder.objects.create(
-            resource=self.resource, personName="Example Holder", confirmed=False,
+            resource=self.resource, personName=HOLDER_SENTINEL, confirmed=False,
         )
         # Deliberately distinctive: this label is the sentinel for "a credential
         # row leaked to a plain member", so it must not collide with any word the
@@ -98,7 +111,17 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Example Wiki")
         self.assertContains(resp, "Ask in #it-committee.")
-        self.assertContains(resp, "Example Holder")
+        # Holder identity is tier 1 now - inverted from the original assertion
+        # here (see HOLDER_SENTINEL comment above for why this is only safe
+        # paired with test_index_holder_sentinel_shown_to_organizer below).
+        self.assertNotContains(resp, HOLDER_SENTINEL)
+
+    def test_index_holder_sentinel_shown_to_organizer(self):
+        """Pairs with test_index_open_layer_visible_to_any_member's absence
+        assertion - identical literal, opposite viewer."""
+        self.loginAs(self.organizer)
+        resp = self.client.get(reverse("chapter-tools"))
+        self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_index_hides_stale_flag_from_plain_member(self):
         self.loginAs(self.member)
@@ -115,10 +138,34 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         resp = self.client.get(self.resource.getUrl())
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Example Wiki")
-        self.assertContains(resp, "Example Holder")
+        # Inverted from the original assertion here - see
+        # test_detail_holder_sentinel_shown_to_organizer for the paired
+        # presence assertion of the identical literal.
+        self.assertNotContains(resp, HOLDER_SENTINEL)
+        # The tier-0 fallback replaces the roster, not silence.
+        self.assertContains(resp, "Access to this is stewarded by the IT Sub-Committee.")
+
+    def test_detail_holder_sentinel_shown_to_organizer(self):
+        """Pairs with test_detail_open_section_visible_to_any_member's
+        absence assertion - identical literal, opposite viewer."""
+        self.loginAs(self.organizer)
+        resp = self.client.get(self.resource.getUrl())
+        self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_hides_restricted_section_from_plain_member(self):
         self.loginAs(self.member)
+        resp = self.client.get(self.resource.getUrl())
+        self.assertNotContains(resp, "Committee detail")
+        self.assertNotContains(resp, "Rotate the shared vault login.")
+        self.assertNotContains(resp, "ExampleCredentialSentinel")
+
+    def test_detail_hides_restricted_section_from_organizer(self):
+        """The organizer holds viewResourceHolders, not viewChapterToolAudit -
+        it must unlock the holder tier without also unlocking the audit
+        tier. Mirrors test_detail_hides_restricted_section_from_plain_member,
+        but the organizer DOES see the holder roster (see
+        test_detail_holder_sentinel_shown_to_organizer)."""
+        self.loginAs(self.organizer)
         resp = self.client.get(self.resource.getUrl())
         self.assertNotContains(resp, "Committee detail")
         self.assertNotContains(resp, "Rotate the shared vault login.")
@@ -130,6 +177,13 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         self.assertContains(resp, "Committee detail")
         self.assertContains(resp, "Rotate the shared vault login.")
         self.assertContains(resp, "ExampleCredentialSentinel")
+
+    def test_detail_shows_holder_sentinel_to_auditor(self):
+        """Audit implies holders (_hasHolders's `or`) - the auditor sees the
+        roster too, not just the restricted committee-detail section."""
+        self.loginAs(self.auditor)
+        resp = self.client.get(self.resource.getUrl())
+        self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_explains_the_access_model_in_plain_language(self):
         """A member who has never met the phrase "shared vault login" must not
@@ -197,6 +251,7 @@ class ChapterToolsReadLogTests(LoginClientMixin, TestCase):
     def setUp(self):
         self.member = UserFactory.make("member")
         self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        self.organizer = UserFactory.make("organizer", perms=("viewResourceHolders",))
         self.superuser = UserFactory.superuser("root")
         self.resource = _makeResource()
 
@@ -207,6 +262,19 @@ class ChapterToolsReadLogTests(LoginClientMixin, TestCase):
 
     def test_open_only_detail_render_writes_no_log(self):
         self.loginAs(self.member)
+        self.client.get(self.resource.getUrl())
+        self.assertEqual(ToolAuditReadLog.objects.count(), 0)
+
+    def test_holder_tier_only_index_render_writes_no_log(self):
+        """The read-log stays audit-only (PROPOSAL.md §9) - an organizer's
+        holder-tier render must not write a row. This is exactly where a
+        log-on-the-wrong-tier bug would slip in during the gate refactor."""
+        self.loginAs(self.organizer)
+        self.client.get(reverse("chapter-tools"))
+        self.assertEqual(ToolAuditReadLog.objects.count(), 0)
+
+    def test_holder_tier_only_detail_render_writes_no_log(self):
+        self.loginAs(self.organizer)
         self.client.get(self.resource.getUrl())
         self.assertEqual(ToolAuditReadLog.objects.count(), 0)
 
@@ -318,6 +386,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
     def setUp(self):
         self.member = UserFactory.make("member")
         self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        self.organizer = UserFactory.make("organizer", perms=("viewResourceHolders",))
         self.wiki = _makeResource(name="Example Wiki")
         self.identityProvider = _makeResource(
             name="Example SSO", category=ChapterResource.Category.COMMUNICATION,
@@ -606,6 +675,34 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
                 resource=extra, dependsOn=self.identityProvider,
                 kind=ResourceDependency.Kind.SIGN_IN,
             )
+
+        with CaptureQueriesContext(connection) as large:
+            self.client.get(reverse("chapter-tools"))
+
+        self.assertEqual(len(small.captured_queries), len(large.captured_queries))
+
+    def test_index_query_count_does_not_scale_with_resource_count_for_organizer(self):
+        """The plain-member variant above never exercises the conditional
+        "holders" prefetch added for viewResourceHolders - that path needs its
+        own no-N+1 contract, since it is the one that actually runs the extra
+        query and could regress into one query per resource."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        ResourceHolder.objects.create(resource=self.wiki, personName="Example Organizer-Visible Holder")
+        self.loginAs(self.organizer)
+
+        with CaptureQueriesContext(connection) as small:
+            self.client.get(reverse("chapter-tools"))
+
+        for i in range(4):
+            extra = _makeResource(name=f"Example Extra Organizer Resource {i}")
+            ResourceDependency.objects.create(
+                resource=extra, dependsOn=self.identityProvider,
+                kind=ResourceDependency.Kind.SIGN_IN,
+            )
+            ResourceHolder.objects.create(resource=extra, personName=f"Example Extra Holder {i}")
 
         with CaptureQueriesContext(connection) as large:
             self.client.get(reverse("chapter-tools"))
