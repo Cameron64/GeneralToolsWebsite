@@ -122,7 +122,7 @@ NAV_TOOLS = [
             description="Create groups and decide what they grant and who belongs to them."),
     NavTool(routeName="chapter-tools", title="Chapter Tools", permission=None,
             icon="archive", domainSlug="access",
-            description="The chapter's systems and services: what each one is, who holds access, and how to get it."),
+            description="The chapter's systems and services: what each one is and how to get it."),
     NavTool(routeName="chapter-tools-questions", title="Chapter Tools: Open Questions", permission=permissions.VIEW_CHAPTER_TOOL_AUDIT,
             icon="lock", domainSlug="access", breadcrumbLabel="Open Questions",
             description="Unresolved access questions for the IT sub-committee to assign and resolve."),
