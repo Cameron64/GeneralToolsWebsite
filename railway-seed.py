@@ -69,6 +69,11 @@ GROUPS = {
                               ["viewLinkMetrics"]),
     "Secretary":             (["rodrigo.salazar"],
                               ["administerResolutions"]),
+    # A non-superuser committee account, so the Chapter Tools open/restricted
+    # split can be shown side by side. Demoing it as "cam" would prove nothing:
+    # a superuser sees every restricted section on every page regardless.
+    "IT Sub-Committee":      (["jordan.castillo"],
+                              ["viewChapterToolAudit"]),
 }
 for groupName, (names, codenames) in GROUPS.items():
     group, wasCreated = Group.objects.get_or_create(name=groupName)
