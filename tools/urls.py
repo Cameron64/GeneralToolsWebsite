@@ -4,6 +4,7 @@ from django.urls import path, re_path, include
 from django.contrib import admin
 from . import views
 from . import accessViews
+from . import chapterToolsViews
 from . import eventViews
 from . import linkTreeViews
 from . import ownerViews
@@ -23,6 +24,11 @@ urlpatterns = [
     path("manage-groups/<int:groupId>", accessViews.manage_group, name="manage-group"),
     path("manage-groups/<int:groupId>/member-search", accessViews.manage_group_member_search, name="manage-group-member-search"),
     path("manage-groups/<int:groupId>/delete", accessViews.manage_group_delete, name="manage-group-delete"),
+
+    # --- Chapter Tools (IT access registry, M1: directory + detail + questions) ---
+    path("chapter-tools", chapterToolsViews.chapter_tools_index, name="chapter-tools"),
+    path("chapter-tools/questions", chapterToolsViews.chapter_tools_questions, name="chapter-tools-questions"),
+    path("chapter-tools/<int:pk>", chapterToolsViews.chapter_tool_detail, name="chapter-tool-detail"),
 
     path("new-event", eventViews.new_event, name="new-event"),
     path("new-delegated-event", eventViews.new_delegated_event, name="new-delegated-event"),

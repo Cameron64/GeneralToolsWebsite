@@ -120,6 +120,12 @@ NAV_TOOLS = [
     NavTool(routeName="manage-groups", title="Manage Groups", permission=permissions.APPROVE_ACCESS_REQUEST,
             icon="users", domainSlug="access",
             description="Create groups and decide what they grant and who belongs to them."),
+    NavTool(routeName="chapter-tools", title="Chapter Tools", permission=None,
+            icon="archive", domainSlug="access",
+            description="The chapter's systems and services: what each one is, who holds access, and how to get it."),
+    NavTool(routeName="chapter-tools-questions", title="Chapter Tools: Open Questions", permission=permissions.VIEW_CHAPTER_TOOL_AUDIT,
+            icon="lock", domainSlug="access", breadcrumbLabel="Open Questions",
+            description="Unresolved access questions for the IT sub-committee to assign and resolve."),
 ]
 
 # Which domain owns each gated route, by URL name - this is what lights up the
@@ -169,12 +175,15 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "access-request-list": "access",
     "manage-access": "access",
     "manage-groups": "access",
+    "chapter-tools": "access",
+    "chapter-tools-questions": "access",
     # Access: detail/review/sub pages
     "review-access-request": "access",
     "manage-access-user": "access",
     "manage-group": "access",
     "manage-group-member-search": "access",  # fragment endpoint - active-state only, no breadcrumbs
     "manage-group-delete": "access",
+    "chapter-tool-detail": "access",
 }
 
 

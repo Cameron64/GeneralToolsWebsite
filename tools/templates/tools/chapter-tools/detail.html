@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load navigation_tags %}
+{% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
+{% block page_content %}
+<div class="page-card max-w-3xl">
+  <h1 class="page-title">{{ resource.name }}</h1>
+  {% if resource.blurb %}<p class="page-subtitle">{{ resource.blurb }}</p>{% endif %}
+
+  <dl class="detail-grid">
+    <dt>Category</dt><dd>{{ resource.get_category_display }}</dd>
+    <dt>Access model</dt><dd>{{ resource.get_accessModel_display }}</dd>
+    <dt>Payer</dt><dd>{{ resource.get_payer_display }}{% if resource.costNote %} &middot; {{ resource.costNote }}{% endif %}</dd>
+    {% if resource.annualCost %}<dt>Annual cost</dt><dd>${{ resource.annualCost }}</dd>{% endif %}
+    <dt>How to get access</dt><dd>{{ resource.howToGetAccess|default:"-" }}</dd>
+  </dl>
+
+  <h2 class="section-title">Who holds it</h2>
+  {% if holderRows %}
+  <table class="data-table">
+    <tr><th>Person</th><th>How</th><th>Status</th><th>Note</th></tr>
+    {% for holder in holderRows %}
+    <tr>
+      <td>{{ holder.name }}</td>
+      <td data-label="How">{{ holder.how }}</td>
+      <td data-label="Status">{% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}</td>
+      <td data-label="Note">{{ holder.note|default:"-" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="text-secondary">No holders recorded yet.</p>
+  {% endif %}
+
+  {% if hasAudit %}
+  <h2 class="section-title">Committee detail</h2>
+  <div class="alert alert-info">You're viewing the restricted layer - this read was logged.</div>
+  <dl class="detail-grid">
+    <dt>Delegation tier</dt><dd>{{ resource.get_delegationTier_display }}</dd>
+    <dt>Last reviewed</dt><dd>{{ resource.lastReviewed|default:"Never" }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}</dd>
+    <dt>Reviewed by</dt><dd>{{ resource.reviewedBy|default:"-" }}</dd>
+    <dt>Steward</dt><dd>{{ resource.getStewardName|default:"-" }}</dd>
+    <dt>Requestable</dt><dd>{% if resource.requestable %}Yes{% else %}No{% endif %}</dd>
+    <dt>Revocation note</dt><dd>{{ resource.revocationNote|default:"-" }}</dd>
+    <dt>Continuity note</dt><dd>{{ resource.continuityNote|default:"-" }}</dd>
+  </dl>
+
+  <h2 class="section-title">Credentials</h2>
+  {% if credentials %}
+  <table class="data-table">
+    <tr><th>Label</th><th>Kind</th><th>Vault collection</th><th>Status</th></tr>
+    {% for credential in credentials %}
+    <tr>
+      <td>{{ credential.label }}</td>
+      <td data-label="Kind">{{ credential.get_kind_display }}</td>
+      <td data-label="Vault collection">{{ credential.vaultCollection|default:"-" }}</td>
+      <td data-label="Status">{{ credential.get_status_display }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="text-secondary">No credential objects recorded.</p>
+  {% endif %}
+
+  <h2 class="section-title">Open questions</h2>
+  {% if questions %}
+  <ul>
+    {% for question in questions %}
+    <li>{{ question.question }}{% if question.assignedTo %} &middot; assigned to {{ question.assignedTo }}{% endif %}{% if question.isResolved %} <span class="badge badge-active">Resolved</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-secondary">No questions recorded for this resource.</p>
+  {% endif %}
+  <p class="pt-2 text-sm"><a href="{% url 'chapter-tools-questions' %}">Manage all questions &rarr;</a></p>
+  {% endif %}
+</div>
+{% endblock page_content %}
