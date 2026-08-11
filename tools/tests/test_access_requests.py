@@ -1,13 +1,16 @@
 import datetime
 from unittest import mock
 
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
 from tools import permissions
+from tools.forms import AccessRequestForm
 from tools.models import AccessRequests, EventOwners
+from tools.permissions import PermissionRights
 
 from tools.tests.support import (
     AccessFixtureMixin, LoginClientMixin, MailAssertionsMixin,
@@ -121,6 +124,75 @@ class AccessRequestCreateTests(AccessFixtureMixin, MailAssertionsMixin, LoginCli
             resp = self._post(f"o:{self.owner.id}")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(AccessRequests.objects.count(), 1)
+
+
+@fastHashing
+class AccessRequestPermissionDropdownTests(AccessFixtureMixin, LoginClientMixin, TestCase):
+    """The target dropdown's permission half groups by permissions.PERMISSION_CATEGORIES
+    instead of one flat alphabetical-by-full-name list (see AccessRequestForm.__init__).
+    These tests only pin the rendering/behavior contract - never the current
+    permission set or its count, since that set changes independently of this
+    grouping logic."""
+
+    def setUp(self):
+        cast = self.buildCast()
+        self.requester = cast["requester"]
+
+    def _get(self):
+        self.loginAs(self.requester)
+        return self.client.get(reverse("request-access"))
+
+    def test_permissions_are_grouped_by_category_not_one_flat_group(self):
+        resp = self._get()
+        content = resp.content.decode()
+        # The old single group is gone...
+        self.assertNotIn('<optgroup label="Permissions">', content)
+        # ...replaced by one optgroup per declared category (with this form's
+        # display override applied, e.g. "Events" -> "Event Permissions").
+        for title, _codenames in permissions.PERMISSION_CATEGORIES:
+            displayTitle = AccessRequestForm._PERMISSION_CATEGORY_DISPLAY_OVERRIDES.get(title, title)
+            self.assertIn(f'<optgroup label="{displayTitle}">', content)
+
+    def test_permission_option_text_is_the_short_label(self):
+        perm = permission("manageLinkTree")
+        resp = self._get()
+        self.assertContains(resp, permissions.shortPermissionLabel(perm.name))
+        # The raw "Allowed to ..." wording should no longer appear as option text.
+        self.assertNotContains(resp, perm.name)
+
+    def test_uncategorized_permission_falls_back_to_other_group(self):
+        # Simulate a permission that hasn't been added to PERMISSION_CATEGORIES
+        # yet (without editing permissions.py, which is off-limits here) by
+        # registering an extra Permission row on the same content type that
+        # getRequestablePermissions() already scopes to.
+        contentType = ContentType.objects.get_for_model(PermissionRights)
+        extra = Permission.objects.create(
+            codename="doSomethingUnfiledForTests",
+            name="Allowed to do something unfiled for tests",
+            content_type=contentType,
+        )
+        self.assertEqual(permissions.getPermissionCategory(extra.codename), "Other")
+
+        resp = self._get()
+        content = resp.content.decode()
+        self.assertIn('<optgroup label="Other">', content)
+        self.assertContains(resp, permissions.shortPermissionLabel(extra.name))
+
+    def test_permission_still_submittable_end_to_end(self):
+        # The option VALUE format (f"{PERMISSION_PREFIX}:{permission.id}") is
+        # unchanged by the regrouping - only the label and grouping changed.
+        self.loginAs(self.requester)
+        perm = permission("manageLinkTree")
+        resp = self.client.post(
+            reverse("request-access"),
+            {"target": f"p:{perm.id}", "justification": "need it for link duty"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        request = AccessRequests.objects.get()
+        self.assertEqual(request.permission, perm)
+        self.assertIsNone(request.owner)
+        self.assertIsNone(request.group)
+        self.assertEqual(request.status, AccessRequests.Status.REQUESTED)
 
 
 @fastHashing

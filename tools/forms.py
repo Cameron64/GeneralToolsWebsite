@@ -344,6 +344,13 @@ class AccessRequestForm(forms.Form):
     OWNER_PREFIX = "o"
     PERMISSION_PREFIX = "p"
 
+    # Display-only tweak for this dropdown: the permission-category titles
+    # from permissions.PERMISSION_CATEGORIES render as optgroup headings right
+    # next to "Event Owners" here, and "Events" reads as a sibling of/typo for
+    # "Event Owners" in that spot. Rename just for this rendering rather than
+    # touching the shared category data in permissions.py.
+    _PERMISSION_CATEGORY_DISPLAY_OVERRIDES = {"Events": "Event Permissions"}
+
     target = forms.ChoiceField(
         label="What access do you need?",
         widget=forms.Select(attrs={"class": "form-field w-full"}),
@@ -373,13 +380,33 @@ class AccessRequestForm(forms.Form):
             (f"{self.OWNER_PREFIX}:{owner.id}", owner.name)
             for owner in activeOwners
         ]
-        permissionChoices = [
-            (f"{self.PERMISSION_PREFIX}:{permission.id}", permission.name)
-            for permission in permissions.getRequestablePermissions()
+        # One optgroup per permissions.PERMISSION_CATEGORIES category (same
+        # grouping used on the my-access/manage-access pages) instead of one
+        # flat, alphabetical-by-full-name "Permissions" group - every label
+        # starts with "Allowed to", so alphabetical order didn't actually
+        # help anyone choose. getRequestablePermissions() already orders by
+        # name, so appending in that order keeps each category alphabetical
+        # by the short label too.
+        byCategory = {}
+        for permission in permissions.getRequestablePermissions():
+            category = permissions.getPermissionCategory(permission.codename)
+            byCategory.setdefault(category, []).append(permission)
+
+        categoryOrder = [title for title, _ in permissions.PERMISSION_CATEGORIES] + ["Other"]
+        permissionGroups = [
+            (
+                self._PERMISSION_CATEGORY_DISPLAY_OVERRIDES.get(title, title),
+                [
+                    (f"{self.PERMISSION_PREFIX}:{permission.id}", permissions.shortPermissionLabel(permission.name))
+                    for permission in byCategory[title]
+                ],
+            )
+            for title in categoryOrder
+            if title in byCategory
         ]
         self.fields[self.Keys.TARGET].choices = [
             ("Event Owners", ownerChoices),
-            ("Permissions", permissionChoices),
+            *permissionGroups,
         ]
 
     def clean(self):
