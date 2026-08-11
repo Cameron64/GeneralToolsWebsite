@@ -1195,15 +1195,29 @@ class ResourceHolder(models.Model):
 
 
 class ResourceDependency(models.Model):
-    """One resource needs another. Two fixed kinds, deliberately not a general
-    graph - see the plan's Scope note on why an open-ended relationship type is
-    the failure mode here.
+    """One resource needs another. A small fixed set of kinds, deliberately not
+    a general graph - see the plan's Scope note on why an open-ended
+    relationship type is the failure mode here. "Fixed set" is the constraint,
+    not the number two: a new kind is a considered addition with a layer
+    decision attached, which is exactly what OPEN_KINDS/RESTRICTED_KINDS force.
 
-    SIGN_IN is open-layer because it changes a member's first action: the wiki
-    signs you in through Slack, so "ask in the IT channel" is the wrong first
-    step for somebody who is not in Slack yet. RUNS_ON is restricted because
-    nobody requesting access cares what the thing is hosted on, while the
-    committee needs it to answer "what breaks if we lose this?".
+    The layer split follows one test - does a member need this to take their
+    first action?
+
+    SIGN_IN is open because the wiki signs you in through Slack, so "ask in the
+    IT channel" is the wrong first step for somebody not in Slack yet.
+
+    REACHED_THROUGH is open for the same reason and answers a sharper question:
+    some resources are ones a member never gets access to at all. Nobody is
+    given a Google Calendar login; things land on the chapter calendar because
+    Echo puts them there, so the member's real task is getting event access in
+    Echo. Without this kind the registry has to invent an access story for such
+    a resource - and it did exactly that, sending members to ask for calendar
+    rights that nobody grants.
+
+    RUNS_ON is restricted because nobody requesting access cares what a thing is
+    hosted on, while the committee needs it to answer "what breaks if we lose
+    this?".
 
     Cycles are not prevented, deliberately. Blocking self-reference (below)
     covers the nonsense case. A true cycle check needs a graph walk on every
@@ -1213,11 +1227,27 @@ class ResourceDependency(models.Model):
     class Kind:
         SIGN_IN = 0
         RUNS_ON = 1
+        REACHED_THROUGH = 2
 
     KIND_CHOICES = (
         (Kind.SIGN_IN, "Signs you in through"),
         (Kind.RUNS_ON, "Runs on"),
+        (Kind.REACHED_THROUGH, "You reach through"),
     )
+
+    # Which layer each kind belongs to, in one place. Every filter in the views
+    # reads these instead of naming kinds inline, because the old scattered
+    # `kind=SIGN_IN` filters encoded the open/restricted split implicitly in
+    # four separate queries - so adding a kind silently omitted it from the open
+    # layer (harmless) or, with one careless `exclude`, published a restricted
+    # one (not harmless).
+    #
+    # A kind listed in neither is a bug, and test_every_kind_declares_its_layer
+    # fails on it rather than letting it default to either. That mirrors the
+    # `kind` field's no-default rule below: an undecided layer must fail loudly,
+    # never fail open.
+    OPEN_KINDS = (Kind.SIGN_IN, Kind.REACHED_THROUGH)
+    RESTRICTED_KINDS = (Kind.RUNS_ON,)
 
     # Read from both ends. Forward: "the wiki signs you in through Slack".
     # Reverse: "3 tools sign in through Slack". The reverse list is the whole

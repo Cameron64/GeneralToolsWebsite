@@ -34,6 +34,17 @@ def _logRestrictedRead(user, target: str) -> None:
     ToolAuditReadLog.objects.create(user=user, target=target)
 
 
+def _edges(manager, kind: int, otherEnd: str) -> list:
+    """One direction of one kind of dependency edge, with the far end joined.
+
+    `otherEnd` is which side to select_related: "dependsOn" reading forward off
+    resource.dependencies, "resource" reading backward off resource.dependents.
+    Six near-identical querysets were previously spelled out inline, which is
+    how the restricted RUNS_ON pair drifted into a different shape from the
+    open ones and became easy to copy into the wrong block."""
+    return list(manager.filter(kind=kind).select_related(otherEnd))
+
+
 def _parseId(rawValue) -> int | None:
     """Defensively parse a POSTed pk. A stale form / back-button repost can
     submit a non-numeric or missing id; treat that as "no such row" rather
@@ -57,12 +68,15 @@ def chapter_tools_index(request):
 
     resources = ChapterResource.objects.prefetch_related(
         "holders",
+        # OPEN_KINDS, not a named kind: the directory shows every edge a member
+        # needs to act on, and the model decides which those are. Naming kinds
+        # here is how a new open kind gets silently dropped from the directory.
         Prefetch(
             "dependencies",
             queryset=ResourceDependency.objects.filter(
-                kind=ResourceDependency.Kind.SIGN_IN,
+                kind__in=ResourceDependency.OPEN_KINDS,
             ).select_related("dependsOn"),
-            to_attr="signInDependencies",
+            to_attr="openDependencies",
         ),
     ).order_by("category", "name")
     rows = [{
@@ -71,7 +85,18 @@ def chapter_tools_index(request):
             {"name": holder.getDisplayName(), "confirmed": holder.confirmed}
             for holder in resource.holders.all()
         ],
-        "signInDependencies": resource.signInDependencies,
+        "signInDependencies": [
+            dependency for dependency in resource.openDependencies
+            if dependency.kind == ResourceDependency.Kind.SIGN_IN
+        ],
+        # Split out rather than rendered from one list, because the two read as
+        # different sentences: "you need Slack first" is a prerequisite, while
+        # "you never get this directly" redirects the reader somewhere else
+        # entirely.
+        "reachedThroughDependencies": [
+            dependency for dependency in resource.openDependencies
+            if dependency.kind == ResourceDependency.Kind.REACHED_THROUGH
+        ],
     } for resource in resources]
 
     # Legend of only the access models actually on screen. Glossing every row
@@ -108,18 +133,22 @@ def chapter_tool_detail(request, pk):
         "note": holder.note,
     } for holder in resource.holders.all()]
 
-    # SIGN_IN stays open in both directions - it is the same public fact read
-    # backwards, and "3 tools sign in through Slack" is exactly what a member
-    # benefits from seeing on Slack's own page.
+    # Open kinds stay open in BOTH directions - each is the same public fact
+    # read backwards, and the reverse is often the more useful half:
+    # "3 tools sign in through Slack" on Slack's page, and "2 things reach the
+    # calendar through Echo" on Echo's, which is what tells a reader that Echo
+    # is the front door for more than one system.
     context = {
         "resource": resource,
         "holderRows": holderRows,
         "hasAudit": hasAudit,
-        "signInDependencies": list(
-            resource.dependencies.filter(kind=ResourceDependency.Kind.SIGN_IN).select_related("dependsOn"),
+        "signInDependencies": _edges(resource.dependencies, ResourceDependency.Kind.SIGN_IN, "dependsOn"),
+        "signInDependents": _edges(resource.dependents, ResourceDependency.Kind.SIGN_IN, "resource"),
+        "reachedThroughDependencies": _edges(
+            resource.dependencies, ResourceDependency.Kind.REACHED_THROUGH, "dependsOn",
         ),
-        "signInDependents": list(
-            resource.dependents.filter(kind=ResourceDependency.Kind.SIGN_IN).select_related("resource"),
+        "reachedThroughDependents": _edges(
+            resource.dependents, ResourceDependency.Kind.REACHED_THROUGH, "resource",
         ),
     }
     if hasAudit:
@@ -130,11 +159,11 @@ def chapter_tool_detail(request, pk):
         # questions, so it follows the same build-only-if-permitted rule as
         # every other restricted field on this page. A template-only guard is
         # one refactor away from leaking.
-        context["runsOnDependencies"] = list(
-            resource.dependencies.filter(kind=ResourceDependency.Kind.RUNS_ON).select_related("dependsOn"),
+        context["runsOnDependencies"] = _edges(
+            resource.dependencies, ResourceDependency.Kind.RUNS_ON, "dependsOn",
         )
-        context["runsOnDependents"] = list(
-            resource.dependents.filter(kind=ResourceDependency.Kind.RUNS_ON).select_related("resource"),
+        context["runsOnDependents"] = _edges(
+            resource.dependents, ResourceDependency.Kind.RUNS_ON, "resource",
         )
 
     return render(request, "tools/chapter-tools/detail.html", context)

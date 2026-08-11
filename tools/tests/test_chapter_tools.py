@@ -304,11 +304,15 @@ class ChapterToolsQuestionsWorkflowTests(LoginClientMixin, TestCase):
 
 @fastHashing
 class ResourceDependencyTests(LoginClientMixin, TestCase):
-    """The SIGN_IN / RUNS_ON edges: forward + reverse rendering across the
-    open/restricted split, self-reference and duplicate rejection, and the
-    index prefetch's query-count contract. See the plan
-    (chapter-tools-dependencies) for why these are the two fixed kinds and
-    why cycles are deliberately not prevented.
+    """The dependency edges (SIGN_IN, RUNS_ON, REACHED_THROUGH): forward +
+    reverse rendering across the open/restricted split, self-reference and
+    duplicate rejection, and the index prefetch's query-count contract. See the
+    plan (chapter-tools-dependencies) for why the kinds are a fixed curated set
+    rather than an open graph, and why cycles are deliberately not prevented.
+
+    The set is fixed, not frozen: REACHED_THROUGH was added when a real
+    resource (the chapter calendar) turned out to be one nobody is ever granted
+    directly, which neither existing kind could say.
     """
 
     def setUp(self):
@@ -422,6 +426,112 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
         self.loginAs(self.auditor)
         resp = self.client.get(self.hostingSentinel.getUrl())
         self.assertContains(resp, "What runs on this")
+        self.assertContains(resp, self.wiki.getUrl())
+
+    # --- 6. Every kind must declare which layer it belongs to ---
+
+    def test_every_kind_declares_its_layer(self):
+        """The guard that makes adding a kind safe. OPEN_KINDS/RESTRICTED_KINDS
+        drive every dependency query in the views, so a kind in neither renders
+        nowhere (a silent feature) and a kind in both is a contradiction. Either
+        way the author has not made the visibility decision, and this fails
+        instead of picking one for them.
+
+        This is the same rule as the `kind` field having no default: an
+        undecided layer must fail loudly rather than fail open."""
+        declared = set(ResourceDependency.OPEN_KINDS) | set(ResourceDependency.RESTRICTED_KINDS)
+        allKinds = {value for value, _label in ResourceDependency.KIND_CHOICES}
+        self.assertEqual(
+            allKinds, declared,
+            "A ResourceDependency.Kind is missing from OPEN_KINDS/RESTRICTED_KINDS. "
+            "Add it to exactly one and decide whether members should see it.",
+        )
+        self.assertEqual(
+            set(ResourceDependency.OPEN_KINDS) & set(ResourceDependency.RESTRICTED_KINDS), set(),
+            "A kind cannot be both open and restricted.",
+        )
+
+    def test_index_never_prefetches_a_restricted_edge_for_a_plain_member(self):
+        """Covers OPEN_KINDS directly, against the context rather than the HTML.
+
+        The rendered leak test above cannot fail this one for us: the index
+        template loops over each open kind by name, so an edge wrongly declared
+        open renders nowhere and the page looks clean. That is a good
+        fail-closed property and a bad test - it means the page passing proves
+        nothing about the queryset. Assert the data the template is handed, so
+        a mis-declared kind is caught here even while the HTML stays innocent.
+        """
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.hostingSentinel,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        # An open edge as well, so the non-vacuity check below is about the
+        # filter and not about there being nothing to filter. With only the
+        # restricted edge, an empty prefetch is the CORRECT answer and the
+        # guard would fail on a passing system.
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(reverse("chapter-tools"))
+
+        prefetched = [
+            dependency
+            for row in resp.context["rows"]
+            for dependency in row["resource"].openDependencies
+        ]
+        self.assertNotEqual(prefetched, [], "Nothing was prefetched - this test would pass vacuously.")
+        self.assertNotIn(
+            ResourceDependency.Kind.RUNS_ON, [dependency.kind for dependency in prefetched],
+            "A restricted edge was loaded into the open directory's context.",
+        )
+
+    # --- 7. REACHED_THROUGH: open, both directions, and does not impersonate SIGN_IN ---
+
+    def test_reached_through_reaches_plain_member_on_index_and_detail(self):
+        """The kind exists so a resource nobody can be granted directly can say
+        so. It is open for the same reason SIGN_IN is: it changes what the
+        reader does next."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.REACHED_THROUGH,
+        )
+        self.loginAs(self.member)
+
+        indexResp = self.client.get(reverse("chapter-tools"))
+        self.assertContains(indexResp, EDGE_PHRASE.format(name="Example SSO"))
+        self.assertContains(indexResp, "You do not get access to this directly")
+
+        detailResp = self.client.get(self.wiki.getUrl())
+        self.assertContains(detailResp, EDGE_PHRASE.format(name="Example SSO"))
+        self.assertContains(detailResp, "You do not get access to this directly")
+
+    def test_reached_through_does_not_render_as_a_sign_in_prerequisite(self):
+        """The two must not collapse into one another. "You need X first" says
+        get X as well; "you do not get access to this directly" says X is
+        instead of, not as well as. Rendering a reached-through edge with the
+        sign-in wording would send a member to request a login nobody issues -
+        the exact defect this kind was added to fix."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.REACHED_THROUGH,
+        )
+        self.loginAs(self.member)
+        for resp in (self.client.get(reverse("chapter-tools")), self.client.get(self.wiki.getUrl())):
+            self.assertNotContains(resp, "signs you in through your")
+
+    def test_reverse_reached_through_renders_on_the_front_door_for_plain_member(self):
+        """The reverse is the more useful half: on Echo's page, "what people
+        reach through this" is what tells a reader it is the front door for
+        more than one system."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.REACHED_THROUGH,
+        )
+        self.loginAs(self.member)
+        resp = self.client.get(self.identityProvider.getUrl())
+        self.assertContains(resp, "What people reach through this")
         self.assertContains(resp, self.wiki.getUrl())
 
     # --- 6. Self-dependency is rejected ---
