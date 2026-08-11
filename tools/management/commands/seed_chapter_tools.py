@@ -146,18 +146,47 @@ DEPENDENCY_KIND_BY_NAME = {
 }
 
 
+SECTIONS = ("resources", "credentials", "holders", "dependencies", "questions")
+
+
+class _DryRunRollback(Exception):
+    """Raised at the end of a --dry-run to unwind the transaction. Doing the
+    real work and then rolling it back is what makes the preview trustworthy:
+    a preview computed by a separate 'what would happen' code path is a second
+    implementation that can disagree with the first, and the whole point of the
+    preview is to be believed."""
+
+
 class Command(BaseCommand):
     help = (
         "Idempotently load a Chapter Tools registry JSON file (absolute path only - "
-        "never commit real chapter data to this repo)."
+        "never commit real chapter data to this repo). Use --dry-run first."
     )
 
     def add_arguments(self, parser):
         parser.add_argument("--file", required=True, help="Absolute path to the registry JSON file.")
+        parser.add_argument(
+            "--dry-run", action="store_true",
+            help="Report exactly which fields would change, then roll everything back. Writes nothing.",
+        )
+        parser.add_argument(
+            "--only", action="append", choices=SECTIONS, metavar="SECTION",
+            help=(
+                "Load only this section; repeatable. One of: " + ", ".join(SECTIONS) + ". "
+                "Defaults to all. Note 'resources' means the resource row's own fields - "
+                "omit it to refresh child rows while leaving the resource untouched."
+            ),
+        )
 
-    @transaction.atomic
     def handle(self, *args, **options):
         filePath = options["file"]
+        self.dryRun = options["dry_run"]
+        self.sections = set(options["only"] or SECTIONS)
+        # (resourceName, "what", "detail") - one entry per row actually written,
+        # so a run that changes nothing prints nothing and is obviously a no-op.
+        self.changes = []
+        self.skipped = []
+
         try:
             with open(filePath, "r", encoding="utf-8") as fileHandle:
                 data = json.load(fileHandle)
@@ -167,32 +196,100 @@ class Command(BaseCommand):
             raise CommandError(f"Invalid JSON in {filePath}: {err}")
 
         resourceSpecs = data.get("resources", [])
-        for resourceSpec in resourceSpecs:
-            self._upsertResource(resourceSpec)
-        resourceCount = len(resourceSpecs)
+        try:
+            with transaction.atomic():
+                for resourceSpec in resourceSpecs:
+                    self._upsertResource(resourceSpec)
 
-        # Second pass - see the module docstring for why edges cannot be wired
-        # inline with their resource.
-        dependencyCount = 0
-        for resourceSpec in resourceSpecs:
-            dependencyCount += self._wireDependencies(resourceSpec)
+                # Second pass - see the module docstring for why edges cannot be
+                # wired inline with their resource.
+                if "dependencies" in self.sections:
+                    for resourceSpec in resourceSpecs:
+                        self._wireDependencies(resourceSpec)
 
-        newChapterWideQuestions = 0
-        for questionSpec in data.get("questions", []):
-            _, created = self._getOrCreateQuestion(None, questionSpec)
-            if created:
-                newChapterWideQuestions += 1
+                if "questions" in self.sections:
+                    for questionSpec in data.get("questions", []):
+                        _, created = self._getOrCreateQuestion(None, questionSpec)
+                        if created:
+                            self.changes.append(("(chapter-wide)", "question", "added"))
 
-        self.stdout.write(self.style.SUCCESS(
-            f"Loaded {resourceCount} resource(s); wired {dependencyCount} dependency edge(s); "
-            f"added {newChapterWideQuestions} new chapter-wide question(s)."
-        ))
+                self._report(len(resourceSpecs))
+                if self.dryRun:
+                    raise _DryRunRollback()
+        except _DryRunRollback:
+            pass
+
+    def _report(self, resourceSpecCount):
+        for name, what, detail in self.skipped:
+            self.stdout.write(self.style.WARNING(f"  skipped {name} {what}: {detail}"))
+
+        if not self.changes:
+            self.stdout.write(self.style.SUCCESS(
+                f"No changes. {resourceSpecCount} resource(s) in the file already match the database."
+            ))
+            return
+
+        for name, what, detail in self.changes:
+            self.stdout.write(f"  {name}: {what} {detail}")
+
+        summary = f"{len(self.changes)} change(s) across {resourceSpecCount} resource(s) in the file."
+        if self.dryRun:
+            self.stdout.write(self.style.WARNING(f"DRY RUN - nothing was written. {summary}"))
+        else:
+            self.stdout.write(self.style.SUCCESS(f"Wrote {summary}"))
+
+    def _changedFields(self, instance, defaults) -> list:
+        """Which of `defaults` differ from what is already stored. Values out of
+        JSON are strings where the model holds a Decimal or a date, so each one
+        is pushed through the field's own to_python first - comparing raw would
+        report every run as changing everything, which would make the report
+        worthless and quietly train people to ignore it."""
+        changed = []
+        for fieldName, newValue in defaults.items():
+            field = instance._meta.get_field(fieldName)
+            if field.is_relation:
+                newId = newValue.pk if newValue is not None else None
+                if getattr(instance, f"{fieldName}_id") != newId:
+                    changed.append(fieldName)
+                continue
+            try:
+                normalised = field.to_python(newValue)
+            except Exception:
+                normalised = newValue
+            if getattr(instance, fieldName) != normalised:
+                changed.append(fieldName)
+        return changed
+
+    def _upsertTracked(self, model, lookup, defaults, resourceName, what):
+        """update_or_create, but records what it actually changed. Silence in
+        the report means the row was already correct."""
+        existing = model.objects.filter(**lookup).first()
+        if existing is None:
+            instance = model.objects.create(**lookup, **defaults)
+            self.changes.append((resourceName, what, "created"))
+            return instance
+
+        changed = self._changedFields(existing, defaults)
+        if changed:
+            for fieldName, value in defaults.items():
+                setattr(existing, fieldName, value)
+            existing.save(update_fields=list(defaults))
+            self.changes.append((resourceName, what, "overwrote " + ", ".join(sorted(changed))))
+        return existing
 
     def _upsertResource(self, spec):
         steward = None
         stewardUsername = spec.get("stewardUsername") or ""
         if stewardUsername:
             steward = User.objects.filter(username=stewardUsername).first()
+            # See the holder branch below: .first() returning None on a typo used
+            # to write steward=None, silently unassigning the steward instead of
+            # reporting the bad username.
+            if steward is None:
+                raise CommandError(
+                    f'"{spec["name"]}" names steward "{stewardUsername}", which is not an Echo '
+                    "username. Fix it, or use stewardName for somebody without an account."
+                )
 
         # spec.get("annualCost") or None would collapse a real 0 annual cost
         # to None (0 is falsy) - only missing/blank should map to None.
@@ -200,67 +297,97 @@ class Command(BaseCommand):
         if annualCost == "":
             annualCost = None
 
-        resource, _ = ChapterResource.objects.update_or_create(
-            name=spec["name"],
-            defaults={
-                "blurb": spec.get("blurb", ""),
-                "category": CATEGORY_BY_NAME[spec.get("category", "ORGANIZING")],
-                "accessModel": ACCESS_MODEL_BY_NAME[spec.get("accessModel", "UNCONFIRMED")],
-                "payer": PAYER_BY_NAME[spec.get("payer", "UNCONFIRMED")],
-                "annualCost": annualCost,
-                "costNote": spec.get("costNote", ""),
-                "howToGetAccess": spec.get("howToGetAccess", ""),
-                "siteUrl": spec.get("siteUrl", ""),
-                "accessRequestUrl": spec.get("accessRequestUrl", ""),
-                "steward": steward,
-                "stewardName": spec.get("stewardName", ""),
-                "requestable": spec.get("requestable", False),
-                "lastReviewed": spec.get("lastReviewed") or None,
-                "reviewedBy": spec.get("reviewedBy", ""),
-                "delegationTier": DELEGATION_TIER_BY_NAME[spec.get("delegationTier", "UNCLASSIFIED")],
-                "revocationNote": spec.get("revocationNote", ""),
-                "continuityNote": spec.get("continuityNote", ""),
-            },
-        )
-
-        for credentialSpec in spec.get("credentials", []):
-            ResourceCredential.objects.update_or_create(
-                resource=resource,
-                label=credentialSpec["label"],
-                defaults={
-                    "kind": CREDENTIAL_KIND_BY_NAME[credentialSpec["kind"]],
-                    "vaultCollection": credentialSpec.get("vaultCollection", ""),
-                    "status": CREDENTIAL_STATUS_BY_NAME[credentialSpec.get("status", "LIVE")],
-                    "note": credentialSpec.get("note", ""),
+        name = spec["name"]
+        if "resources" not in self.sections:
+            # Child sections still need the row to hang off. Look it up rather
+            # than creating it: --only credentials must not quietly bring a whole
+            # new resource into existence as a side effect.
+            resource = ChapterResource.objects.filter(name=name).first()
+            if resource is None:
+                self.skipped.append((name, "resource", "not in the database, and --only excludes 'resources'"))
+                return
+        else:
+            resource = self._upsertTracked(
+                ChapterResource, {"name": name},
+                {
+                    "blurb": spec.get("blurb", ""),
+                    "category": CATEGORY_BY_NAME[spec.get("category", "ORGANIZING")],
+                    "accessModel": ACCESS_MODEL_BY_NAME[spec.get("accessModel", "UNCONFIRMED")],
+                    "payer": PAYER_BY_NAME[spec.get("payer", "UNCONFIRMED")],
+                    "annualCost": annualCost,
+                    "costNote": spec.get("costNote", ""),
+                    "howToGetAccess": spec.get("howToGetAccess", ""),
+                    "siteUrl": spec.get("siteUrl", ""),
+                    "accessRequestUrl": spec.get("accessRequestUrl", ""),
+                    "steward": steward,
+                    "stewardName": spec.get("stewardName", ""),
+                    "requestable": spec.get("requestable", False),
+                    "lastReviewed": spec.get("lastReviewed") or None,
+                    "reviewedBy": spec.get("reviewedBy", ""),
+                    "delegationTier": DELEGATION_TIER_BY_NAME[spec.get("delegationTier", "UNCLASSIFIED")],
+                    "revocationNote": spec.get("revocationNote", ""),
+                    "continuityNote": spec.get("continuityNote", ""),
                 },
+                name, "resource",
             )
 
-        for holderSpec in spec.get("holders", []):
-            holderUser = None
-            holderUsername = holderSpec.get("userUsername") or ""
-            if holderUsername:
-                holderUser = User.objects.filter(username=holderUsername).first()
-            ResourceHolder.objects.update_or_create(
-                resource=resource,
-                personName=holderSpec["personName"],
-                defaults={
-                    "user": holderUser,
-                    "how": HOLDER_HOW_BY_NAME[holderSpec.get("how", "INDIVIDUAL_LOGIN")],
-                    "confirmed": holderSpec.get("confirmed", False),
-                    "note": holderSpec.get("note", ""),
-                },
-            )
+        if "credentials" in self.sections:
+            for credentialSpec in spec.get("credentials", []):
+                self._upsertTracked(
+                    ResourceCredential,
+                    {"resource": resource, "label": credentialSpec["label"]},
+                    {
+                        "kind": CREDENTIAL_KIND_BY_NAME[credentialSpec["kind"]],
+                        "vaultCollection": credentialSpec.get("vaultCollection", ""),
+                        "status": CREDENTIAL_STATUS_BY_NAME[credentialSpec.get("status", "LIVE")],
+                        "note": credentialSpec.get("note", ""),
+                    },
+                    name, f"credential {credentialSpec['label']!r}",
+                )
 
-        for questionSpec in spec.get("questions", []):
-            self._getOrCreateQuestion(resource, questionSpec)
+        if "holders" in self.sections:
+            for holderSpec in spec.get("holders", []):
+                holderUser = None
+                holderUsername = holderSpec.get("userUsername") or ""
+                if holderUsername:
+                    holderUser = User.objects.filter(username=holderUsername).first()
+                    # A typo used to resolve to None and silently CLEAR the FK,
+                    # unlinking a holder from their Echo account with no error.
+                    # The file already refuses to guess on an unknown dependency
+                    # target or kind; an unknown username is the same mistake.
+                    if holderUser is None:
+                        raise CommandError(
+                            f'"{name}" holder "{holderSpec["personName"]}" names Echo user '
+                            f'"{holderUsername}", which does not exist. Fix the username, or '
+                            "remove the key to leave the holder unlinked."
+                        )
+                self._upsertTracked(
+                    ResourceHolder,
+                    {"resource": resource, "personName": holderSpec["personName"]},
+                    {
+                        "user": holderUser,
+                        "how": HOLDER_HOW_BY_NAME[holderSpec.get("how", "INDIVIDUAL_LOGIN")],
+                        "confirmed": holderSpec.get("confirmed", False),
+                        "note": holderSpec.get("note", ""),
+                    },
+                    name, f"holder {holderSpec['personName']!r}",
+                )
 
-    def _wireDependencies(self, spec) -> int:
+        if "questions" in self.sections:
+            for questionSpec in spec.get("questions", []):
+                _, created = self._getOrCreateQuestion(resource, questionSpec)
+                if created:
+                    self.changes.append((name, "question", "added"))
+
+    def _wireDependencies(self, spec) -> None:
         dependencySpecs = spec.get("dependencies", [])
         if not dependencySpecs:
-            return 0
+            return
 
-        resource = ChapterResource.objects.get(name=spec["name"])
-        wired = 0
+        resource = ChapterResource.objects.filter(name=spec["name"]).first()
+        if resource is None:
+            self.skipped.append((spec["name"], "dependencies", "resource not in the database"))
+            return
         for dependencySpec in dependencySpecs:
             targetName = dependencySpec["dependsOn"]
             target = ChapterResource.objects.filter(name=targetName).first()
@@ -281,12 +408,12 @@ class Command(BaseCommand):
             if target.id == resource.id:
                 raise CommandError(f'"{spec["name"]}" cannot depend on itself.')
 
-            ResourceDependency.objects.update_or_create(
-                resource=resource, dependsOn=target, kind=kind,
-                defaults={"note": dependencySpec.get("note", "")},
+            self._upsertTracked(
+                ResourceDependency,
+                {"resource": resource, "dependsOn": target, "kind": kind},
+                {"note": dependencySpec.get("note", "")},
+                spec["name"], f"dependency on {targetName!r}",
             )
-            wired += 1
-        return wired
 
     def _getOrCreateQuestion(self, resource, spec):
         """Create-only: never overwrite assignedTo/resolvedAt/resolution the
