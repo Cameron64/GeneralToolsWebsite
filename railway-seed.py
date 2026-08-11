@@ -573,7 +573,10 @@ CHAPTER_RESOURCES = [
     dict(
         name="Chapter wiki (Outline)", category=Cat.COMMUNICATION,
         accessModel=Access.INDIVIDUAL, payer=Payer.CHAPTER,
-        blurb="The chapter wiki at wiki.austindsa.org. Meeting notes, committee pages, onboarding guides, and chapter documentation.",
+        # The address used to lead this blurb. It now appears in the how-to line
+        # and again on the link button, so saying it here made three copies of
+        # the same string on one card. The blurb's job is what the thing is FOR.
+        blurb="Meeting notes, committee pages, onboarding guides, and chapter documentation. The chapter's written memory.",
         annualCost=None,
         costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
         # Deliberately does NOT repeat the Slack precondition. The SIGN_IN edge
@@ -581,7 +584,24 @@ CHAPTER_RESOURCES = [
         # saying it here too printed the same instruction twice in a row. The
         # edge is the source of truth for a precondition; this field is only
         # the step you take once you meet it.
-        howToGetAccess="Ask in the IT channel and somebody will add you.",
+        #
+        # The previous text here read "Ask in the IT channel and somebody will
+        # add you." That was FALSE and was the worst kind of wrong: it sent a
+        # member to go wait on a human for something that needs no human at
+        # all. Outline is configured with Slack as its OAuth provider (see the
+        # wiki's own "Wiki Installation (Outline)" page - SLACK_CLIENT_ID in
+        # docker.env, and "only allow users who have a valid log in for your
+        # slack server"), so anyone already in the chapter Slack is already in
+        # the wiki. Nobody grants wiki access, because nobody has to.
+        howToGetAccess=(
+            "Nobody has to add you. Go to wiki.austindsa.org and choose Sign in with Slack. "
+            "Everybody in the chapter Slack already has a wiki account, so if you are in Slack "
+            "you are in."
+        ),
+        siteUrl="https://wiki.austindsa.org",
+        # No accessRequestUrl on purpose: there is nothing to request. An empty
+        # field here is the honest answer, and the template renders no button.
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.YELLOW,
         revocationNote="Individual accounts, so removing one person is a single action and costs nobody else anything.",
@@ -603,7 +623,33 @@ CHAPTER_RESOURCES = [
         blurb="The chapter's day-to-day communication workspace. Committee channels, announcements, and most coordination between meetings.",
         annualCost=None,
         costNote="Plan and payer both still to be confirmed with the Treasurer.",
-        howToGetAccess="Fill in the chapter's Slack request form and you will be invited by email. You get your own account, not a shared one.",
+        # Restated in full rather than pointed at, because this is the end of
+        # the chain: a member sent here from the wiki card has already been
+        # bounced once and must not be bounced again. The screenshot step is
+        # the part people get stuck on, so it is named explicitly along with
+        # what to do when you cannot find the email.
+        #
+        # Source: the wiki's "Slack Access (Admin)" page. The admin who
+        # verifies and invites is a named person there and is deliberately NOT
+        # named here - see rule 1 in the block above. "A Slack admin" carries
+        # the same instruction without publishing who to pester.
+        howToGetAccess=(
+            "Fill in the chapter's Slack request form. It asks for three things: your name, "
+            "the email address you want your Slack account on, and a screenshot of the welcome "
+            "email you got when you joined DSA. A Slack admin checks the screenshot and sends "
+            "the invite to that address, so this is not instant. If you cannot find a welcome "
+            "email, check the address you actually joined DSA with before asking - it is usually "
+            "sitting in a different inbox."
+        ),
+        siteUrl="https://austindsa.slack.com",
+        # JUDGEMENT CALL, easy to reverse: this is the live chapter request
+        # form, and the demo box is reachable by anyone who registers an
+        # account. The link is already mass-emailed to every new member and is
+        # on the wiki, so it is not a secret, but it does accept submissions.
+        # Tracking parameters from the welcome-email version (can_id,
+        # email_referrer) are stripped. Clear this string if you would rather
+        # the demo box not point at the real form.
+        accessRequestUrl="https://airtable.com/appmDxHAxJKmNNhxI/shrmcJLer3LSYE30y",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.GREEN,
         revocationNote="Deactivating one member's account affects nobody else's.",
@@ -629,7 +675,22 @@ CHAPTER_RESOURCES = [
         blurb="Chapter Zoom for general meetings, committee meetings, and virtual events. Two separate paid accounts with different purposes, not two interchangeable seats.",
         annualCost=decimal.Decimal("299.80"),
         costNote="Two paid accounts. The figure here is Zoom's published list price, not an invoice anyone has seen - the amount the chapter is actually billed still needs confirming with the Treasurer.",
-        howToGetAccess="Ask the IT Sub-Committee. Access is a shared login handed out through the chapter password vault, so you need a vault account first.",
+        # "Ask the IT Sub-Committee" is where the old text stopped, which is the
+        # same defect as the wiki row: it names a destination with no route to
+        # it. Every one of these ask-a-human paths actually runs through Slack,
+        # so the prose says so. Note this is NOT modelled as a dependency edge -
+        # SIGN_IN means "signs you in through", and requesting access in a
+        # channel is not signing in. The plan bans a third edge kind, and this
+        # is exactly the sort of thing that would tempt one.
+        howToGetAccess=(
+            "Ask the IT Sub-Committee in Slack. The login is shared and handed out through the "
+            "chapter password vault, so you need a vault account first and somebody has to add "
+            "you to the Zoom collection before the password is visible to you. Say which "
+            "meeting you are running: there are two paid accounts and they are not "
+            "interchangeable."
+        ),
+        siteUrl="https://zoom.us",
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.RED,
         revocationNote="Shared passwords, and there are two of them. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password on BOTH paid accounts and re-sharing each one. Rotating only the main account leaves the second still open to whoever had it.",
@@ -664,7 +725,13 @@ CHAPTER_RESOURCES = [
         blurb="The one shared chapter calendar. Events published through Echo land here automatically.",
         annualCost=None,
         costNote="No separate bill. Included in the chapter's Google Workspace subscription.",
-        howToGetAccess="Ask the IT Sub-Committee with your chapter email address. You are given edit rights on the shared calendar under your own account.",
+        howToGetAccess=(
+            "Ask the IT Sub-Committee in Slack and tell them which email address you want the "
+            "rights on. You get edit rights on the shared calendar under your own account, so "
+            "there is no password to hand over and nothing to share."
+        ),
+        siteUrl="https://calendar.google.com",
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.YELLOW,
         revocationNote="Edit rights are granted per address, so removing one person is a single change that leaves everyone else alone.",
@@ -686,7 +753,19 @@ CHAPTER_RESOURCES = [
         blurb="The chapter tools site itself. Publishes an event to Zoom, Action Network, and Google Calendar in one step, and holds this registry.",
         annualCost=None,
         costNote="No separate bill. Runs on chapter-paid hosting shared with the other self-hosted services.",
-        howToGetAccess="Register an account on this site, then apply through Request Access for the permission you need. A brand new account starts with no permissions and an empty menu: that is expected, not a fault.",
+        howToGetAccess=(
+            "Register an account on this site, then open Request Access from the menu and apply "
+            "for the permission you need. A brand new account starts with no permissions and an "
+            "empty menu: that is expected, not a fault. Somebody who already holds the thing you "
+            "asked for reviews the request, so you do not need to find an admin."
+        ),
+        # Both URLs blank on purpose. You are already on Echo, so a "go here"
+        # link would point at the page you are reading, and its request flow is
+        # in-app rather than an external form - accessRequestUrl is a URLField
+        # and cannot hold the relative /request-access path anyway. This is the
+        # one row where the M2 in-app front door already exists.
+        siteUrl="",
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.GREEN,
         revocationNote="Per-person accounts with per-permission grants, so access can be taken back one permission at a time without touching anyone else.",
@@ -711,7 +790,15 @@ CHAPTER_RESOURCES = [
         blurb="DNS and domain registration for austindsa.org. Nothing else in the chapter's stack routes through Cloudflare's other products.",
         annualCost=None,
         costNote="Domain registration renews annually. The exact amount still needs confirming with the Treasurer.",
-        howToGetAccess="Ask the IT Sub-Committee. Domain and DNS changes go through a shared vault login, so you need a vault account first.",
+        howToGetAccess=(
+            "Ask the IT Sub-Committee in Slack, and say what you need to change. DNS and domain "
+            "changes go through a shared vault login, so you need a vault account first and "
+            "somebody has to add you to the Cloudflare collection. This one breaks the website "
+            "and chapter email if it goes wrong, so expect to be asked why rather than handed "
+            "the password."
+        ),
+        siteUrl="https://dash.cloudflare.com",
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.RED,
         revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
@@ -738,7 +825,14 @@ CHAPTER_RESOURCES = [
         blurb="Hosts the chapter wiki. No other chapter system currently runs on this account.",
         annualCost=None,
         costNote="Monthly droplet cost. The exact amount still needs confirming with the Treasurer.",
-        howToGetAccess="Ask the IT Sub-Committee. Server access goes through a shared vault login, so you need a vault account first.",
+        howToGetAccess=(
+            "Ask the IT Sub-Committee in Slack, and say what you need to do on the server. "
+            "Access goes through a shared vault login, so you need a vault account first and "
+            "somebody has to add you to the DigitalOcean collection. This account runs the wiki, "
+            "so expect to be asked why rather than handed the password."
+        ),
+        siteUrl="https://cloud.digitalocean.com",
+        accessRequestUrl="",
         stewardName="IT Sub-Committee",
         delegationTier=Tier.RED,
         revocationNote="Shared password. Taking someone out of the vault collection does not take away a password they have already copied, so real revocation means changing the password and re-sharing it with everyone else on it.",
@@ -786,6 +880,10 @@ for spec in CHAPTER_RESOURCES:
             category=spec["category"], accessModel=spec["accessModel"], payer=spec["payer"],
             blurb=spec["blurb"], annualCost=spec["annualCost"], costNote=spec["costNote"],
             howToGetAccess=spec["howToGetAccess"], stewardName=spec["stewardName"],
+            # Subscripted, not .get(), so adding a resource without deciding
+            # these two fails loudly here rather than shipping a card with no
+            # route on it - which is the defect this pair was added to fix.
+            siteUrl=spec["siteUrl"], accessRequestUrl=spec["accessRequestUrl"],
             requestable=False,  # the request button is M2 and is not gated yet
             lastReviewed=CHAPTER_TOOLS_LAST_REVIEWED, reviewedBy=CHAPTER_TOOLS_REVIEWED_BY,
             delegationTier=spec["delegationTier"], revocationNote=spec["revocationNote"],
