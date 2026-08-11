@@ -31,6 +31,12 @@ multi-line one renders as visible body text on the page.
 
   <p class="pb-2"><b>How to get access.</b> {{ row.resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee." }}</p>
 
+  {% for dependency in row.signInDependencies %}
+  <p class="pb-2"><b>You need {{ dependency.dependsOn.name }} first.</b>
+    {{ row.resource.name }} signs you in through your
+    {{ dependency.dependsOn.name }} account{% if dependency.note %} ({{ dependency.note }}){% endif %}.</p>
+  {% endfor %}
+
   <dl class="detail-grid">
     <dt>How access works</dt><dd>{{ row.resource.get_accessModel_display }}</dd>
     <dt>Who has it now</dt>

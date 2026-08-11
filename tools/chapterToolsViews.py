@@ -12,11 +12,12 @@ the room, live).
 import logging
 
 from django.contrib.auth.decorators import login_required, permission_required
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone as djangoTimezone
 
 from . import permissions
-from .models import ChapterResource, ResourceQuestion, ToolAuditReadLog
+from .models import ChapterResource, ResourceDependency, ResourceQuestion, ToolAuditReadLog
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +55,23 @@ def chapter_tools_index(request):
     if hasAudit:
         _logRestrictedRead(request.user, "index")
 
-    resources = ChapterResource.objects.prefetch_related("holders").order_by("category", "name")
+    resources = ChapterResource.objects.prefetch_related(
+        "holders",
+        Prefetch(
+            "dependencies",
+            queryset=ResourceDependency.objects.filter(
+                kind=ResourceDependency.Kind.SIGN_IN,
+            ).select_related("dependsOn"),
+            to_attr="signInDependencies",
+        ),
+    ).order_by("category", "name")
     rows = [{
         "resource": resource,
         "holderRows": [
             {"name": holder.getDisplayName(), "confirmed": holder.confirmed}
             for holder in resource.holders.all()
         ],
+        "signInDependencies": resource.signInDependencies,
     } for resource in resources]
 
     # Legend of only the access models actually on screen. Glossing every row
@@ -97,15 +108,34 @@ def chapter_tool_detail(request, pk):
         "note": holder.note,
     } for holder in resource.holders.all()]
 
+    # SIGN_IN stays open in both directions - it is the same public fact read
+    # backwards, and "3 tools sign in through Slack" is exactly what a member
+    # benefits from seeing on Slack's own page.
     context = {
         "resource": resource,
         "holderRows": holderRows,
         "hasAudit": hasAudit,
+        "signInDependencies": list(
+            resource.dependencies.filter(kind=ResourceDependency.Kind.SIGN_IN).select_related("dependsOn"),
+        ),
+        "signInDependents": list(
+            resource.dependents.filter(kind=ResourceDependency.Kind.SIGN_IN).select_related("resource"),
+        ),
     }
     if hasAudit:
         _logRestrictedRead(request.user, resource.name)
         context["credentials"] = list(resource.credentials.all())
         context["questions"] = list(resource.questions.all())
+        # RUNS_ON is restricted - built only here, alongside credentials and
+        # questions, so it follows the same build-only-if-permitted rule as
+        # every other restricted field on this page. A template-only guard is
+        # one refactor away from leaking.
+        context["runsOnDependencies"] = list(
+            resource.dependencies.filter(kind=ResourceDependency.Kind.RUNS_ON).select_related("dependsOn"),
+        )
+        context["runsOnDependents"] = list(
+            resource.dependents.filter(kind=ResourceDependency.Kind.RUNS_ON).select_related("resource"),
+        )
 
     return render(request, "tools/chapter-tools/detail.html", context)
 

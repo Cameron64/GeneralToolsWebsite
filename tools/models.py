@@ -1165,6 +1165,80 @@ class ResourceHolder(models.Model):
         return self.personName
 
 
+class ResourceDependency(models.Model):
+    """One resource needs another. Two fixed kinds, deliberately not a general
+    graph - see the plan's Scope note on why an open-ended relationship type is
+    the failure mode here.
+
+    SIGN_IN is open-layer because it changes a member's first action: the wiki
+    signs you in through Slack, so "ask in the IT channel" is the wrong first
+    step for somebody who is not in Slack yet. RUNS_ON is restricted because
+    nobody requesting access cares what the thing is hosted on, while the
+    committee needs it to answer "what breaks if we lose this?".
+
+    Cycles are not prevented, deliberately. Blocking self-reference (below)
+    covers the nonsense case. A true cycle check needs a graph walk on every
+    save for a situation that has not occurred - this is a decision, not an
+    oversight."""
+
+    class Kind:
+        SIGN_IN = 0
+        RUNS_ON = 1
+
+    KIND_CHOICES = (
+        (Kind.SIGN_IN, "Signs you in through"),
+        (Kind.RUNS_ON, "Runs on"),
+    )
+
+    # Read from both ends. Forward: "the wiki signs you in through Slack".
+    # Reverse: "3 tools sign in through Slack". The reverse list is the whole
+    # reason this is a relation rather than two more text fields on
+    # ChapterResource - it is derived, so it cannot contradict the forward one.
+    resource = models.ForeignKey(
+        ChapterResource, on_delete=models.CASCADE, related_name="dependencies",
+    )
+    dependsOn = models.ForeignKey(
+        ChapterResource, on_delete=models.CASCADE, related_name="dependents",
+    )
+    # No default, on purpose. SIGN_IN renders in the OPEN layer and RUNS_ON is
+    # restricted, so a default would make the admin's forget-the-dropdown
+    # mistake fail *open* - a committee member adding a hosting edge would
+    # publish it to every member. With no default the admin renders an empty
+    # "---------" and forces the choice.
+    kind = models.IntegerField(choices=KIND_CHOICES)
+    note = models.CharField(
+        max_length=300, blank=True,
+        help_text=(
+            "Optional qualifier, e.g. 'DNS only' or 'staging as well'. "
+            "Note that a note on a sign-in edge is shown to every member."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Resource Dependency"
+        verbose_name_plural = "Resource Dependencies"
+        ordering = ["resource__name", "kind", "dependsOn__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "dependsOn", "kind"],
+                name="unique_resource_dependency",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(resource=models.F("dependsOn")),
+                name="resource_dependency_not_self",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.resource.name} {self.get_kind_display().lower()} {self.dependsOn.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.resource_id and self.resource_id == self.dependsOn_id:
+            raise ValidationError("A resource cannot depend on itself.")
+
+
 class ResourceGrant(models.Model):
     """The grant ledger - an M2 hook only. Not read by any M1 view; exists so
     the M2 request/approve/fulfill flow (AccessRequests gaining a `resource`
