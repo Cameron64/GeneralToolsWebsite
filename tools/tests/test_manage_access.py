@@ -2,7 +2,7 @@ from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.urls import reverse
 
-from tools.models import AccessRequests
+from tools.models import EVENT_LEAD_ROLE_GROUP, AccessRequests
 
 from tools.tests.support import (
     LoginClientMixin, MailAssertionsMixin, UserFactory, fastHashing, permission,
@@ -89,3 +89,51 @@ class ManageAccessTests(MailAssertionsMixin, LoginClientMixin, TestCase):
         # the unrelated pending request is untouched
         unrelated.refresh_from_db()
         self.assertEqual(unrelated.status, AccessRequests.Status.REQUESTED)
+
+
+@fastHashing
+class ManageAccessTemplateCommentTests(LoginClientMixin, TestCase):
+    """A rendered page must never show the notes we write for maintainers.
+
+    This exists because it already happened: the Event Leads note below was
+    first written with Django's short hash-brace comment form, which is
+    SINGLE-LINE only. A multi-line one is not a comment at all - it renders as
+    literal body text, and because it sat inside the group loop it repeated once
+    per row. Every absence assertion here is paired with a presence assertion on
+    the real hint, so a markup change that stops the section rendering fails
+    loudly instead of letting the absence checks pass for the wrong reason.
+    """
+
+    def setUp(self):
+        self.admin = UserFactory.admin("admin")
+        self.member = UserFactory.make("member")
+        # The derived group by its real name - that string is what the template
+        # matches on, so the hint only renders when a group is named exactly this.
+        Group.objects.create(name=EVENT_LEAD_ROLE_GROUP)
+        Group.objects.create(name="Example Working Group")
+
+    def _render(self) -> str:
+        self.loginAs(self.admin)
+        resp = self.client.get(
+            reverse("manage-access-user", kwargs={"userId": self.member.id})
+        )
+        self.assertEqual(resp.status_code, 200)
+        return resp.content.decode()
+
+    def test_maintainer_notes_do_not_render_as_page_text(self):
+        content = self._render()
+        for leak in ("{#", "#}", "{% comment", "endcomment",
+                     "EVENT_LEAD_ROLE_GROUP", "revokeCommitteeMembership",
+                     "tools/models.py", ".groups.set()"):
+            self.assertNotIn(leak, content, f"template comment leaked: {leak}")
+
+    def test_the_derived_group_hint_does_render(self):
+        # The pairing that keeps the test above honest.
+        content = self._render()
+        self.assertIn("Derived", content)
+        self.assertIn(EVENT_LEAD_ROLE_GROUP, content)
+
+    def test_the_hint_appears_once_not_once_per_group_row(self):
+        # The repeat-per-row half of the original bug.
+        content = self._render()
+        self.assertEqual(content.count("follows committee authorization"), 1)
