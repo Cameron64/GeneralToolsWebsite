@@ -3,21 +3,35 @@ page, and the restricted questions workbench. See tools/models.py for the
 two-visibility-layer design and tools/navigation.py for how these routes are
 registered under the existing "access" domain.
 
-No in-app CRUD for ChapterResource/ResourceCredential/ResourceHolder in v1 -
-that stays admin-only (see tools/admin.py). ResourceQuestion is the one
-exception: it gets a minimal in-app add/assign/resolve workflow here, since
-that's the actual 08-20 meeting agenda item (split the open questions among
-the room, live).
+CRUD for ChapterResource and its child rows (ResourceHolder,
+ResourceCredential, ResourceDependency) lives here too, gated on
+manageChapterTools - see the CRUD block at the bottom of this module. It used
+to be admin-only; tools/admin.py remains registered as the fallback for the
+fields no in-app form exposes (ResourceGrant, ToolAuditReadLog).
+
+The one rule to keep in mind when editing that block: manageChapterTools is
+NOT the audit permission. An editor without viewChapterToolAudit gets a form
+with the restricted fields removed, no credentials, and no RUNS_ON edges -
+because a bound form renders current values, so leaving a restricted field on
+the page would leak exactly what chapter_tool_detail is careful to withhold.
+
+ResourceQuestion has its own add/assign/resolve workbench (below), which
+predates the CRUD block: it was the 08-20 meeting agenda item (split the open
+questions among the room, live).
 """
+import dataclasses
 import logging
 
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Prefetch
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone as djangoTimezone
 
-from . import permissions
-from .models import ChapterResource, ResourceDependency, ResourceQuestion, ToolAuditReadLog
+from . import forms, permissions
+from .models import (ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder,
+                     ResourceQuestion, ToolAuditReadLog)
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +156,7 @@ def chapter_tools_index(request):
         "accessModelLegend": accessModelLegend,
         "hasAudit": hasAudit,
         "hasHolders": hasHolders,
+        "canManage": request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS),
     })
 
 
@@ -166,6 +181,7 @@ def chapter_tool_detail(request, pk):
         "resource": resource,
         "hasAudit": hasAudit,
         "hasHolders": hasHolders,
+        "canManage": request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS),
         "signInDependencies": _edges(resource.dependencies, ResourceDependency.Kind.SIGN_IN, "dependsOn"),
         "signInDependents": _edges(resource.dependents, ResourceDependency.Kind.SIGN_IN, "resource"),
         "reachedThroughDependencies": _edges(
@@ -256,3 +272,302 @@ def chapter_tools_questions(request):
         "resolvedQuestions": resolvedQuestions,
         "resources": resources,
     })
+
+
+# --- CRUD (manageChapterTools) ---------------------------------------------
+#
+# Closes the v1 gap named in this module's docstring: the registry used to be
+# editable only through /admin/.
+#
+# The write surface is gated by TWO permissions, not one. manageChapterTools
+# authorizes writing; the restricted layer keeps its own gate, so the fields,
+# credentials, and RUNS_ON edges that chapter_tool_detail hides from a
+# non-audit reader are also absent from the forms it serves them. Otherwise
+# "can edit" would quietly become "can read everything", which is the exact
+# leak the two-layer design exists to prevent.
+
+
+def _canEditRestricted(user) -> bool:
+    """Whether this editor may see and write the restricted layer.
+
+    Same shape as _hasAudit, kept as its own name because the two answer
+    different questions and only one of them is about writing - a future change
+    that makes writing stricter than reading should have somewhere to land."""
+    return _hasAudit(user)
+
+
+@dataclasses.dataclass(frozen=True)
+class _ChildSpec:
+    """One child model hanging off a ChapterResource.
+
+    Three near-identical CRUD triples (holders, credentials, dependencies) are
+    driven from this table rather than written out nine times, for the same
+    reason _edges() exists above: the copies drift. The RUNS_ON layer bug this
+    module's docstring warns about came from exactly that kind of duplication.
+    """
+    label: str                  # singular, for headings and log lines
+    model: type
+    formClass: type
+    relatedName: str            # ChapterResource.<relatedName>
+    requiresAudit: bool         # the whole child kind is restricted
+
+
+CHILD_SPECS = {
+    "holders": _ChildSpec(
+        label="holder", model=ResourceHolder, formClass=forms.ResourceHolderForm,
+        relatedName="holders", requiresAudit=False,
+    ),
+    # Credentials have no open-layer half at all - the model's own docstring
+    # calls it restricted - so the kind is gated, not just some of its fields.
+    "credentials": _ChildSpec(
+        label="credential", model=ResourceCredential, formClass=forms.ResourceCredentialForm,
+        relatedName="credentials", requiresAudit=True,
+    ),
+    # NOT audit-gated as a whole: SIGN_IN and REACHED_THROUGH are open kinds and
+    # are the two a member actually needs. The restricted kind (RUNS_ON) is
+    # filtered inside the form instead - see ResourceDependencyForm.
+    "dependencies": _ChildSpec(
+        label="dependency", model=ResourceDependency, formClass=forms.ResourceDependencyForm,
+        relatedName="dependencies", requiresAudit=False,
+    ),
+}
+
+
+def _applyCleanedData(instance, form) -> None:
+    """Copy a validated form onto a model instance, field by field.
+
+    Every form Key in this module is named exactly after its model field, which
+    is what makes this safe - and is why a dropped field (a restricted one
+    removed for a non-audit editor) simply leaves the stored value untouched
+    instead of blanking it. The alternative, listing assignments per field,
+    is where a "quietly wiped the continuity note" bug would come from.
+
+    Deliberately no full_clean(): the module convention is that the form is the
+    sole validation point (see the comment block above the Chapter Tools forms
+    in forms.py), and the two model rules it drops are re-implemented there."""
+    for key, value in form.cleaned_data.items():
+        setattr(instance, key, value)
+
+
+def _buildResourceForm(request, resource, includeRestricted):
+    data = request.POST if request.method == "POST" else None
+    initial = None
+    if resource is not None and request.method != "POST":
+        initial = {key: getattr(resource, key) for key in _formKeys(forms.ChapterResourceForm)}
+    return forms.ChapterResourceForm(
+        data, resource=resource, includeRestricted=includeRestricted, initial=initial,
+    )
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_create(request):
+    """Create a resource, then land on its workbench so the child rows (holders,
+    dependencies) can be filled in immediately - a resource with no holders and
+    no access story is the half-finished state this registry keeps ending up in."""
+    includeRestricted = _canEditRestricted(request.user)
+    form = _buildResourceForm(request, None, includeRestricted)
+    if request.method == "POST" and form.is_valid():
+        resource = ChapterResource()
+        _applyCleanedData(resource, form)
+        resource.save()
+        logger.info(
+            "ChapterTools: %s created resource '%s'",
+            request.user.getUserNameString(), resource.name,
+        )
+        return redirect("chapter-tool-edit", pk=resource.pk)
+
+    return render(request, "tools/chapter-tools/edit.html", {
+        "form": form,
+        "resource": None,
+        "hasAudit": includeRestricted,
+        "isCreate": True,
+    })
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_edit(request, pk):
+    """The workbench: this resource's own fields, plus its child rows.
+
+    One page rather than one per child kind, because the alternative is a
+    round trip per row on a phone. The child rows are links out to a single
+    focused form each; only the resource's own fields post from here."""
+    resource = get_object_or_404(ChapterResource, pk=pk)
+    includeRestricted = _canEditRestricted(request.user)
+    form = _buildResourceForm(request, resource, includeRestricted)
+    if request.method == "POST" and form.is_valid():
+        _applyCleanedData(resource, form)
+        resource.save()
+        logger.info(
+            "ChapterTools: %s edited resource '%s'",
+            request.user.getUserNameString(), resource.name,
+        )
+        # POST-redirect-GET, so a refresh does not resubmit and the rebuilt form
+        # shows the STORED values rather than what was typed - a save that
+        # normalizes (a stripped name, a coerced decimal) would otherwise leave
+        # the un-normalized text on screen to be posted straight back in.
+        return redirect(f"{reverse('chapter-tool-edit', kwargs={'pk': resource.pk})}?saved=1")
+
+    # Both directions, because an edge added from the far end is invisible here
+    # otherwise and just gets added a second time.
+    dependencyQuery = resource.dependencies.select_related("dependsOn")
+    dependentQuery = resource.dependents.select_related("resource")
+    if not includeRestricted:
+        # Filtered in the QUERY rather than after loading, so a restricted edge
+        # never enters memory - the same build-only-if-permitted rule
+        # chapter_tool_detail follows for runsOnDependencies.
+        dependencyQuery = dependencyQuery.filter(kind__in=ResourceDependency.OPEN_KINDS)
+        dependentQuery = dependentQuery.filter(kind__in=ResourceDependency.OPEN_KINDS)
+
+    context = {
+        "form": form,
+        "resource": resource,
+        "hasAudit": includeRestricted,
+        "isCreate": False,
+        "saved": request.GET.get("saved") == "1",
+        "holders": list(resource.holders.all()),
+        "dependencies": list(dependencyQuery),
+        "dependents": list(dependentQuery),
+    }
+    if includeRestricted:
+        context["credentials"] = list(resource.credentials.all())
+    return render(request, "tools/chapter-tools/edit.html", context)
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_delete(request, pk):
+    """Delete a resource behind a typed-name confirmation, following
+    manage_group_delete. The GET shows what else goes with it: the delete
+    cascades to credentials, holders, and dependency edges in BOTH directions,
+    which is not obvious from a page that lists only the forward ones."""
+    resource = get_object_or_404(ChapterResource, pk=pk)
+
+    if request.method == "POST":
+        # Server-side backstop for the typed name, same as manage_group_delete -
+        # the page's JS only disables the button.
+        if request.POST.get("confirmName", "").strip() != resource.name:
+            logger.warning(
+                "ChapterTools: %s sent a delete for '%s' with a mismatched confirmation",
+                request.user.getUserNameString(), resource.name,
+            )
+            return redirect("chapter-tool-delete", pk=resource.pk)
+        name = resource.name
+        resource.delete()
+        logger.info("ChapterTools: %s deleted resource '%s'", request.user.getUserNameString(), name)
+        return redirect("chapter-tools")
+
+    counts = [
+        ("Holder rows", resource.holders.count()),
+        ("Dependency edges pointing out of it", resource.dependencies.count()),
+        ("Dependency edges pointing at it", resource.dependents.count()),
+        ("Grant-ledger rows", resource.grants.count()),
+    ]
+    if _canEditRestricted(request.user):
+        counts.insert(1, ("Credential rows", resource.credentials.count()))
+    return render(request, "tools/chapter-tools/delete.html", {
+        "resource": resource,
+        "counts": counts,
+        # Questions are SET_NULL, so they survive as chapter-wide rather than
+        # being destroyed - worth saying, since it is the one child that does not
+        # disappear and a reader would otherwise assume it does.
+        "questionCount": resource.questions.count(),
+    })
+
+
+def _resolveChild(request, pk, childKind, childId):
+    """(resource, spec, instance) for a child route, or None if the caller may
+    not be here. An unknown childKind, or a restricted kind requested by a
+    non-audit editor, 404s rather than 403s: a 403 would confirm that the
+    credentials tab exists."""
+    spec = CHILD_SPECS.get(childKind)
+    if spec is None:
+        return None
+    if spec.requiresAudit and not _canEditRestricted(request.user):
+        return None
+    resource = get_object_or_404(ChapterResource, pk=pk)
+    instance = None
+    if childId is not None:
+        # Scoped through the parent, so a childId belonging to another resource
+        # cannot be edited by guessing its number.
+        instance = get_object_or_404(getattr(resource, spec.relatedName), pk=childId)
+    return resource, spec, instance
+
+
+def _buildChildForm(request, resource, spec, instance):
+    data = request.POST if request.method == "POST" else None
+    initial = None
+    if instance is not None and request.method != "POST":
+        initial = {
+            key: getattr(instance, key)
+            for key in _formKeys(spec.formClass)
+        }
+    kwargs = {}
+    if spec.formClass is forms.ResourceDependencyForm:
+        kwargs = {
+            "resource": resource,
+            "dependency": instance,
+            "allowRestrictedKinds": _canEditRestricted(request.user),
+        }
+    return spec.formClass(data, initial=initial, **kwargs)
+
+
+def _formKeys(formClass) -> list:
+    """The field names a form's Keys class declares, in declaration order."""
+    return [value for name, value in vars(formClass.Keys).items() if not name.startswith("_")]
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_child_edit(request, pk, childKind, childId=None):
+    """Add or edit one child row (holder, credential, dependency).
+
+    One view for all three kinds, driven by CHILD_SPECS - see the note there on
+    why these are not written out nine times."""
+    resolved = _resolveChild(request, pk, childKind, childId)
+    if resolved is None:
+        raise Http404("No such child kind for this resource.")
+    resource, spec, instance = resolved
+
+    form = _buildChildForm(request, resource, spec, instance)
+    if request.method == "POST" and form.is_valid():
+        if instance is None:
+            instance = spec.model(resource=resource)
+        _applyCleanedData(instance, form)
+        instance.save()
+        logger.info(
+            "ChapterTools: %s %s a %s on '%s'",
+            request.user.getUserNameString(),
+            "added" if childId is None else "edited",
+            spec.label, resource.name,
+        )
+        return redirect("chapter-tool-edit", pk=resource.pk)
+
+    return render(request, "tools/chapter-tools/child.html", {
+        "form": form,
+        "resource": resource,
+        "childLabel": spec.label,
+        "childKind": childKind,
+        "isCreate": childId is None,
+    })
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_child_delete(request, pk, childKind, childId):
+    """Delete one child row. POST only - a GET-deletable URL gets emptied by a
+    link prefetcher or a crawler, and no typed confirmation would save it."""
+    if request.method != "POST":
+        return redirect("chapter-tool-edit", pk=pk)
+    resolved = _resolveChild(request, pk, childKind, childId)
+    if resolved is None:
+        raise Http404("No such child kind for this resource.")
+    resource, spec, instance = resolved
+    describe = str(instance)
+    instance.delete()
+    logger.info(
+        "ChapterTools: %s deleted a %s (%s) from '%s'",
+        request.user.getUserNameString(), spec.label, describe, resource.name,
+    )
+    return redirect("chapter-tool-edit", pk=resource.pk)

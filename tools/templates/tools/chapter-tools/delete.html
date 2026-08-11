@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load navigation_tags %}
+{% block breadcrumbs %}{% url 'chapter-tool-edit' pk=resource.id as parentToolUrl %}{% breadcrumbs parentLabel=resource.name parentUrl=parentToolUrl currentLabel="Delete" %}{% endblock breadcrumbs %}
+{% block page_content %}
+
+{% comment %}
+  Typed-name confirmation, following the Manage Groups delete page. The JS below
+  only disables the button; chapter_tool_delete re-checks the typed name
+  server-side, because a disabled button is not a permission check.
+
+  The counts are shown because the cascade is not guessable from the workbench:
+  it reaches dependency edges pointing AT this tool, which that page lists as
+  read-only rows owned by somebody else.
+{% endcomment %}
+
+<div class="page-card max-w-2xl">
+  <h1 class="page-title">Delete {{ resource.name }}?</h1>
+  <p class="page-subtitle">This cannot be undone.</p>
+
+  <div class="alert alert-error mb-4">
+    <b>Deleting this tool also deletes everything recorded against it.</b>
+  </div>
+
+  <dl class="detail-grid">
+    {% for label, count in counts %}
+    <dt>{{ label }}</dt><dd>{{ count }}</dd>
+    {% endfor %}
+  </dl>
+
+  {% if questionCount %}
+  <p class="form-help pb-4">
+    {{ questionCount }} open question{{ questionCount|pluralize }} will be kept and become chapter-wide
+    rather than being deleted.
+  </p>
+  {% endif %}
+
+  <form action="" method="post" id="delete-form">
+    {% csrf_token %}
+    <div class="form-row">
+      <label for="confirm-name">Type <b>{{ resource.name }}</b> to confirm</label>
+      <input type="text" name="confirmName" id="confirm-name" class="form-field w-full"
+             autocomplete="off" data-expected="{{ resource.name }}" />
+    </div>
+    <div class="flex flex-wrap items-center gap-3 pt-4">
+      <button type="submit" class="btn btn-danger" id="delete-button" disabled>Delete this chapter tool</button>
+      <a href="{% url 'chapter-tool-edit' pk=resource.id %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Convenience only - chapter_tool_delete re-checks the typed name on the
+  // server, so a user with JS off (or a hand-built POST) is still stopped.
+  const nameField = document.getElementById("confirm-name");
+  const deleteButton = document.getElementById("delete-button");
+  nameField.addEventListener("input", () => {
+    deleteButton.disabled = nameField.value.trim() !== nameField.dataset.expected;
+  });
+</script>
+{% endblock page_content %}

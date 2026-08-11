@@ -26,10 +26,25 @@ urlpatterns = [
     path("manage-groups/<int:groupId>/member-search", accessViews.manage_group_member_search, name="manage-group-member-search"),
     path("manage-groups/<int:groupId>/delete", accessViews.manage_group_delete, name="manage-group-delete"),
 
-    # --- Chapter Tools (IT access registry, M1: directory + detail + questions) ---
+    # --- Chapter Tools (IT access registry: directory + detail + questions + CRUD) ---
     path("chapter-tools", chapterToolsViews.chapter_tools_index, name="chapter-tools"),
     path("chapter-tools/questions", chapterToolsViews.chapter_tools_questions, name="chapter-tools-questions"),
+    # Literal segments before the <int:pk> catch-all. "new" and "questions" could
+    # not match <int:pk> anyway, but keeping the order explicit means adding a
+    # non-numeric route later does not depend on remembering that.
+    path("chapter-tools/new", chapterToolsViews.chapter_tool_create, name="chapter-tool-new"),
     path("chapter-tools/<int:pk>", chapterToolsViews.chapter_tool_detail, name="chapter-tool-detail"),
+    path("chapter-tools/<int:pk>/edit", chapterToolsViews.chapter_tool_edit, name="chapter-tool-edit"),
+    path("chapter-tools/<int:pk>/delete", chapterToolsViews.chapter_tool_delete, name="chapter-tool-delete"),
+    # One route triple for all three child kinds (holders / credentials /
+    # dependencies) rather than nine near-identical ones - childKind is validated
+    # against chapterToolsViews.CHILD_SPECS and 404s if it is not a known key.
+    path("chapter-tools/<int:pk>/<slug:childKind>/new",
+         chapterToolsViews.chapter_tool_child_edit, name="chapter-tool-child-new"),
+    path("chapter-tools/<int:pk>/<slug:childKind>/<int:childId>",
+         chapterToolsViews.chapter_tool_child_edit, name="chapter-tool-child-edit"),
+    path("chapter-tools/<int:pk>/<slug:childKind>/<int:childId>/delete",
+         chapterToolsViews.chapter_tool_child_delete, name="chapter-tool-child-delete"),
 
     path("new-event", eventViews.new_event, name="new-event"),
     path("new-delegated-event", eventViews.new_delegated_event, name="new-delegated-event"),

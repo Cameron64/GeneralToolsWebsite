@@ -10,3 +10,30 @@
   @apply m-0 text-dark min-w-0;
   overflow-wrap: anywhere; /* zoom/AN links and the like can't widen the card */
 }
+
+/* Stack under md, at the SAME 48rem breakpoint .data-table collapses at - the
+   two appear together on the detail pages, so splitting at different widths
+   would give one layout a table-of-cards next to a still-two-column grid.
+
+   The two-column form is `max-content 1fr`, which on a phone lets a long label
+   ("Delegation tier", "Continuity note") claim the label column and leave the
+   value a sliver. Written in plain CSS, not @apply: output.css is hand-mirrored
+   because the Tailwind CLI cannot run here - see _chapter-tools.css. */
+@media (width < 48rem) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    row-gap: 0;
+  }
+  /* Space goes ABOVE each label rather than between every row, so a label stays
+     visually attached to its own value instead of floating equidistant between
+     two of them. */
+  .detail-grid dt {
+    padding-top: calc(var(--spacing) * 3);
+  }
+  .detail-grid dt:first-child {
+    padding-top: calc(var(--spacing) * 0.5);
+  }
+  .detail-grid dd {
+    padding-bottom: calc(var(--spacing) * 1);
+  }
+}

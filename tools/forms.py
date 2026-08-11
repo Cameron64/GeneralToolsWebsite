@@ -16,7 +16,9 @@ from .timezones import DateTimeWithAcceptedTimeZone, TZ_TO_AN_TZ
 from .EventAutomation import EventAutomationDriver, ActionNetworkAutomation
 
 from . import permissions
-from .models import User, EventOwners, AccessRequests, LinkTree, LinkTreeItem, QRCode, Resolution, PostedEvents
+from .models import (User, EventOwners, AccessRequests, LinkTree, LinkTreeItem, QRCode,
+                     Resolution, PostedEvents,
+                     ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder)
 
 STATES = [
     "AL",
@@ -1071,3 +1073,451 @@ class SupersedeForm(forms.Form):
         if excludePk is not None:
             qs = qs.exclude(pk=excludePk)
         self.fields["replacement"].queryset = qs.order_by("-decidedAt")
+
+
+# --- Chapter Tools registry forms (manageChapterTools) ---------------------
+#
+# Same convention as the Link Tree forms above: plain forms.Form subclasses with
+# the widget class declared per field, and the form is the SOLE validation
+# point - the views assign cleaned values to the model instance field-by-field
+# and call .save(), never full_clean(). Two model-level rules are therefore this
+# module's responsibility and are re-implemented below:
+#
+#   ChapterResource.clean()    - a requestable resource must have a steward
+#   ResourceDependency.clean() - a resource cannot depend on itself
+#
+# plus the unique_resource_dependency constraint, which would otherwise reach the
+# user as an IntegrityError 500 rather than a field error. Deleting these checks
+# does not fall back to the model - it just removes the enforcement.
+
+
+class _UserChoiceField(forms.ModelChoiceField):
+    """Renders "First Last - email" instead of the bare username.
+
+    getUserNameString() is the convention for detail surfaces (see User in
+    models.py); a picker of stewards or holders is exactly the case where two
+    members with similar names have to be told apart, and the username alone
+    often cannot do it."""
+
+    def label_from_instance(self, user):
+        return user.getUserNameString()
+
+
+def _activeUsers():
+    return User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+
+
+class ChapterResourceForm(forms.Form):
+    """Create/edit one ChapterResource.
+
+    The restricted half of the model is gated at the FIELD level, not just in
+    the template. RESTRICTED_KEYS are removed from the form entirely unless the
+    editor holds viewChapterToolAudit, because a bound form renders current
+    values - so leaving them in place for a manageChapterTools-only editor would
+    publish delegation tiers and continuity notes to somebody the read views
+    deliberately hide them from (chapterToolsViews.chapter_tool_detail builds
+    those into context only under hasAudit).
+
+    The restricted set is exactly what detail.html renders inside its
+    {% if hasAudit %} block, and the two must stay in step: a field that becomes
+    visible there without becoming restricted here is a leak, and the reverse is
+    a field nobody can ever edit."""
+
+    class Keys:
+        NAME = "name"
+        BLURB = "blurb"
+        CATEGORY = "category"
+        ACCESS_MODEL = "accessModel"
+        PAYER = "payer"
+        ANNUAL_COST = "annualCost"
+        COST_NOTE = "costNote"
+        HOW_TO_GET_ACCESS = "howToGetAccess"
+        SITE_URL = "siteUrl"
+        ACCESS_REQUEST_URL = "accessRequestUrl"
+        STEWARD = "steward"
+        STEWARD_NAME = "stewardName"
+        REQUESTABLE = "requestable"
+        LAST_REVIEWED = "lastReviewed"
+        REVIEWED_BY = "reviewedBy"
+        DELEGATION_TIER = "delegationTier"
+        REVOCATION_NOTE = "revocationNote"
+        CONTINUITY_NOTE = "continuityNote"
+
+    RESTRICTED_KEYS = (
+        Keys.REQUESTABLE,
+        Keys.LAST_REVIEWED,
+        Keys.REVIEWED_BY,
+        Keys.DELEGATION_TIER,
+        Keys.REVOCATION_NOTE,
+        Keys.CONTINUITY_NOTE,
+    )
+
+    name = forms.CharField(
+        label="Name",
+        max_length=200,
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    blurb = forms.CharField(
+        label="What this is",
+        required=False,
+        help_text="One or two sentences, shown to every logged-in member.",
+        widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
+    )
+    category = forms.TypedChoiceField(
+        label="Category",
+        choices=ChapterResource.CATEGORY_CHOICES,
+        coerce=int,
+        empty_value=ChapterResource.Category.ORGANIZING,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    accessModel = forms.TypedChoiceField(
+        label="How access works",
+        choices=ChapterResource.ACCESS_MODEL_CHOICES,
+        coerce=int,
+        empty_value=ChapterResource.AccessModel.UNCONFIRMED,
+        help_text="A summary only - the detail lives on this resource's credential rows.",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    payer = forms.TypedChoiceField(
+        label="Who pays",
+        choices=ChapterResource.PAYER_CHOICES,
+        coerce=int,
+        empty_value=ChapterResource.Payer.UNCONFIRMED,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    annualCost = forms.DecimalField(
+        label="Annual cost",
+        required=False,
+        max_digits=8,
+        decimal_places=2,
+        min_value=0,
+        help_text="Leave blank if unknown or free.",
+        widget=forms.NumberInput(attrs={"step": "0.01", "class": "form-field w-full"}),
+    )
+    costNote = forms.CharField(
+        label="Cost note",
+        required=False,
+        max_length=300,
+        help_text="Seat caps or per-seat pricing. Shown to every member.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    howToGetAccess = forms.CharField(
+        label="How to get access",
+        required=False,
+        help_text="The one line a member came for, e.g. 'Ask in #it-committee'. Shown to everyone.",
+        widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
+    )
+    siteUrl = forms.URLField(
+        label="Where it lives",
+        required=False,
+        assume_scheme="https",
+        help_text="For somebody who already has access.",
+        widget=forms.URLInput(attrs={"class": "form-field w-full"}),
+    )
+    accessRequestUrl = forms.URLField(
+        label="Access request link",
+        required=False,
+        assume_scheme="https",
+        help_text="An external form or signup page that starts a request today.",
+        widget=forms.URLInput(attrs={"class": "form-field w-full"}),
+    )
+    steward = _UserChoiceField(
+        label="Steward (Echo account)",
+        required=False,
+        queryset=User.objects.none(),
+        help_text="The named owner of this row.",
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    stewardName = forms.CharField(
+        label="Steward (name only)",
+        required=False,
+        max_length=200,
+        help_text="Use this when the steward has no Echo account yet.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    requestable = forms.BooleanField(
+        label="Members can request this in Echo",
+        required=False,
+        help_text="Requires a steward with an Echo account - a request button needs a resolvable reviewer.",
+        widget=forms.CheckboxInput(),
+    )
+    lastReviewed = forms.DateField(
+        label="Last reviewed",
+        required=False,
+        help_text="Blank, or older than 90 days, shows a stale flag to the committee.",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+    )
+    reviewedBy = forms.CharField(
+        label="Reviewed by",
+        required=False,
+        max_length=200,
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    delegationTier = forms.TypedChoiceField(
+        label="Delegation tier",
+        choices=ChapterResource.DELEGATION_TIER_CHOICES,
+        coerce=int,
+        empty_value=ChapterResource.DelegationTier.UNCLASSIFIED,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    revocationNote = forms.CharField(
+        label="Revocation note",
+        required=False,
+        help_text="What revoking or rotating access actually costs here.",
+        widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
+    )
+    continuityNote = forms.CharField(
+        label="Continuity note",
+        required=False,
+        help_text="Break-glass guidance if the steward is unreachable.",
+        widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
+    )
+
+    def __init__(self, *args, resource=None, includeRestricted=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._resource = resource
+        self._includeRestricted = includeRestricted
+        # Assigned here rather than at class definition time: a queryset
+        # evaluated in the class body is captured once per process, so a member
+        # who registers after startup would be missing from the picker.
+        self.fields[self.Keys.STEWARD].queryset = _activeUsers()
+        if not includeRestricted:
+            for key in self.RESTRICTED_KEYS:
+                del self.fields[key]
+
+    def clean_name(self):
+        name = self.cleaned_data[self.Keys.NAME].strip()
+        existing = ChapterResource.objects.filter(name__iexact=name)
+        if self._resource is not None:
+            existing = existing.exclude(pk=self._resource.pk)
+        if existing.exists():
+            raise ValidationError("A chapter tool with that name already exists.")
+        return name
+
+    def clean(self):
+        cleaned = super().clean()
+        # ChapterResource.clean()'s rule, re-implemented because the view never
+        # calls full_clean(). Read the CURRENT value when the field was dropped
+        # for a non-audit editor: they cannot turn `requestable` on, but they
+        # can clear the steward of a row that is already requestable, which
+        # breaks the same invariant from the other direction.
+        if self._includeRestricted:
+            requestable = cleaned.get(self.Keys.REQUESTABLE, False)
+        else:
+            requestable = self._resource is not None and self._resource.requestable
+        if requestable and cleaned.get(self.Keys.STEWARD) is None:
+            message = (
+                "A resource members can request needs a steward with an Echo account - "
+                "a request button with no resolvable reviewer would be a dead letter."
+            )
+            if self._includeRestricted:
+                self.add_error(self.Keys.STEWARD, message)
+            else:
+                # The checkbox that caused this is not on their form, so a
+                # field error on `steward` alone would read as arbitrary.
+                self.add_error(self.Keys.STEWARD, message)
+                self.add_error(None, (
+                    "This resource is currently marked requestable by members, so it cannot "
+                    "be left without a steward."
+                ))
+        return cleaned
+
+
+class ResourceHolderForm(forms.Form):
+    """Add/edit one ResourceHolder row - who already has access to a resource.
+
+    personName and user are independently optional but at least one is required:
+    the model treats personName as primary (most holders have no Echo account),
+    while getDisplayName() prefers the linked user when there is one, so
+    requiring both would mean retyping a name Echo already knows."""
+
+    class Keys:
+        PERSON_NAME = "personName"
+        USER = "user"
+        HOW = "how"
+        CONFIRMED = "confirmed"
+        NOTE = "note"
+
+    personName = forms.CharField(
+        label="Name",
+        required=False,
+        max_length=200,
+        help_text="Use this for holders with no Echo account - most of them.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    user = _UserChoiceField(
+        label="Echo account",
+        required=False,
+        queryset=User.objects.none(),
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    how = forms.TypedChoiceField(
+        label="How they get in",
+        choices=ResourceHolder.HOW_CHOICES,
+        coerce=int,
+        empty_value=ResourceHolder.How.INDIVIDUAL_LOGIN,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    confirmed = forms.BooleanField(
+        label="Confirmed",
+        required=False,
+        help_text="Leave unchecked until somebody has actually checked. Unconfirmed reads as open work, not as a warning.",
+        widget=forms.CheckboxInput(),
+    )
+    note = forms.CharField(
+        label="Note",
+        required=False,
+        help_text="Shown to every holder of viewResourceHolders (organizers), not only the IT committee.",
+        widget=forms.Textarea(attrs={"rows": "2", "class": "form-field w-full"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[self.Keys.USER].queryset = _activeUsers()
+
+    def clean(self):
+        cleaned = super().clean()
+        if not cleaned.get(self.Keys.PERSON_NAME) and cleaned.get(self.Keys.USER) is None:
+            self.add_error(self.Keys.PERSON_NAME, "Give a name, or pick an Echo account.")
+        return cleaned
+
+
+class ResourceCredentialForm(forms.Form):
+    """Add/edit one ResourceCredential. RESTRICTED LAYER - every caller must
+    already have checked viewChapterToolAudit; this form has no open-layer mode
+    because a credential row has no open-layer half."""
+
+    class Keys:
+        LABEL = "label"
+        KIND = "kind"
+        VAULT_COLLECTION = "vaultCollection"
+        STATUS = "status"
+        NOTE = "note"
+
+    label = forms.CharField(
+        label="Label",
+        max_length=200,
+        help_text="What this credential is, e.g. 'shared login #2'. Not the secret itself.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    kind = forms.TypedChoiceField(
+        label="Kind",
+        choices=ResourceCredential.KIND_CHOICES,
+        coerce=int,
+        empty_value=None,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    vaultCollection = forms.CharField(
+        label="Vault collection",
+        required=False,
+        max_length=200,
+        help_text="The collection name in the password vault - the hook for a future drift sync.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+    status = forms.TypedChoiceField(
+        label="Status",
+        choices=ResourceCredential.STATUS_CHOICES,
+        coerce=int,
+        empty_value=ResourceCredential.Status.LIVE,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    note = forms.CharField(
+        label="Note",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": "2", "class": "form-field w-full"}),
+    )
+
+    def clean_kind(self):
+        # `kind` has no model default on purpose, and TypedChoiceField coerces
+        # an empty submission to empty_value=None rather than failing, so the
+        # required check has to be made here or a None reaches a NOT NULL column.
+        kind = self.cleaned_data.get(self.Keys.KIND)
+        if kind is None:
+            raise ValidationError("Pick what kind of credential this is.")
+        return kind
+
+
+class ResourceDependencyForm(forms.Form):
+    """Add/edit one dependency edge from a resource to another.
+
+    `allowRestrictedKinds` controls whether RUNS_ON is offered. The kinds are
+    split across visibility layers (ResourceDependency.OPEN_KINDS /
+    RESTRICTED_KINDS), so an editor without viewChapterToolAudit must not be
+    able to create or read a RUNS_ON edge - and, just as importantly, must not
+    be able to retarget an existing one."""
+
+    class Keys:
+        DEPENDS_ON = "dependsOn"
+        KIND = "kind"
+        NOTE = "note"
+
+    dependsOn = forms.ModelChoiceField(
+        label="Depends on",
+        queryset=ChapterResource.objects.none(),
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    kind = forms.TypedChoiceField(
+        label="Relationship",
+        choices=(),
+        coerce=int,
+        empty_value=None,
+        widget=forms.Select(attrs={"class": "form-field w-full"}),
+    )
+    note = forms.CharField(
+        label="Note",
+        required=False,
+        max_length=300,
+        help_text="Optional qualifier. A note on a sign-in edge is shown to every member.",
+        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+    )
+
+    def __init__(self, *args, resource=None, dependency=None, allowRestrictedKinds=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._resource = resource
+        self._dependency = dependency
+        allowedKinds = list(ResourceDependency.OPEN_KINDS)
+        if allowRestrictedKinds:
+            allowedKinds += list(ResourceDependency.RESTRICTED_KINDS)
+        self._allowedKinds = set(allowedKinds)
+        self.fields[self.Keys.KIND].choices = [
+            (value, label) for value, label in ResourceDependency.KIND_CHOICES
+            if value in self._allowedKinds
+        ]
+        # Excluding self here is cosmetic (clean() is the real guard) but it
+        # keeps the impossible choice off the page.
+        candidates = ChapterResource.objects.order_by("name")
+        if resource is not None:
+            candidates = candidates.exclude(pk=resource.pk)
+        self.fields[self.Keys.DEPENDS_ON].queryset = candidates
+
+    def clean_kind(self):
+        kind = self.cleaned_data.get(self.Keys.KIND)
+        if kind is None:
+            raise ValidationError("Pick how the two are related.")
+        if kind not in self._allowedKinds:
+            # Reachable only by editing the POST body: the choices above never
+            # offer a restricted kind to an editor without the audit permission.
+            raise ValidationError("That relationship is not one you can set.")
+        return kind
+
+    def clean(self):
+        cleaned = super().clean()
+        dependsOn = cleaned.get(self.Keys.DEPENDS_ON)
+        kind = cleaned.get(self.Keys.KIND)
+        if dependsOn is None or self._resource is None:
+            return cleaned
+        # ResourceDependency.clean()'s rule and the model's CheckConstraint.
+        if dependsOn.pk == self._resource.pk:
+            self.add_error(self.Keys.DEPENDS_ON, "A resource cannot depend on itself.")
+            return cleaned
+        # unique_resource_dependency. Without this the duplicate reaches the DB
+        # and surfaces as an IntegrityError 500 rather than a field error.
+        if kind is not None:
+            clash = ResourceDependency.objects.filter(
+                resource=self._resource, dependsOn=dependsOn, kind=kind,
+            )
+            if self._dependency is not None:
+                clash = clash.exclude(pk=self._dependency.pk)
+            if clash.exists():
+                self.add_error(self.Keys.DEPENDS_ON, "That relationship is already recorded.")
+        return cleaned
