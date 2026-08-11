@@ -25,17 +25,23 @@
 
     <div data-filter-section>
       <h2 class="section-title">Groups</h2>
+      {% comment %}
+        "Event Leads" is EVENT_LEAD_ROLE_GROUP (tools/models.py) - matched by
+        name because this template has no Python access to the constant. That
+        group is derived (2026-08-11 decision): membership means "authorizes at
+        least one committee", enforced by revokeCommitteeMembership on every
+        committee-leave. A grant checked here still saves (this page stays a
+        real .groups.set()), but it does NOT stick past the member's next
+        committee-leave if they still have no committee by then - so this box is
+        not a durable way to hand out the publish/approve bundle.
+
+        This must be a comment BLOCK tag, not the short hash-brace form: the
+        short form is single-line only in Django, so a multi-line one renders to
+        the page as literal text. It also lives outside the loop below, or it
+        would repeat once per group row.
+      {% endcomment %}
       <div class="choice-list">
         {% for row in groupRows %}
-        {# "Event Leads" is EVENT_LEAD_ROLE_GROUP (tools/models.py) - matched by
-           name because this template has no Python access to the constant.
-           That group is derived (2026-08-11 decision): membership means
-           "authorizes at least one committee", enforced by
-           revokeCommitteeMembership on every committee-leave. A grant checked
-           here still saves (this page stays a real .groups.set()), but it does
-           NOT stick past the member's next committee-leave if they still have
-           no committee by then - so this box is not a durable way to hand out
-           the publish/approve bundle. #}
         <label class="choice-card{% if row.group.name == "Event Leads" %} is-covered{% endif %}" data-filter-text="{{ row.group.name|lower }}">
           <input type="checkbox" name="groups" value="{{ row.group.id }}"
                  {% if row.checked %}checked{% endif %}
