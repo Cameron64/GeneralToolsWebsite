@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
-{% load chapter_tools_tags %}
+{% load explain_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% if isCreate %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Add a Chapter Tool" %}{% else %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endif %}{% endblock breadcrumbs %}
 {% block page_content %}
 
@@ -50,17 +50,20 @@
     {% if form.non_field_errors %}
     <div class="alert alert-error">{{ form.non_field_errors }}</div>
     {% endif %}
-    {% for field in form %}
-    {% include "tools/common/formRow.html" with field=field %}
-    {% endfor %}
+    {% comment %}
+      explainSlugFor hangs each definition off its own field's label, from the
+      form's EXPLAIN_SLUGS map. This replaced a block of four definitions below
+      the submit button: a definition read after the field has been filled in
+      cannot change what was typed into it.
 
-    {% comment %} Definitions for the words on this form that look ordinary and are not. Steward applies to every editor; the other three describe fields only an audit editor is shown, so offering them to somebody whose form does not contain those fields would explain a control they cannot see. {% endcomment %}
-    {% explain "steward" %}
-    {% if hasAudit %}
-    {% explain "delegation-tier" label="What all four tiers mean" %}
-    {% explain "review" label="What “reviewed” and “stale” mean" %}
-    {% explain "requestable" label="What decides whether members can request this" %}
-    {% endif %}
+      The hasAudit branch that used to guard three of them is gone and is not
+      missing - the restricted fields are absent from a non-audit editor's form
+      entirely, so their definitions cannot render either. One less place for the
+      two lists to disagree.
+    {% endcomment %}
+    {% for field in form %}
+    {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
+    {% endfor %}
 
     <div class="flex flex-wrap items-center gap-3 pt-4">
       <button type="submit" class="btn btn-primary">{% if isCreate %}Create chapter tool{% else %}Save changes{% endif %}</button>
@@ -221,4 +224,7 @@
 </div>
 
 {% endif %}
+
+{% comment %} The steward field is a member typeahead, which needs its script. Deferred, so position in the body does not matter. {% endcomment %}
+{% include "tools/common/_typeaheadAssets.html" %}
 {% endblock page_content %}

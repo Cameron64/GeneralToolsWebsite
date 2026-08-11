@@ -23,15 +23,15 @@ import dataclasses
 import logging
 
 from django.contrib.auth.decorators import login_required, permission_required
-from django.db.models import Prefetch
-from django.http import Http404
+from django.db.models import Prefetch, Q
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone as djangoTimezone
 
 from . import forms, permissions
 from .models import (ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder,
-                     ResourceQuestion, ToolAuditReadLog)
+                     ResourceQuestion, ToolAuditReadLog, User)
 
 logger = logging.getLogger(__name__)
 
@@ -394,23 +394,22 @@ class _ChildSpec:
     formClass: type
     relatedName: str            # ChapterResource.<relatedName>
     requiresAudit: bool         # the whole child kind is restricted
-    # Which chapterToolsHelp entry this kind's form needs, or "" for none. Lives
-    # on the spec rather than as a branch in child.html because everything else
-    # that differs between the three kinds is already decided here - a template
-    # branching on childKind is the start of the drift this table prevents.
-    explainSlug: str = ""
+    # No explainSlug here any more: which words a form needs defined now lives on
+    # the FORM, as its EXPLAIN_SLUGS map, so the definition renders beside the
+    # field it defines instead of once at the foot of the page. A per-kind slug
+    # on this spec could only ever place one definition, and only there.
 
 
 CHILD_SPECS = {
     "holders": _ChildSpec(
         label="holder", model=ResourceHolder, formClass=forms.ResourceHolderForm,
-        relatedName="holders", requiresAudit=False, explainSlug="access-level",
+        relatedName="holders", requiresAudit=False,
     ),
     # Credentials have no open-layer half at all - the model's own docstring
     # calls it restricted - so the kind is gated, not just some of its fields.
     "credentials": _ChildSpec(
         label="credential", model=ResourceCredential, formClass=forms.ResourceCredentialForm,
-        relatedName="credentials", requiresAudit=True, explainSlug="credential-age",
+        relatedName="credentials", requiresAudit=True,
     ),
     # NOT audit-gated as a whole: SIGN_IN and REACHED_THROUGH are open kinds and
     # are the two a member actually needs. The restricted kind (RUNS_ON) is
@@ -420,6 +419,48 @@ CHILD_SPECS = {
         relatedName="dependencies", requiresAudit=False,
     ),
 }
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_member_search(request):
+    """Typeahead backing for the steward and holder-account pickers.
+
+    Why an endpoint at all: both fields used to render a <select> holding every
+    active member, which is a control that stops working at exactly the chapter
+    size this registry is built for. See forms.UserTypeaheadWidget.
+
+    Gated on manageChapterTools, the same permission as the forms that use it -
+    and it discloses nothing those forms did not already: the <select> it
+    replaces rendered every active member's name and email into the page for the
+    same audience. The gate matters anyway, because an ungated version would be a
+    member-directory search for anybody with an account.
+
+    Two characters minimum, ten results maximum. Both are for the same reason -
+    a one-letter query matches most of the chapter, so it would be a slow way to
+    say nothing.
+    """
+    query = request.GET.get("q", "").strip()
+    if len(query) < 2:
+        return JsonResponse({"results": []})
+
+    matches = (
+        User.objects.filter(is_active=True)
+        .filter(
+            Q(username__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(email__icontains=query)
+        )
+        .order_by("first_name", "last_name", "username")[:10]
+    )
+    # `label` is getUserNameString() - "First Last - email" - because that is
+    # what the <select> showed, and it is the form that tells two members with
+    # the same first name apart. The client renders it verbatim.
+    return JsonResponse({"results": [
+        {"id": member.id, "label": member.getUserNameString(), "username": member.username}
+        for member in matches
+    ]})
 
 
 def _applyCleanedData(instance, form) -> None:
@@ -638,7 +679,6 @@ def chapter_tool_child_edit(request, pk, childKind, childId=None):
         "resource": resource,
         "childLabel": spec.label,
         "childKind": childKind,
-        "explainSlug": spec.explainSlug,
         "isCreate": childId is None,
     })
 

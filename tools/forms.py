@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
 
@@ -1107,6 +1108,61 @@ def _activeUsers():
     return User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 
+class UserTypeaheadWidget(forms.Widget):
+    """Pick one member by typing, instead of scrolling a <select> of everybody.
+
+    Why not a <select>: it renders one <option> per active member, so the page
+    weight and the time to find a name both grow with the chapter. Past a few
+    hundred members that control is unusable on a phone and merely bad on a
+    desktop, and this registry is meant to outlive the chapter being small.
+
+    The rendered control has TWO states and never both at once - a search box
+    when nobody is chosen, and a chip naming the person when somebody is. That
+    is a correctness choice, not a tidiness one: a visible text box sitting next
+    to a hidden id can disagree with it (type a second name, never pick it, and
+    submit), and nothing on screen would show which of the two was about to be
+    saved. Clearing the chip is what puts the search box back.
+
+    Only the hidden input carries `name`, so the search box is never submitted
+    and value_from_datadict needs no override. The submitted value is a pk, which
+    is what ModelChoiceField.to_python already expects - so this stays a plain
+    widget swap and every existing validation rule keeps working.
+    """
+
+    # Not `is_hidden`: the field still has a visible control and a label.
+    template_name = "tools/common/_userTypeahead.html"
+
+    def __init__(self, searchUrlName: str, placeholder: str = "", attrs=None):
+        super().__init__(attrs)
+        # The URL is resolved at render time, not here - reversing at import time
+        # would run before the URLConf is loaded.
+        self._searchUrlName = searchUrlName
+        self._placeholder = placeholder or "Type a name, username, or email"
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        # `value` is a pk (or "" on an unbound form). The chip needs a name to
+        # show, and only the widget renders the chip, so the lookup happens here.
+        # One query per render of one field, on a page that already runs several.
+        # is_active, matching _activeUsers() - which is the queryset the FIELD
+        # will validate the submission against. Looking somebody up here that the
+        # field would then reject is how the chip ends up naming a person the form
+        # refuses to save, with nothing on the page saying why.
+        chosen = None
+        if value not in (None, ""):
+            chosen = User.objects.filter(pk=value, is_active=True).first()
+        context["widget"].update({
+            "searchUrl": reverse(self._searchUrlName),
+            "placeholder": self._placeholder,
+            "chosenLabel": chosen.getUserNameString() if chosen is not None else "",
+            # A pk that no longer resolves (a member deactivated between two
+            # page loads) must not render as "nobody chosen" - the field would
+            # then silently clear on save. Say so instead.
+            "danglingValue": value if (value not in (None, "") and chosen is None) else "",
+        })
+        return context
+
+
 class ChapterResourceForm(forms.Form):
     """Create/edit one ChapterResource.
 
@@ -1151,6 +1207,17 @@ class ChapterResourceForm(forms.Form):
         Keys.REVOCATION_NOTE,
         Keys.CONTINUITY_NOTE,
     )
+
+    # Field -> chapterToolsHelp slug, read by the explainSlugFor filter so the
+    # definition renders beside that field's own label. Only the words that look
+    # ordinary and are not: `annualCost` needs no gloss, `delegationTier` does.
+    # A field whose slug is missing renders exactly as it did before.
+    EXPLAIN_SLUGS = {
+        Keys.STEWARD: "steward",
+        Keys.REQUESTABLE: "requestable",
+        Keys.LAST_REVIEWED: "review",
+        Keys.DELEGATION_TIER: "delegation-tier",
+    }
 
     name = forms.CharField(
         label="Name",
@@ -1233,7 +1300,10 @@ class ChapterResourceForm(forms.Form):
             "they review requests for it. Not necessarily the only person with "
             "access, and not necessarily on the committee."
         ),
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
+        widget=UserTypeaheadWidget(
+            searchUrlName="chapter-tool-member-search",
+            placeholder="Type a name, username, or email",
+        ),
     )
     stewardName = forms.CharField(
         label="Steward (name only)",
@@ -1248,7 +1318,7 @@ class ChapterResourceForm(forms.Form):
         help_text=(
             "Needs all three: a steward with an Echo account, a Green or Yellow "
             "delegation tier, and no power over other members. Open the "
-            "definition below before ticking this."
+            "definition next to this label before ticking it."
         ),
         widget=forms.CheckboxInput(),
     )
@@ -1274,7 +1344,7 @@ class ChapterResourceForm(forms.Form):
         choices=ChapterResource.DELEGATION_TIER_CHOICES,
         coerce=int,
         empty_value=ChapterResource.DelegationTier.UNCLASSIFIED,
-        help_text="How freely this may be handed to somebody else. See the ladder below.",
+        help_text="How freely this may be handed to somebody else. All four tiers are in the definition next to this label.",
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
     revocationNote = forms.CharField(
@@ -1385,6 +1455,8 @@ class ResourceHolderForm(forms.Form):
         CONFIRMED = "confirmed"
         NOTE = "note"
 
+    EXPLAIN_SLUGS = {Keys.ACCESS_LEVEL: "access-level"}
+
     personName = forms.CharField(
         label="Name",
         required=False,
@@ -1396,7 +1468,11 @@ class ResourceHolderForm(forms.Form):
         label="Echo account",
         required=False,
         queryset=User.objects.none(),
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
+        help_text="Only if this holder has one. Most do not - use the name field above.",
+        widget=UserTypeaheadWidget(
+            searchUrlName="chapter-tool-member-search",
+            placeholder="Type a name, username, or email",
+        ),
     )
     how = forms.TypedChoiceField(
         label="How they get in",
@@ -1412,7 +1488,7 @@ class ResourceHolderForm(forms.Form):
         empty_value=ResourceHolder.AccessLevel.UNCONFIRMED,
         help_text=(
             "How much power they hold, which is a different question from which "
-            "door they come through. See the ladder below."
+            "door they come through. All five levels are in the definition next to this label."
         ),
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
@@ -1457,6 +1533,10 @@ class ResourceCredentialForm(forms.Form):
         ADDED_AT = "addedAt"
         LAST_ROTATED = "lastRotated"
         NOTE = "note"
+
+    # On lastRotated rather than on both dates: one entry covers both fields, and
+    # the same panel twice on one short form reads as two different definitions.
+    EXPLAIN_SLUGS = {Keys.LAST_ROTATED: "credential-age"}
 
     label = forms.CharField(
         label="Label",
