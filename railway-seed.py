@@ -109,7 +109,7 @@ GROUPS = {
     # split can be shown side by side. Demoing it as "cam" would prove nothing:
     # a superuser sees every restricted section on every page regardless.
     "IT Sub-Committee":      (["jordan.castillo"],
-                              ["viewChapterToolAudit"]),
+                              ["viewChapterToolAudit", "manageChapterTools"]),
     # The middle tier. Holder rows without the audit block - the role that can
     # answer "who has this account" without being shown revocation notes,
     # staleness, or the credential inventory. Named distinctly from "Event
@@ -122,6 +122,17 @@ GROUPS = {
     # plain-member persona the front-door walkthrough depends on.
     "Chapter Organizers":    (["devon.brooks"],
                               ["viewResourceHolders"]),
+    # The point of this group is the WRITE boundary, which is invisible with only
+    # one editor persona. devon.brooks can edit chapter tools but does NOT hold
+    # viewChapterToolAudit, so the edit page serves them the open layer only: no
+    # delegation tier, no revocation or continuity note, no credential rows, no
+    # RUNS_ON edges - and saving leaves all of that untouched.
+    #
+    # jordan.castillo (IT Sub-Committee, above) holds audit AND manage and so
+    # gets the full form. Comparing the two accounts on the same resource is the
+    # demo: "allowed to edit" is deliberately not "allowed to read everything".
+    "Chapter Tool Editors":  (["devon.brooks"],
+                              ["manageChapterTools"]),
 }
 # Fail loudly if any codename above does not exist as a Permission row. The
 # filter below would otherwise attach nothing and say nothing, and because
