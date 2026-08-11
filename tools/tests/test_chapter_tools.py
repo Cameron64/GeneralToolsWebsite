@@ -24,6 +24,7 @@ from tools.models import (
     ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder, ResourceQuestion,
     ToolAuditReadLog,
 )
+from tools.forms import ResourceDependencyForm
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 
 
@@ -1005,6 +1006,22 @@ def _restrictedPayload(**overrides):
     return payload
 
 
+class ChapterToolsFormsUnderTest:
+    """Builds a ResourceDependencyForm whose dependsOn queryset has NOT had the
+    resource excluded, which is the only way to reach the self-reference check in
+    clean() - the real form excludes it in __init__, so that branch is otherwise
+    unreachable. This exists to prove the backstop works, not to be used by any
+    production code path."""
+
+    @staticmethod
+    def dependencyForm(data, resource):
+        form = ResourceDependencyForm(data, resource=resource, allowRestrictedKinds=True)
+        form.fields[ResourceDependencyForm.Keys.DEPENDS_ON].queryset = (
+            ChapterResource.objects.all()
+        )
+        return form
+
+
 class ChapterToolsCrudGateTests(LoginClientMixin, TestCase):
     """Who may reach the write surface at all."""
 
@@ -1214,8 +1231,15 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         self.assertEqual(resource.steward_id, steward.pk)
 
     def test_a_self_dependency_is_a_field_error(self):
-        """ResourceDependency.clean() plus its CheckConstraint - neither runs on
-        this path, so the form is the only guard."""
+        """ResourceDependency.clean() and its CheckConstraint both sit on paths
+        this view does not take (no full_clean(), and SQLite/Postgres would raise
+        an IntegrityError rather than a field error), so the form is the guard.
+
+        Which of the form's TWO guards fires is pinned deliberately: the
+        dependsOn queryset excludes self, so ModelChoiceField rejects the id
+        before clean() runs. clean()'s identical check is the backstop for
+        whoever removes that exclusion. Asserting the queryset one fires keeps
+        the comments in ResourceDependencyForm honest."""
         resource = _makeResource()
         response = self.client.post(
             reverse("chapter-tool-child-new",
@@ -1224,6 +1248,19 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(ResourceDependency.objects.count(), 0)
+        self.assertContains(response, "valid choice")
+
+    def test_the_self_dependency_backstop_in_clean_also_works(self):
+        """The other guard, exercised directly - a unit test is the only way to
+        reach it while the queryset exclusion is in place."""
+        resource = _makeResource()
+        form = ChapterToolsFormsUnderTest.dependencyForm(
+            {"dependsOn": str(resource.pk), "kind": str(ResourceDependency.Kind.SIGN_IN),
+             "note": ""},
+            resource=resource,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("cannot depend on itself", str(form.errors))
 
     def test_a_duplicate_dependency_is_a_field_error_not_an_integrity_error(self):
         resource = _makeResource()

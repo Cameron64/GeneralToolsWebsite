@@ -1333,8 +1333,12 @@ class ResourceDependencyForm(forms.Form):
             (value, label) for value, label in ResourceDependency.KIND_CHOICES
             if value in self._allowedKinds
         ]
-        # Excluding self here is cosmetic (clean() is the real guard) but it
-        # keeps the impossible choice off the page.
+        # This exclusion is the guard that actually fires for a self-reference,
+        # including a hand-edited POST body: the id is not in the queryset, so
+        # ModelChoiceField rejects it before clean() ever sees it (verified
+        # against the deployed box - the error reads "Select a valid choice",
+        # not the message in clean() below). clean()'s check is the backstop for
+        # whoever removes this line; keep both.
         candidates = ChapterResource.objects.order_by("name")
         if resource is not None:
             candidates = candidates.exclude(pk=resource.pk)
@@ -1357,6 +1361,9 @@ class ResourceDependencyForm(forms.Form):
         if dependsOn is None or self._resource is None:
             return cleaned
         # ResourceDependency.clean()'s rule and the model's CheckConstraint.
+        # Normally unreachable, because the queryset above already excludes self -
+        # this is the backstop if that exclusion is ever dropped, not the primary
+        # guard. Do not "simplify" by deleting one of the two.
         if dependsOn.pk == self._resource.pk:
             self.add_error(self.Keys.DEPENDS_ON, "A resource cannot depend on itself.")
             return cleaned
