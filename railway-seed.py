@@ -110,7 +110,44 @@ GROUPS = {
     # a superuser sees every restricted section on every page regardless.
     "IT Sub-Committee":      (["jordan.castillo"],
                               ["viewChapterToolAudit"]),
+    # The middle tier. Holder rows without the audit block - the role that can
+    # answer "who has this account" without being shown revocation notes,
+    # staleness, or the credential inventory. Named distinctly from "Event
+    # Organizers" above because the two grant unrelated things and both appear
+    # by name on the My Access page.
+    #
+    # Without this account the demo shows only two of the three tiers, and the
+    # gated holder section reads as a feature that lost a page rather than as a
+    # role boundary. devon.brooks (not alex.rivera) carries it so alex stays the
+    # plain-member persona the front-door walkthrough depends on.
+    "Chapter Organizers":    (["devon.brooks"],
+                              ["viewResourceHolders"]),
 }
+# Fail loudly if any codename above does not exist as a Permission row. The
+# filter below would otherwise attach nothing and say nothing, and because
+# permissions are only set `if wasCreated`, the group would stay empty forever -
+# no later run repairs it. That is exactly how you get a demo account that
+# logs in fine and silently sees the wrong tier.
+#
+# This is also the ordering trap: permissions are created by Django's
+# post_migrate handler, so a codename added on a feature branch does not exist
+# here until that branch is merged AND migrate has run. The entrypoint runs
+# migrate before this script, so the only way to trip this is a half-merge.
+_wanted = {code for _, codes in GROUPS.values() for code in codes}
+_found = set(Permission.objects.filter(
+    content_type__app_label="tools",
+    content_type__model="permissionrights",
+    codename__in=_wanted,
+).values_list("codename", flat=True))
+_missing = sorted(_wanted - _found)
+if _missing:
+    raise SystemExit(
+        f"railway-seed.py refused to run: no Permission row for {_missing}.\n"
+        "Either the branch adding it is not merged here, or migrate has not run "
+        "yet. Seeding now would create groups with no permissions and never "
+        "repair them."
+    )
+
 for groupName, (names, codenames) in GROUPS.items():
     group, wasCreated = Group.objects.get_or_create(name=groupName)
     if wasCreated:
