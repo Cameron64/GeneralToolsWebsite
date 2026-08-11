@@ -1049,6 +1049,48 @@ class ChapterResource(models.Model):
         (DelegationTier.UNCLASSIFIED, "Unclassified"),
     )
 
+    # A colour name is not a definition. "Red" told a reader nothing about what
+    # they may or may not do, so the ladder is spelled out here in the same
+    # shape as ACCESS_MODEL_EXPLANATIONS above: one dict, read by every surface
+    # that shows a tier, so the wording cannot drift between the detail page,
+    # the edit form and the legend.
+    #
+    # The ladder answers exactly one question - how freely may this be handed
+    # to somebody else - and the tiers are written as permissions to act, not as
+    # severity adjectives.
+    DELEGATION_TIER_EXPLANATIONS = {
+        DelegationTier.GREEN: (
+            "Hand this out freely. Anybody who needs it for chapter work can be "
+            "given it without asking the committee first. If it is misused or "
+            "lost, undoing that is quick and affects only the one person."
+        ),
+        DelegationTier.YELLOW: (
+            "Hand this out deliberately, to a named person, for a stated reason. "
+            "Nothing here is irreversible, but taking it back costs real work - "
+            "changing a shared password, or undoing what somebody posted - and "
+            "that work lands on other people."
+        ),
+        DelegationTier.RED: (
+            "Do not hand this out on your own. Holding it means you can lock "
+            "other people out, spend chapter money, or read member data. Some of "
+            "what can go wrong here cannot be undone, so the committee decides "
+            "together and the decision gets written down."
+        ),
+        DelegationTier.UNCLASSIFIED: (
+            "Nobody has decided yet how freely this may be handed out. Treat it "
+            "as Red until somebody does. An unclassified tool is an open job, "
+            "not a tool that is safe by default."
+        ),
+    }
+
+    # Which tiers may carry a self-serve request button. Green and Yellow only:
+    # the Red wording above is "do not hand this out on your own", and a button
+    # a member can press by themselves is precisely that. Unclassified is
+    # excluded because it is defined as "treat as Red" - which also makes this a
+    # forcing function, since opening a tool to requests now requires somebody
+    # to classify it first.
+    REQUESTABLE_TIERS = (DelegationTier.GREEN, DelegationTier.YELLOW)
+
     # A row with no lastReviewed, or one older than this, shows a stale flag -
     # restricted-layer detail (see Visibility in the plan), not open-layer.
     STALE_AFTER_DAYS = 90
@@ -1070,7 +1112,8 @@ class ChapterResource(models.Model):
     costNote = models.CharField(
         max_length=300, blank=True,
         help_text="Seat caps, per-seat pricing, or other budget notes. "
-                   "Shown to every logged-in member.",
+                   "Shown to every logged-in member. "
+                   "Example: 'Five seats on the paid plan; a sixth is $8/month more.'",
     )
 
     howToGetAccess = models.TextField(
@@ -1098,7 +1141,13 @@ class ChapterResource(models.Model):
 
     steward = models.ForeignKey(
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="stewardedResources",
-        help_text="The named owner of this row, and reviewer for its access requests (M2).",
+        help_text=(
+            "The one person answerable for this tool: they keep this row true, they "
+            "are who to ask when access here is unclear, and they review requests "
+            "for it. A steward is not the only person with access and does not have "
+            "to be on the committee - the point is that exactly one name is on the "
+            "hook, so the question never falls to 'somebody'."
+        ),
     )
     stewardName = models.CharField(
         max_length=200, blank=True,
@@ -1107,19 +1156,51 @@ class ChapterResource(models.Model):
 
     requestable = models.BooleanField(
         default=False,
-        help_text="Whether members can request access to this resource (M2 front door). Requires a steward.",
+        help_text=(
+            "Whether members can ask for this through Echo itself (M2 front door). "
+            "Tick it only when all three are true: there is a steward to review the "
+            "request, the delegation tier is Green or Yellow, and holding it gives "
+            "somebody no power over other members. Leave it off when access is a "
+            "shared password that is expensive to change, when the holder could "
+            "spend money or read member data, or when nobody is ever given this "
+            "directly - a calendar that Echo writes to is reached through Echo, so "
+            "the thing to request is Echo."
+        ),
     )
 
-    lastReviewed = models.DateField(null=True, blank=True)
-    reviewedBy = models.CharField(max_length=200, blank=True)
+    lastReviewed = models.DateField(
+        null=True, blank=True,
+        help_text=(
+            "The day somebody last checked this row against reality - that the "
+            "holder list is still right, that the people on it can still get in, "
+            "and that the cost and steward are current. It records a check, not an "
+            f"edit. Rows go stale after {STALE_AFTER_DAYS} days."
+        ),
+    )
+    reviewedBy = models.CharField(
+        max_length=200, blank=True,
+        help_text="Who did that check, so the claim has a name attached to it.",
+    )
 
     # --- restricted layer (viewChapterToolAudit) ---
     delegationTier = models.IntegerField(choices=DELEGATION_TIER_CHOICES, default=DelegationTier.UNCLASSIFIED)
     revocationNote = models.TextField(
-        blank=True, help_text="What revocation or rotation actually costs for this resource.",
+        blank=True,
+        help_text=(
+            "What taking access away actually costs here, in the order somebody "
+            "would have to do it. Write the cost, not the intention. "
+            "Example: 'One shared password, so removing one person means changing "
+            "it and telling the other four. Budget 30 minutes.'"
+        ),
     )
     continuityNote = models.TextField(
-        blank=True, help_text="Break-glass / continuity guidance if the steward is unreachable.",
+        blank=True,
+        help_text=(
+            "How somebody gets in if the steward is unreachable - the break-glass "
+            "path. Name a second person or a second route, not a hope. "
+            "Example: 'Recovery codes are in the vault collection; two other "
+            "committee members can read it.'"
+        ),
     )
 
     class Meta:
@@ -1136,6 +1217,17 @@ class ChapterResource(models.Model):
             raise ValidationError(
                 "A requestable resource must have a steward - a request button with no "
                 "resolvable reviewer would be a dead letter."
+            )
+        # The tier ladder's own wording for Red is "do not hand this out on your
+        # own", and a self-serve request button is exactly that. Unclassified is
+        # blocked for the same reason, because it is defined as "treat as Red" -
+        # so opening a tool to requests forces somebody to classify it first.
+        if self.requestable and self.delegationTier not in self.REQUESTABLE_TIERS:
+            raise ValidationError(
+                f"A {self.get_delegationTier_display()}-tier resource cannot be opened "
+                "for member requests. Classify it Green or Yellow first if that is "
+                "genuinely what it is, or leave requests closed and keep handing this "
+                "out deliberately."
             )
 
     def getStewardName(self) -> str:
@@ -1164,6 +1256,26 @@ class ChapterResource(models.Model):
 
     def getAccessModelExplanation(self) -> str:
         return self.ACCESS_MODEL_EXPLANATIONS.get(self.accessModel, "")
+
+    def getDelegationTierExplanation(self) -> str:
+        return self.DELEGATION_TIER_EXPLANATIONS.get(self.delegationTier, "")
+
+    @classmethod
+    def getDelegationTierLegend(cls) -> list:
+        """The whole ladder, in order, for the help popover. Unlike the access-
+        model legend on the directory (which lists only the models actually on
+        screen) this one is always complete: a reader is being told what the
+        tiers *mean*, and a ladder with a rung missing does not explain the rung
+        above it."""
+        return [
+            {
+                "value": value,
+                "label": label,
+                "explanation": cls.DELEGATION_TIER_EXPLANATIONS.get(value, ""),
+                "requestable": value in cls.REQUESTABLE_TIERS,
+            }
+            for value, label in cls.DELEGATION_TIER_CHOICES
+        ]
 
     def isStale(self) -> bool:
         if self.lastReviewed is None:
@@ -1217,6 +1329,14 @@ class ResourceCredential(models.Model):
         (Status.RETIRED, "Retired"),
     )
 
+    # A shared secret that has never been changed is the registry's most common
+    # real risk, and it was previously unrepresentable: there was no date on this
+    # model at all, so "how old is this password" had no answer. One year is the
+    # threshold rather than the resource-level 90 days because rotating a secret
+    # is disruptive work, not a read-through - flagging it quarterly would train
+    # people to ignore the flag.
+    ROTATE_AFTER_DAYS = 365
+
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="credentials")
     label = models.CharField(max_length=200, help_text="e.g. 'Example Org shared login #2'.")
     kind = models.IntegerField(choices=KIND_CHOICES)
@@ -1225,7 +1345,33 @@ class ResourceCredential(models.Model):
         help_text="Vault collection name - the hook for a future read-only drift sync.",
     )
     status = models.IntegerField(choices=STATUS_CHOICES, default=Status.LIVE)
-    note = models.TextField(blank=True)
+    note = models.TextField(
+        blank=True,
+        help_text=(
+            "Anything a person needs to know before touching this credential. "
+            "Example: 'Rotating this signs everybody out, so do it after a "
+            "meeting, not during one.'"
+        ),
+    )
+
+    # Deliberately nullable with no auto_now_add. auto_now_add would backfill
+    # every existing row with the migration timestamp, i.e. invent an age for a
+    # credential nobody has dated - and this registry's whole discipline is that
+    # an unconfirmed fact renders as open work rather than as a confident answer.
+    # A null here reads as "not recorded", which is true.
+    addedAt = models.DateField(
+        null=True, blank=True, default=None,
+        help_text="When this credential first existed, as far as anybody knows. "
+                   "Leave it empty rather than guessing - empty reads as 'not recorded'.",
+    )
+    lastRotated = models.DateField(
+        null=True, blank=True, default=None,
+        help_text=(
+            "The day this secret was last actually changed. Not the day somebody "
+            "looked at it, and not the day a holder was added or removed - only a "
+            "new secret counts."
+        ),
+    )
 
     class Meta:
         verbose_name = "Resource Credential"
@@ -1233,6 +1379,39 @@ class ResourceCredential(models.Model):
 
     def __str__(self) -> str:
         return f"{self.resource.name}: {self.label}"
+
+    def getAgeDays(self) -> int | None:
+        """Days since this secret was last changed, falling back to when it was
+        added. None when neither date is recorded - which is a distinct answer
+        from zero and must not be rendered as one."""
+        reference = self.lastRotated or self.addedAt
+        if reference is None:
+            return None
+        return (djangoTimezone.now().date() - reference).days
+
+    def isRotationOverdue(self) -> bool:
+        """True only when there is a date to judge. An undated credential is NOT
+        reported as overdue: it is reported as undated (see getRotationStatus),
+        because "we do not know" and "we know it is old" prompt different work
+        and collapsing them loses the distinction the registry exists to keep."""
+        if self.status == self.Status.RETIRED:
+            return False
+        age = self.getAgeDays()
+        return age is not None and age > self.ROTATE_AFTER_DAYS
+
+    def getRotationStatus(self) -> str:
+        """One of "retired", "unknown", "overdue", "never-rotated" or "ok" - the
+        template branches on this rather than re-deriving the combination, so the
+        four states stay four states on every surface that shows them."""
+        if self.status == self.Status.RETIRED:
+            return "retired"
+        if self.getAgeDays() is None:
+            return "unknown"
+        if self.isRotationOverdue():
+            return "overdue"
+        if self.lastRotated is None:
+            return "never-rotated"
+        return "ok"
 
 
 class ResourceHolder(models.Model):
@@ -1252,6 +1431,65 @@ class ResourceHolder(models.Model):
         (How.SERVICE_ACCOUNT, "Through the service account"),
     )
 
+    # `how` and `accessLevel` answer two different questions and neither implies
+    # the other: `how` is which door somebody comes through, this is how much
+    # they can do once inside. Most tools have both an ordinary tier and an
+    # administrative one - a workspace has members and it has owners - and the
+    # registry could not previously tell them apart, so "who has access to Slack"
+    # and "who could delete the Slack workspace" were the same list.
+    #
+    # These names are deliberately generic rather than any one vendor's, because
+    # the ladder has to fit every row in the register. The mapping is by meaning:
+    # a workspace's "primary owner" is PRIMARY_OWNER, its "owner" is OWNER, and
+    # anybody who can change other people's access is ADMIN.
+    class AccessLevel:
+        ORDINARY = 0
+        ADMIN = 1
+        OWNER = 2
+        PRIMARY_OWNER = 3
+        UNCONFIRMED = 4
+
+    ACCESS_LEVEL_CHOICES = (
+        (AccessLevel.ORDINARY, "Ordinary access"),
+        (AccessLevel.ADMIN, "Admin"),
+        (AccessLevel.OWNER, "Owner"),
+        (AccessLevel.PRIMARY_OWNER, "Primary owner"),
+        (AccessLevel.UNCONFIRMED, "Not confirmed yet"),
+    )
+
+    ACCESS_LEVEL_EXPLANATIONS = {
+        AccessLevel.ORDINARY: (
+            "They can use this the way any member does. They cannot change what "
+            "anybody else is allowed to do."
+        ),
+        AccessLevel.ADMIN: (
+            "They can change settings and change other people's access, including "
+            "removing somebody. They cannot usually delete the whole thing or move "
+            "the billing."
+        ),
+        AccessLevel.OWNER: (
+            "They hold the account at the top level: billing, deletion, and who "
+            "the other owners are. Losing every owner is how a chapter loses a "
+            "tool permanently."
+        ),
+        AccessLevel.PRIMARY_OWNER: (
+            "The single account the service treats as the real owner. It usually "
+            "cannot be removed by anybody else, and transferring it is a "
+            "deliberate act. If this is one person and nobody else can reach it, "
+            "that is the chapter's single point of failure for this tool."
+        ),
+        AccessLevel.UNCONFIRMED: (
+            "Nobody has checked how much this person can actually do here. Treat "
+            "it as open work, not as ordinary access."
+        ),
+    }
+
+    # The levels that make somebody's departure or absence a chapter problem, and
+    # so the ones the privileged-access page reports on. UNCONFIRMED is not in
+    # this list because it is not a claim that somebody IS privileged - it is the
+    # absence of a claim either way, and the page reports it separately.
+    PRIVILEGED_LEVELS = (AccessLevel.ADMIN, AccessLevel.OWNER, AccessLevel.PRIMARY_OWNER)
+
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="holders")
     personName = models.CharField(
         max_length=200, help_text="Primary - most holders have no Echo account.",
@@ -1260,13 +1498,25 @@ class ResourceHolder(models.Model):
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceHolderRows",
     )
     how = models.IntegerField(choices=HOW_CHOICES, default=How.INDIVIDUAL_LOGIN)
+    # Defaults to UNCONFIRMED, not ORDINARY, for the same reason `confirmed`
+    # defaults to False: a guess recorded as a fact is worse than a recorded gap.
+    # Every row that existed before this field was added is genuinely unconfirmed,
+    # and the migration says so instead of quietly calling them all ordinary.
+    accessLevel = models.IntegerField(
+        choices=ACCESS_LEVEL_CHOICES, default=AccessLevel.UNCONFIRMED,
+        help_text="How much this person can do here, not which door they come through.",
+    )
     confirmed = models.BooleanField(
         default=False, help_text="Unconfirmed holders render as open work, not silence.",
     )
     note = models.TextField(
         blank=True,
-        help_text="Note that this is shown to every holder of the viewResourceHolders "
-                   "permission (organizers), not just the IT committee.",
+        help_text=(
+            "Shown to every holder of the viewResourceHolders permission "
+            "(organizers), not just the IT committee - so write it for that "
+            "audience. Example: 'Added for the newsletter, only needs it until "
+            "the drive ends.'"
+        ),
     )
 
     class Meta:
@@ -1280,6 +1530,26 @@ class ResourceHolder(models.Model):
         if self.user is not None:
             return self.user.getDisplayName()
         return self.personName
+
+    def isPrivileged(self) -> bool:
+        return self.accessLevel in self.PRIVILEGED_LEVELS
+
+    def getAccessLevelExplanation(self) -> str:
+        return self.ACCESS_LEVEL_EXPLANATIONS.get(self.accessLevel, "")
+
+    @classmethod
+    def getAccessLevelLegend(cls) -> list:
+        """The full ladder for the help popover - complete for the same reason
+        as getDelegationTierLegend: the rungs define each other."""
+        return [
+            {
+                "value": value,
+                "label": label,
+                "explanation": cls.ACCESS_LEVEL_EXPLANATIONS.get(value, ""),
+                "privileged": value in cls.PRIVILEGED_LEVELS,
+            }
+            for value, label in cls.ACCESS_LEVEL_CHOICES
+        ]
 
 
 class ResourceDependency(models.Model):

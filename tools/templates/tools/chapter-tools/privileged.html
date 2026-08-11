@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load navigation_tags %}
+{% load chapter_tools_tags %}
+{% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Privileged Access" %}{% endblock breadcrumbs %}
+{% block page_content %}
+<div class="page-card max-w-3xl">
+  <h1 class="page-title">Privileged Access</h1>
+  <p class="page-subtitle">
+    Who can change other people's access, and where the chapter has nobody recorded who can.
+  </p>
+
+  {% comment %} Gaps are sorted to the top by the view. The point of this page is what is missing, and a register sorted by name buries the empty rows among the healthy ones. {% endcomment %}
+  <div class="alert alert-info mb-4 pt-2">
+    <b>{{ needsAttention }} tool{{ needsAttention|pluralize }} with no recorded owner.</b>
+    {{ singleOwnerCount }} more depend{{ singleOwnerCount|pluralize:"s," }} on a single person.
+    An unanswered row here is a question to go and ask, not proof that nobody has access.
+  </div>
+
+  {% explain "access-level" label="What these access levels mean" %}
+
+  <div class="record-list">
+    {% for row in rows %}
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></span>
+        <span>
+          {% if row.finding == "no-holders" %}<span class="badge badge-denied">Nobody recorded</span>{% endif %}
+          {% if row.finding == "unconfirmed-only" %}<span class="badge badge-denied">No owner, unchecked</span>{% endif %}
+          {% if row.finding == "no-owner" %}<span class="badge badge-denied">No owner recorded</span>{% endif %}
+          {% if row.finding == "single-owner" %}<span class="badge badge-unresolved">One owner only</span>{% endif %}
+          {% if row.finding == "ok" %}<span class="badge badge-active">{{ row.ownerCount }} owners</span>{% endif %}
+        </span>
+      </div>
+
+      <p class="record-meta">
+        <span><span class="record-meta-label">Category</span> {{ row.resource.get_category_display }}</span>
+        <span><span class="record-meta-label">Holders recorded</span> {{ row.holderCount }}</span>
+        {% if row.unconfirmedCount %}<span><span class="record-meta-label">Access level unchecked</span> {{ row.unconfirmedCount }}</span>{% endif %}
+      </p>
+
+      {% if row.privileged %}
+      <p class="record-meta">
+        {% for holder in row.privileged %}
+        <span><span class="record-meta-label">{{ holder.get_accessLevel_display }}</span>
+          {{ holder.getDisplayName }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
+        {% endfor %}
+      </p>
+      {% endif %}
+
+      {% comment %} One sentence naming the consequence, not a severity score. "Nobody is recorded" is a gap in the register; "one person is recorded" is a fact about the chapter. They prompt different work, so they get different sentences. {% endcomment %}
+      <p class="record-prose text-sm text-secondary">
+        {% if row.finding == "no-holders" %}
+        No holders are recorded for this at all, so there is nothing here to check yet.
+        {% elif row.finding == "unconfirmed-only" %}
+        Nobody is recorded as an owner, and {{ row.unconfirmedCount }} holder{{ row.unconfirmedCount|pluralize }}
+        {{ row.unconfirmedCount|pluralize:"has,have" }} an access level nobody has checked. The owner may
+        already be on this list unverified, which is the cheapest thing to find out.
+        {% elif row.finding == "no-owner" %}
+        People hold this, but nobody is recorded as owner. If recovering this account needs an owner,
+        the chapter has no recorded route in.
+        {% elif row.finding == "single-owner" %}
+        One person is recorded as owner. If they are unreachable, nobody else can grant access here or
+        recover it.
+        {% else %}
+        More than one person is recorded as owner, so this does not rest on one individual.
+        {% endif %}
+      </p>
+
+      {% if canManage %}
+      <div class="record-actions">
+        <a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Edit this tool</a>
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}
+    <p class="record-empty">No chapter tools are recorded yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock page_content %}

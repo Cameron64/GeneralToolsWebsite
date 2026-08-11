@@ -72,7 +72,13 @@ class ChapterResourceCleanTests(TestCase):
 
     def test_requestable_with_steward_passes(self):
         steward = UserFactory.make("steward")
-        resource = _makeResource(requestable=True, steward=steward)
+        # A tier is needed as well as a steward: requestable is only allowed on
+        # Green or Yellow, and _makeResource leaves the model default
+        # (Unclassified), which is deliberately not requestable.
+        resource = _makeResource(
+            requestable=True, steward=steward,
+            delegationTier=ChapterResource.DelegationTier.GREEN,
+        )
         resource.clean()  # must not raise
 
     def test_not_requestable_without_steward_passes(self):
@@ -1205,11 +1211,14 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(ChapterResource.objects.filter(name="Example Vault").exists())
 
-    def test_requestable_with_a_steward_saves(self):
+    def test_requestable_with_a_steward_and_a_green_tier_saves(self):
         steward = UserFactory.make("steward")
         response = self.client.post(
             reverse("chapter-tool-new"),
-            _restrictedPayload(name="Example Vault", requestable="on", steward=str(steward.pk)),
+            _restrictedPayload(
+                name="Example Vault", requestable="on", steward=str(steward.pk),
+                delegationTier=str(ChapterResource.DelegationTier.GREEN),
+            ),
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(ChapterResource.objects.get(name="Example Vault").requestable)
@@ -1283,6 +1292,7 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
             reverse("chapter-tool-child-new",
                     kwargs={"pk": resource.pk, "childKind": "holders"}),
             {"personName": "", "user": "", "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
+             "accessLevel": str(ResourceHolder.AccessLevel.ORDINARY),
              "confirmed": "", "note": ""},
         )
         self.assertEqual(response.status_code, 200)
@@ -1294,11 +1304,15 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
                          kwargs={"pk": resource.pk, "childKind": "holders"})
         self.client.post(addUrl, {
             "personName": "Example Holder", "user": "",
-            "how": str(ResourceHolder.How.VAULT_COLLECTION), "confirmed": "on", "note": "",
+            "how": str(ResourceHolder.How.VAULT_COLLECTION),
+            "accessLevel": str(ResourceHolder.AccessLevel.OWNER),
+            "confirmed": "on", "note": "",
         })
         holder = ResourceHolder.objects.get(resource=resource)
         self.assertTrue(holder.confirmed)
         self.assertEqual(holder.how, ResourceHolder.How.VAULT_COLLECTION)
+        self.assertEqual(holder.accessLevel, ResourceHolder.AccessLevel.OWNER)
+        self.assertTrue(holder.isPrivileged())
 
         editUrl = reverse("chapter-tool-child-edit", kwargs={
             "pk": resource.pk, "childKind": "holders", "childId": holder.pk,
@@ -1306,11 +1320,14 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         # An unchecked checkbox is simply absent from a real POST body.
         self.client.post(editUrl, {
             "personName": "Example Holder", "user": "",
-            "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN), "note": "Now unconfirmed.",
+            "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
+            "accessLevel": str(ResourceHolder.AccessLevel.ORDINARY),
+            "note": "Now unconfirmed.",
         })
         holder.refresh_from_db()
         self.assertFalse(holder.confirmed)
         self.assertEqual(holder.note, "Now unconfirmed.")
+        self.assertFalse(holder.isPrivileged())
 
         self.client.post(reverse("chapter-tool-child-delete", kwargs={
             "pk": resource.pk, "childKind": "holders", "childId": holder.pk,

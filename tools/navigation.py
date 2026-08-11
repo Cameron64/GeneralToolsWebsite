@@ -38,11 +38,23 @@ class NavTool:
     # Some pages are noise for superusers (e.g. My Access - they implicitly
     # hold every permission, so there's nothing meaningful to show)
     hideForSuperusers : bool = False
+    # A second permission that also grants the tile, for the few pages whose
+    # view gate is genuinely an OR. Chapter Tools has a tier model where the
+    # audit ring is trusted with strictly more than the holder ring but does not
+    # necessarily hold the holder permission itself (see
+    # chapterToolsViews._hasHolders), so a single `permission` would hide a page
+    # from the very people it is for while they could still reach the URL. Empty
+    # means there is no second permission, which is every other tool.
+    alsoVisibleWith : str = ""
 
     def isVisibleTo(self, user) -> bool:
         if self.hideForSuperusers and user.is_superuser:
             return False
-        return self.permission is None or user.has_perm(self.permission)
+        if self.permission is None:
+            return True
+        if user.has_perm(self.permission):
+            return True
+        return bool(self.alsoVisibleWith) and user.has_perm(self.alsoVisibleWith)
 
     @property
     def trailLabel(self) -> str:
@@ -129,6 +141,11 @@ NAV_TOOLS = [
     NavTool(routeName="chapter-tool-new", title="Add a Chapter Tool", permission=permissions.MANAGE_CHAPTER_TOOLS,
             icon="archive", domainSlug="access", breadcrumbLabel="Add a Chapter Tool",
             description="Record a new chapter system: what it is, how to get in, and who already has it."),
+    NavTool(routeName="chapter-tools-privileged", title="Chapter Tools: Privileged Access",
+            permission=permissions.VIEW_RESOURCE_HOLDERS,
+            alsoVisibleWith=permissions.VIEW_CHAPTER_TOOL_AUDIT,
+            icon="lock", domainSlug="access", breadcrumbLabel="Privileged Access",
+            description="Who holds owner or admin rights on each chapter system, and which systems have no recorded owner at all."),
 ]
 
 # Which domain owns each gated route, by URL name - this is what lights up the
@@ -180,6 +197,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "manage-groups": "access",
     "chapter-tools": "access",
     "chapter-tools-questions": "access",
+    "chapter-tools-privileged": "access",
     "chapter-tool-new": "access",
     # Access: detail/review/sub pages
     "review-access-request": "access",
