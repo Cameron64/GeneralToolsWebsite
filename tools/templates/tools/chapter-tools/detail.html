@@ -3,7 +3,10 @@
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
 {% block page_content %}
 <div class="page-card max-w-3xl">
-  <h1 class="page-title">{{ resource.name }}</h1>
+  <div class="record-head">
+    <h1 class="page-title">{{ resource.name }}</h1>
+    {% if canManage %}<a href="{% url 'chapter-tool-edit' pk=resource.id %}" class="btn btn-secondary btn-small">Edit this tool</a>{% endif %}
+  </div>
   {% if resource.blurb %}<p class="page-subtitle">{{ resource.blurb }}</p>{% endif %}
 
   <h2 class="section-title">How to get access</h2>

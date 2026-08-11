@@ -8,6 +8,10 @@
   That line is the whole answer. Everything under it is background, and you can ignore it.
 </div>
 
+{% if canManage %}
+<p class="pb-4"><a href="{% url 'chapter-tool-new' %}" class="btn btn-primary">Add a chapter tool</a></p>
+{% endif %}
+
 {% comment %}
 One card per resource rather than one table row.
 
@@ -25,7 +29,10 @@ multi-line one renders as visible body text on the page.
 {% endcomment %}
 {% for row in rows %}
 <div class="page-card">
-  <h2 class="page-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></h2>
+  <div class="record-head">
+    <h2 class="page-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></h2>
+    {% if canManage %}<a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Edit</a>{% endif %}
+  </div>
   {% if hasAudit and row.resource.isStale %}<p class="pb-2"><span class="badge badge-unresolved">Stale review</span></p>{% endif %}
   {% if row.resource.blurb %}<p class="text-sm text-secondary pb-2">{{ row.resource.blurb }}</p>{% endif %}
 

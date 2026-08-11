@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load navigation_tags %}
+{% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% if isCreate %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Add a Chapter Tool" %}{% else %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endif %}{% endblock breadcrumbs %}
+{% block page_content %}
+
+{% comment %}
+  The CRUD workbench: the resource's own fields, then its child rows.
+
+  ONE page rather than one per child kind. Nine separate pages would be nine
+  round trips on a phone, and the whole reason this page exists is that the
+  registry was previously editable only through /admin/.
+
+  Single column at every width, and the child rows are .record-item cards
+  rather than a table - see components/_chapter-tools.css for why a table
+  cannot work here (the Tailwind CLI cannot run on this machine, so there is no
+  responsive utility vocabulary to lay one out with).
+
+  hasAudit gates the restricted layer. The template guard is the SECOND line of
+  defence, not the first: the view already omits the restricted form fields, the
+  credential rows, and the RUNS_ON edges from the context, so a guard removed
+  here still cannot render them.
+
+  Comment BLOCK tag, not the short hash-brace form - that form is single-line
+  only in Django and a multi-line one renders as literal page text.
+{% endcomment %}
+
+{% if isCreate %}
+<h1 class="page-title">Add a chapter tool</h1>
+<p class="page-subtitle">Record what this system is and how a member gets into it. You can add holders and dependencies once it's saved.</p>
+{% else %}
+<h1 class="page-title">{{ resource.name }}</h1>
+<p class="page-subtitle">Editing this chapter tool. <a href="{{ resource.getUrl }}">View it as a member sees it &rarr;</a></p>
+{% endif %}
+
+{% if saved %}
+<div class="alert alert-success mb-4">Saved.</div>
+{% endif %}
+
+<div class="page-card max-w-2xl">
+  <h2 class="section-title pt-0">Details</h2>
+  {% if not hasAudit %}
+  <div class="alert alert-info mb-4">
+    You're editing the open layer. The committee-only fields (delegation tier, review dates,
+    revocation and continuity notes) are not shown here and are left untouched when you save.
+  </div>
+  {% endif %}
+  <form action="" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-error">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for field in form %}
+    {% include "tools/common/formRow.html" with field=field %}
+    {% endfor %}
+
+    <div class="flex flex-wrap items-center gap-3 pt-4">
+      <button type="submit" class="btn btn-primary">{% if isCreate %}Create chapter tool{% else %}Save changes{% endif %}</button>
+      <a href="{% if isCreate %}{% url 'chapter-tools' %}{% else %}{{ resource.getUrl }}{% endif %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% if not isCreate %}
+
+{% comment %}
+  Holders are the OPEN layer - the roster is gated on viewResourceHolders for
+  reading, but there is nothing committee-only about the rows themselves, so any
+  manageChapterTools holder may keep them accurate. That matters: the roster
+  being empty is the registry's single biggest recorded gap, and putting it
+  behind the audit permission is how it stays empty.
+{% endcomment %}
+<div class="page-card">
+  <div class="record-head">
+    <h2 class="section-title pt-0">Who has it now ({{ holders|length }})</h2>
+    <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='holders' %}" class="btn btn-secondary btn-small">Add a holder</a>
+  </div>
+  <div class="record-list">
+    {% for holder in holders %}
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-title">{{ holder.getDisplayName }}</span>
+        {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
+      </div>
+      <p class="record-meta">
+        <span><span class="record-meta-label">How they get in</span> {{ holder.get_how_display }}</span>
+        {% if holder.user %}<span><span class="record-meta-label">Echo account</span> {{ holder.user.username }}</span>{% endif %}
+      </p>
+      {% if holder.note %}<p class="record-meta"><span>{{ holder.note }}</span></p>{% endif %}
+      <div class="record-actions">
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='holders' childId=holder.id %}" class="btn btn-secondary btn-small">Edit</a>
+          <form action="{% url 'chapter-tool-child-delete' pk=resource.id childKind='holders' childId=holder.id %}" method="post"
+                onsubmit="return confirm('Remove this person from the holder list?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <p class="record-empty">Nobody recorded yet. That is an open job, not a sign that nobody has access.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="page-card">
+  <div class="record-head">
+    <h2 class="section-title pt-0">What this needs ({{ dependencies|length }})</h2>
+    <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='dependencies' %}" class="btn btn-secondary btn-small">Add a dependency</a>
+  </div>
+  <div class="record-list">
+    {% for dependency in dependencies %}
+    <div class="record-item">
+      <p class="record-title">{{ dependency.get_kind_display }} <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a></p>
+      {% if dependency.note %}<p class="record-meta"><span>{{ dependency.note }}</span></p>{% endif %}
+      <div class="record-actions">
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='dependencies' childId=dependency.id %}" class="btn btn-secondary btn-small">Edit</a>
+          <form action="{% url 'chapter-tool-child-delete' pk=resource.id childKind='dependencies' childId=dependency.id %}" method="post"
+                onsubmit="return confirm('Remove this dependency?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <p class="record-empty">Nothing recorded. If a member needs another account first, say so here.</p>
+    {% endfor %}
+  </div>
+
+  {% comment %}
+    The reverse direction, read-only. These edges are owned by the OTHER
+    resource, so editing them here would be editing a row this page does not
+    show. They are listed anyway because an edge that is invisible from this end
+    just gets added a second time from it.
+  {% endcomment %}
+  {% if dependents %}
+  <h3 class="menu-section-title">What needs this ({{ dependents|length }})</h3>
+  <p class="form-help">Owned by the other tool - open that tool to change one.</p>
+  <div class="record-list">
+    {% for dependency in dependents %}
+    <div class="record-item">
+      <p class="record-title"><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a> {{ dependency.get_kind_display|lower }} this</p>
+      <p class="record-meta">
+        {% if dependency.note %}<span>{{ dependency.note }}</span>{% endif %}
+        <span><a href="{% url 'chapter-tool-edit' pk=dependency.resource.id %}">Edit {{ dependency.resource.name }} &rarr;</a></span>
+      </p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% if hasAudit %}
+<div class="page-card">
+  <div class="record-head">
+    <h2 class="section-title pt-0">Credentials ({{ credentials|length }})</h2>
+    <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='credentials' %}" class="btn btn-secondary btn-small">Add a credential</a>
+  </div>
+  <div class="alert alert-info mb-4">
+    Committee-only. These describe credential <b>objects</b>, never the secrets themselves - the
+    passwords live in the vault.
+  </div>
+  <div class="record-list">
+    {% for credential in credentials %}
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-title">{{ credential.label }}</span>
+        <span class="badge">{{ credential.get_status_display }}</span>
+      </div>
+      <p class="record-meta">
+        <span><span class="record-meta-label">Kind</span> {{ credential.get_kind_display }}</span>
+        <span><span class="record-meta-label">Vault collection</span> {{ credential.vaultCollection|default:"-" }}</span>
+      </p>
+      {% if credential.note %}<p class="record-meta"><span>{{ credential.note }}</span></p>{% endif %}
+      <div class="record-actions">
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='credentials' childId=credential.id %}" class="btn btn-secondary btn-small">Edit</a>
+          <form action="{% url 'chapter-tool-child-delete' pk=resource.id childKind='credentials' childId=credential.id %}" method="post"
+                onsubmit="return confirm('Delete this credential record?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <p class="record-empty">No credential objects recorded.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="page-card max-w-2xl">
+  <h2 class="section-title pt-0">Delete this chapter tool</h2>
+  <p class="form-help pb-4">
+    Removes the tool and everything recorded against it. You'll be asked to type its name first.
+  </p>
+  <a href="{% url 'chapter-tool-delete' pk=resource.id %}" class="btn btn-danger">Delete {{ resource.name }}</a>
+</div>
+
+{% endif %}
+{% endblock page_content %}

@@ -948,3 +948,523 @@ class SeedChapterToolsCommandTests(TestCase):
         self.assertEqual(resource.siteUrl, "https://example-wiki.invalid/")
         self.assertEqual(resource.accessRequestUrl, "https://example-form.invalid/request")
         self.assertEqual(resource.getSiteHost(), "example-wiki.invalid")
+
+
+# --- CRUD (manageChapterTools) ----------------------------------------------
+#
+# The load-bearing property under test is NOT "can the form save" - it is that
+# manageChapterTools does not become a read permission for the restricted layer.
+# Every absence assertion below is paired with a presence assertion for an
+# editor who DOES hold viewChapterToolAudit, using the same literal, because an
+# unpaired assertNotContains passes forever the moment the markup changes. That
+# has already happened once in this file (see the EDGE_PHRASE note at the top).
+
+# Restricted-layer sentinels. Distinctive strings, so a match cannot come from
+# some unrelated part of the page.
+TIER_FIELD_SENTINEL = "delegationTier"
+CONTINUITY_SENTINEL = "Break glass via ExampleBackupHolder"
+CRED_SENTINEL = "ExampleCrudCredentialSentinel"
+RUNS_ON_SENTINEL = "ExampleHostingSentinel"
+
+
+def _resourcePayload(**overrides):
+    """A complete OPEN-layer POST body. The four choice fields are required
+    (TypedChoiceField is required by default), so a payload missing one fails
+    validation for a reason that has nothing to do with what is being tested."""
+    payload = {
+        "name": "Example Wiki",
+        "category": str(ChapterResource.Category.COMMUNICATION),
+        "accessModel": str(ChapterResource.AccessModel.SHARED_VAULT),
+        "payer": str(ChapterResource.Payer.CHAPTER),
+        "blurb": "",
+        "annualCost": "",
+        "costNote": "",
+        "howToGetAccess": "",
+        "siteUrl": "",
+        "accessRequestUrl": "",
+        "steward": "",
+        "stewardName": "",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _restrictedPayload(**overrides):
+    """The open payload plus the six restricted fields an audit editor also
+    submits. Mirrors ChapterResourceForm.RESTRICTED_KEYS."""
+    payload = _resourcePayload()
+    payload.update({
+        "requestable": "",
+        "lastReviewed": "",
+        "reviewedBy": "",
+        "delegationTier": str(ChapterResource.DelegationTier.UNCLASSIFIED),
+        "revocationNote": "",
+        "continuityNote": "",
+    })
+    payload.update(overrides)
+    return payload
+
+
+class ChapterToolsCrudGateTests(LoginClientMixin, TestCase):
+    """Who may reach the write surface at all."""
+
+    def setUp(self):
+        self.resource = _makeResource()
+        self.member = UserFactory.make("member")
+        self.editor = UserFactory.make("editor", perms=("manageChapterTools",))
+
+    def test_a_plain_member_cannot_reach_any_write_page(self):
+        self.loginAs(self.member)
+        for url in (
+            reverse("chapter-tool-new"),
+            reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}),
+            reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk}),
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": self.resource.pk, "childKind": "holders"}),
+        ):
+            response = self.client.get(url)
+            # permission_required without raise_exception redirects to login -
+            # the convention the other admin-tier access pages follow.
+            self.assertEqual(response.status_code, 302, url)
+            self.assertIn("login", response["Location"], url)
+
+    def test_an_editor_can_reach_the_workbench(self):
+        self.loginAs(self.editor)
+        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Who has it now")
+
+    def test_the_edit_link_is_hidden_from_a_member_and_shown_to_an_editor(self):
+        detailUrl = self.resource.getUrl()
+        editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        self.loginAs(self.member)
+        self.assertNotContains(self.client.get(detailUrl), editUrl)
+        self.assertNotContains(self.client.get(reverse("chapter-tools")), editUrl)
+        # Paired presence - otherwise the two assertions above would keep
+        # passing if the link were removed from both pages entirely.
+        self.loginAs(self.editor)
+        self.assertContains(self.client.get(detailUrl), editUrl)
+        self.assertContains(self.client.get(reverse("chapter-tools")), editUrl)
+
+    def test_an_unknown_child_kind_is_a_404(self):
+        self.loginAs(self.editor)
+        response = self.client.get(reverse(
+            "chapter-tool-child-new", kwargs={"pk": self.resource.pk, "childKind": "grants"},
+        ))
+        self.assertEqual(response.status_code, 404)
+
+
+class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
+    """manageChapterTools must not become a read permission for the restricted
+    layer. This is the class that matters."""
+
+    def setUp(self):
+        self.resource = _makeResource(
+            delegationTier=ChapterResource.DelegationTier.RED,
+            revocationNote="Rotate the shared vault login.",
+            continuityNote=CONTINUITY_SENTINEL,
+        )
+        self.hosting = _makeResource(name=RUNS_ON_SENTINEL)
+        ResourceDependency.objects.create(
+            resource=self.resource, dependsOn=self.hosting,
+            kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        ResourceCredential.objects.create(
+            resource=self.resource, label=CRED_SENTINEL,
+            kind=ResourceCredential.Kind.VAULT_SHARED_LOGIN,
+        )
+        self.editor = UserFactory.make("editor", perms=("manageChapterTools",))
+        self.auditEditor = UserFactory.make(
+            "auditEditor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+
+    def test_restricted_fields_are_absent_from_a_non_audit_editors_form(self):
+        self.loginAs(self.editor)
+        response = self.client.get(self.editUrl)
+        self.assertNotContains(response, TIER_FIELD_SENTINEL)
+        # The stored VALUE, not just the field name - a bound form renders
+        # current values, which is the actual leak.
+        self.assertNotContains(response, CONTINUITY_SENTINEL)
+
+    def test_restricted_fields_are_present_for_an_audit_editor(self):
+        # The pairing that keeps the test above honest.
+        self.loginAs(self.auditEditor)
+        response = self.client.get(self.editUrl)
+        self.assertContains(response, TIER_FIELD_SENTINEL)
+        self.assertContains(response, CONTINUITY_SENTINEL)
+
+    def test_credentials_are_hidden_from_a_non_audit_editor_and_shown_to_an_audit_one(self):
+        self.loginAs(self.editor)
+        self.assertNotContains(self.client.get(self.editUrl), CRED_SENTINEL)
+        self.loginAs(self.auditEditor)
+        self.assertContains(self.client.get(self.editUrl), CRED_SENTINEL)
+
+    def test_a_non_audit_editor_cannot_reach_the_credential_routes(self):
+        credential = self.resource.credentials.first()
+        self.loginAs(self.editor)
+        for url in (
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": self.resource.pk, "childKind": "credentials"}),
+            reverse("chapter-tool-child-edit",
+                    kwargs={"pk": self.resource.pk, "childKind": "credentials",
+                            "childId": credential.pk}),
+        ):
+            self.assertEqual(self.client.get(url).status_code, 404, url)
+        # 404 and not 403 on purpose: a 403 confirms the credentials surface
+        # exists for this resource, which is itself part of what is withheld.
+        self.loginAs(self.auditEditor)
+        for url in (
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": self.resource.pk, "childKind": "credentials"}),
+            reverse("chapter-tool-child-edit",
+                    kwargs={"pk": self.resource.pk, "childKind": "credentials",
+                            "childId": credential.pk}),
+        ):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+
+    def test_a_runs_on_edge_is_hidden_from_a_non_audit_editor(self):
+        self.loginAs(self.editor)
+        self.assertNotContains(self.client.get(self.editUrl), RUNS_ON_SENTINEL)
+        self.loginAs(self.auditEditor)
+        self.assertContains(self.client.get(self.editUrl), RUNS_ON_SENTINEL)
+
+    def test_a_non_audit_editor_cannot_post_a_runs_on_edge(self):
+        other = _makeResource(name="Example Bank")
+        self.loginAs(self.editor)
+        response = self.client.post(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": self.resource.pk, "childKind": "dependencies"}),
+            {"dependsOn": str(other.pk), "kind": str(ResourceDependency.Kind.RUNS_ON), "note": ""},
+        )
+        self.assertEqual(response.status_code, 200)  # re-rendered with an error
+        self.assertFalse(ResourceDependency.objects.filter(
+            resource=self.resource, dependsOn=other,
+        ).exists())
+
+    def test_a_non_audit_editor_saving_does_not_wipe_the_restricted_fields(self):
+        """The whole reason _applyCleanedData copies only the keys present."""
+        self.loginAs(self.editor)
+        response = self.client.post(self.editUrl, _resourcePayload(name=self.resource.name))
+        self.assertEqual(response.status_code, 302)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.delegationTier, ChapterResource.DelegationTier.RED)
+        self.assertEqual(self.resource.continuityNote, CONTINUITY_SENTINEL)
+        self.assertEqual(self.resource.revocationNote, "Rotate the shared vault login.")
+
+
+class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.loginAs(self.editor)
+
+    def test_create_makes_a_resource_and_lands_on_its_workbench(self):
+        response = self.client.post(
+            reverse("chapter-tool-new"), _restrictedPayload(name="Example Vault"),
+        )
+        resource = ChapterResource.objects.get(name="Example Vault")
+        self.assertRedirects(
+            response, reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
+        )
+
+    def test_a_duplicate_name_is_a_field_error_not_a_500(self):
+        _makeResource(name="Example Vault")
+        response = self.client.post(
+            reverse("chapter-tool-new"), _restrictedPayload(name="example vault"),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already exists")
+        self.assertEqual(ChapterResource.objects.filter(name__iexact="example vault").count(), 1)
+
+    def test_requestable_without_a_steward_is_rejected_by_the_form(self):
+        """ChapterResource.clean()'s rule. The view never calls full_clean(), so
+        without the form re-implementing it this would save happily."""
+        response = self.client.post(
+            reverse("chapter-tool-new"),
+            _restrictedPayload(name="Example Vault", requestable="on", steward=""),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ChapterResource.objects.filter(name="Example Vault").exists())
+
+    def test_requestable_with_a_steward_saves(self):
+        steward = UserFactory.make("steward")
+        response = self.client.post(
+            reverse("chapter-tool-new"),
+            _restrictedPayload(name="Example Vault", requestable="on", steward=str(steward.pk)),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(ChapterResource.objects.get(name="Example Vault").requestable)
+
+    def test_a_non_audit_editor_cannot_strip_the_steward_off_a_requestable_resource(self):
+        """The rule from the other direction: `requestable` is not on their form,
+        so they cannot turn it on - but they can clear the steward, which breaks
+        the same invariant."""
+        steward = UserFactory.make("steward")
+        resource = _makeResource(name="Example Vault", requestable=True, steward=steward)
+        openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
+        self.loginAs(openEditor)
+        response = self.client.post(
+            reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
+            _resourcePayload(name="Example Vault", steward=""),
+        )
+        self.assertEqual(response.status_code, 200)
+        resource.refresh_from_db()
+        self.assertEqual(resource.steward_id, steward.pk)
+
+    def test_a_self_dependency_is_a_field_error(self):
+        """ResourceDependency.clean() plus its CheckConstraint - neither runs on
+        this path, so the form is the only guard."""
+        resource = _makeResource()
+        response = self.client.post(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": resource.pk, "childKind": "dependencies"}),
+            {"dependsOn": str(resource.pk), "kind": str(ResourceDependency.Kind.SIGN_IN), "note": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ResourceDependency.objects.count(), 0)
+
+    def test_a_duplicate_dependency_is_a_field_error_not_an_integrity_error(self):
+        resource = _makeResource()
+        other = _makeResource(name="Example Chat")
+        ResourceDependency.objects.create(
+            resource=resource, dependsOn=other, kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        response = self.client.post(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": resource.pk, "childKind": "dependencies"}),
+            {"dependsOn": str(other.pk), "kind": str(ResourceDependency.Kind.SIGN_IN), "note": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already recorded")
+        self.assertEqual(ResourceDependency.objects.count(), 1)
+
+    def test_a_holder_needs_a_name_or_an_account(self):
+        resource = _makeResource()
+        response = self.client.post(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": resource.pk, "childKind": "holders"}),
+            {"personName": "", "user": "", "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
+             "confirmed": "", "note": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ResourceHolder.objects.count(), 0)
+
+    def test_holder_add_edit_and_delete(self):
+        resource = _makeResource()
+        addUrl = reverse("chapter-tool-child-new",
+                         kwargs={"pk": resource.pk, "childKind": "holders"})
+        self.client.post(addUrl, {
+            "personName": "Example Holder", "user": "",
+            "how": str(ResourceHolder.How.VAULT_COLLECTION), "confirmed": "on", "note": "",
+        })
+        holder = ResourceHolder.objects.get(resource=resource)
+        self.assertTrue(holder.confirmed)
+        self.assertEqual(holder.how, ResourceHolder.How.VAULT_COLLECTION)
+
+        editUrl = reverse("chapter-tool-child-edit", kwargs={
+            "pk": resource.pk, "childKind": "holders", "childId": holder.pk,
+        })
+        # An unchecked checkbox is simply absent from a real POST body.
+        self.client.post(editUrl, {
+            "personName": "Example Holder", "user": "",
+            "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN), "note": "Now unconfirmed.",
+        })
+        holder.refresh_from_db()
+        self.assertFalse(holder.confirmed)
+        self.assertEqual(holder.note, "Now unconfirmed.")
+
+        self.client.post(reverse("chapter-tool-child-delete", kwargs={
+            "pk": resource.pk, "childKind": "holders", "childId": holder.pk,
+        }))
+        self.assertEqual(ResourceHolder.objects.count(), 0)
+
+    def test_a_credential_needs_a_kind(self):
+        """`kind` has no model default on purpose, and TypedChoiceField coerces
+        a blank to None rather than erroring, so clean_kind is what stops a None
+        reaching a NOT NULL column."""
+        resource = _makeResource()
+        response = self.client.post(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": resource.pk, "childKind": "credentials"}),
+            {"label": CRED_SENTINEL, "kind": "", "vaultCollection": "",
+             "status": str(ResourceCredential.Status.LIVE), "note": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ResourceCredential.objects.count(), 0)
+
+    def test_a_child_of_another_resource_cannot_be_edited_by_guessing_its_id(self):
+        mine = _makeResource(name="Example Wiki")
+        theirs = _makeResource(name="Example Bank")
+        holder = ResourceHolder.objects.create(resource=theirs, personName="Example Holder")
+        response = self.client.get(reverse("chapter-tool-child-edit", kwargs={
+            "pk": mine.pk, "childKind": "holders", "childId": holder.pk,
+        }))
+        self.assertEqual(response.status_code, 404)
+
+    def test_child_delete_is_post_only(self):
+        """A GET-deletable URL gets emptied by a link prefetcher or a crawler."""
+        resource = _makeResource()
+        holder = ResourceHolder.objects.create(resource=resource, personName="Example Holder")
+        url = reverse("chapter-tool-child-delete", kwargs={
+            "pk": resource.pk, "childKind": "holders", "childId": holder.pk,
+        })
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(ResourceHolder.objects.filter(pk=holder.pk).exists())
+
+
+class ChapterToolsDeleteTests(LoginClientMixin, TestCase):
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.loginAs(self.editor)
+        self.resource = _makeResource(name="Example Wiki")
+        self.other = _makeResource(name="Example Chat")
+        ResourceHolder.objects.create(resource=self.resource, personName="Example Holder")
+        ResourceCredential.objects.create(
+            resource=self.resource, label=CRED_SENTINEL,
+            kind=ResourceCredential.Kind.API_TOKEN,
+        )
+        ResourceDependency.objects.create(
+            resource=self.resource, dependsOn=self.other,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        # The edge pointing AT the resource - the half of the cascade the
+        # workbench shows as read-only, so the delete page has to name it.
+        ResourceDependency.objects.create(
+            resource=self.other, dependsOn=self.resource,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.question = ResourceQuestion.objects.create(
+            resource=self.resource, question="Who owns this?",
+        )
+        self.url = reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk})
+
+    def test_the_confirm_page_counts_both_dependency_directions(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, "Dependency edges pointing out of it")
+        self.assertContains(response, "Dependency edges pointing at it")
+        self.assertContains(response, "Credential rows")
+
+    def test_a_mismatched_typed_name_does_not_delete(self):
+        response = self.client.post(self.url, {"confirmName": "Example Wik"})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(ChapterResource.objects.filter(pk=self.resource.pk).exists())
+
+    def test_the_typed_name_check_is_enforced_server_side_not_just_by_the_button(self):
+        # An empty POST is what a hand-built request or a JS-off browser sends.
+        self.client.post(self.url, {})
+        self.assertTrue(ChapterResource.objects.filter(pk=self.resource.pk).exists())
+
+    def test_a_matching_name_deletes_and_cascades(self):
+        response = self.client.post(self.url, {"confirmName": "Example Wiki"})
+        self.assertRedirects(response, reverse("chapter-tools"))
+        self.assertFalse(ChapterResource.objects.filter(pk=self.resource.pk).exists())
+        self.assertEqual(ResourceHolder.objects.count(), 0)
+        self.assertEqual(ResourceCredential.objects.count(), 0)
+        # Both directions go, including the edge owned by the other resource.
+        self.assertEqual(ResourceDependency.objects.count(), 0)
+        # ...but the question survives as chapter-wide (SET_NULL), which is what
+        # the confirm page promises.
+        self.question.refresh_from_db()
+        self.assertIsNone(self.question.resource_id)
+
+    def test_a_non_audit_editor_is_not_told_the_credential_count(self):
+        openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
+        self.loginAs(openEditor)
+        self.assertNotContains(self.client.get(self.url), "Credential rows")
+
+
+class ChapterToolsTemplateCommentTests(LoginClientMixin, TestCase):
+    """Maintainer notes must not render as body text.
+
+    Django's {# #} comment is SINGLE-LINE only, so a multi-line one renders to
+    the page verbatim. That shipped once already, on Manage Member Access, and
+    these pages carry long explanatory comments - so the guard is worth having
+    on each one."""
+
+    LEAKS = ("{#", "#}", "{% comment", "endcomment", "CHILD_SPECS",
+             "_chapter-tools.css", "manageChapterTools", "RESTRICTED_KEYS")
+
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.loginAs(self.editor)
+        self.resource = _makeResource()
+
+    def _assertClean(self, response, presenceMarker):
+        content = response.content.decode()
+        for leak in self.LEAKS:
+            self.assertNotIn(leak, content, f"template comment leaked: {leak}")
+        # Paired presence: without this, the loop above would pass for a page
+        # that failed to render its content at all.
+        self.assertIn(presenceMarker, content)
+
+    def test_the_workbench_renders_no_comment_text(self):
+        self._assertClean(
+            self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})),
+            "Who has it now",
+        )
+
+    def test_the_child_form_renders_no_comment_text(self):
+        self._assertClean(
+            self.client.get(reverse("chapter-tool-child-new",
+                                    kwargs={"pk": self.resource.pk, "childKind": "holders"})),
+            "Add a holder",
+        )
+
+    def test_the_delete_page_renders_no_comment_text(self):
+        self._assertClean(
+            self.client.get(reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk})),
+            "to confirm",
+        )
+
+    def test_the_questions_workbench_renders_no_comment_text(self):
+        auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        self.loginAs(auditor)
+        self._assertClean(self.client.get(reverse("chapter-tools-questions")), "Add a question")
+
+
+class ChapterToolsReadabilityTests(LoginClientMixin, TestCase):
+    """The layout half of the change: no page in this feature may go back to a
+    wide data-table, because .page-card sets overflow-x:auto and a table with a
+    prose column scrolls sideways instead of wrapping."""
+
+    def setUp(self):
+        self.auditor = UserFactory.make(
+            "auditor", perms=("viewChapterToolAudit", "manageChapterTools"),
+        )
+        self.loginAs(self.auditor)
+        self.resource = _makeResource()
+        ResourceQuestion.objects.create(
+            resource=self.resource,
+            question="A question long enough that it would have taken the whole column width.",
+        )
+
+    def test_the_questions_workbench_is_a_record_list_not_a_table(self):
+        response = self.client.get(reverse("chapter-tools-questions"))
+        self.assertContains(response, "record-list")
+        self.assertNotContains(response, "data-table")
+
+    def test_the_workbench_child_sections_are_record_lists(self):
+        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        self.assertContains(response, "record-list")
+        self.assertNotContains(response, "data-table")
+
+    def test_the_record_and_detail_grid_styles_are_actually_compiled(self):
+        """output.css cannot be regenerated on this machine (the Tailwind CLI
+        hits a lightningcss DLL failure), so a class used in a template is only
+        real if it is already in the compiled file. This asserts the hand-mirrored
+        rules are present AND that .detail-grid stacks at the same 48rem
+        breakpoint .data-table collapses at."""
+        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
+        css = cssPath.read_text(encoding="utf-8")
+        for className in (".record-list", ".record-item", ".record-meta",
+                          ".record-actions", ".record-action-field"):
+            self.assertIn(className, css, f"{className} is used in a template but not compiled")
+        self.assertIn("grid-template-columns: 1fr", css)
+        self.assertIn("@media (width < 48rem)", css)

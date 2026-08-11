@@ -31,6 +31,17 @@ VIEW_CHAPTER_TOOL_AUDIT = _publicPermissionName(_VIEW_CHAPTER_TOOL_AUDIT)
 _VIEW_RESOURCE_HOLDERS = "viewResourceHolders"
 VIEW_RESOURCE_HOLDERS = _publicPermissionName(_VIEW_RESOURCE_HOLDERS)
 
+# Write access to the registry. Deliberately SEPARATE from
+# _VIEW_CHAPTER_TOOL_AUDIT rather than folded into it: this one may be held by
+# somebody who keeps the open layer accurate (blurbs, how-to-get-access, the
+# holder roster) without being trusted with the restricted layer. So holding it
+# alone must never become a back door that reads delegation tiers, revocation
+# notes, or credentials through an edit form - the CRUD views drop those fields
+# unless the viewer ALSO holds the audit permission. See
+# chapterToolsViews._resourceFieldSet.
+_MANAGE_CHAPTER_TOOLS = "manageChapterTools"
+MANAGE_CHAPTER_TOOLS = _publicPermissionName(_MANAGE_CHAPTER_TOOLS)
+
 
 # Display taxonomy for the access pages - mirrors the home-menu categories.
 # A permission missing from every tuple lands in "Other", so new permissions
@@ -39,7 +50,8 @@ PERMISSION_CATEGORIES = (
     ("Events", (_PUBLISH_EVENT, _VIEW_PUBLISHED_EVENTS, _REQUEST_DELEGATED_EVENT,
                 _APPROVE_DELEGATED_EVENT, _VIEW_DELEGATED_EVENTS, _MANAGE_EVENT_OWNERS)),
     ("Link Trees", (_MANAGE_LINK_TREE, _VIEW_LINK_METRICS)),
-    ("Access", (_APPROVE_ACCESS_REQUEST, _VIEW_CHAPTER_TOOL_AUDIT, _VIEW_RESOURCE_HOLDERS)),
+    ("Access", (_APPROVE_ACCESS_REQUEST, _VIEW_CHAPTER_TOOL_AUDIT, _VIEW_RESOURCE_HOLDERS,
+                _MANAGE_CHAPTER_TOOLS)),
 )
 
 
@@ -93,4 +105,5 @@ class PermissionRights(models.Model):
             (_APPROVE_ACCESS_REQUEST, 'Allowed to approve or deny any access request'),
             (_VIEW_CHAPTER_TOOL_AUDIT, 'Allowed to view chapter-tool audit details'),
             (_VIEW_RESOURCE_HOLDERS, 'Allowed to see who holds access to chapter tools'),
+            (_MANAGE_CHAPTER_TOOLS, 'Allowed to add, edit, and delete chapter tools'),
         )

@@ -10,7 +10,7 @@
     <input type="hidden" name="action" value="add" />
     <div class="form-row">
       <label for="question-resource">Resource (optional)</label>
-      <select name="resource" id="question-resource" class="form-field">
+      <select name="resource" id="question-resource" class="form-field w-full">
         <option value="">Chapter-wide</option>
         {% for resource in resources %}
         <option value="{{ resource.id }}">{{ resource.name }}</option>
@@ -19,73 +19,89 @@
     </div>
     <div class="form-row">
       <label for="question-text">Question</label>
-      <textarea name="question" id="question-text" class="form-field" required></textarea>
+      <textarea name="question" id="question-text" class="form-field w-full" required></textarea>
     </div>
     <input type="submit" value="Add question" class="btn btn-primary my-3" />
   </form>
 </div>
 
+{% comment %}
+  Records, not a table. This was a 6-column data-table and it was the worst
+  instance of the pathology index.html already documents: column 1 held
+  full-sentence question prose while columns 5 and 6 each held an inline form
+  with a text input. .page-card sets overflow-x:auto and table auto-layout
+  gives a prose column its max-content width, so the two inputs - the only
+  controls on the page - were squeezed to a few characters wide. Inputs are
+  worse than prose here because they do not wrap; they just become unusable.
+
+  A record reads top-down and has no column budget to overrun, so it is
+  readable at 375px and at desktop. The .record-* vocabulary lives in
+  components/_chapter-tools.css, because the Tailwind CLI cannot run on this
+  machine and a width-responsive layout is not expressible with the six md:
+  utilities that happen to be compiled.
+
+  Comment BLOCK tag, not the short hash-brace form: that form is single-line
+  only in Django, so a multi-line one renders to the page as literal text.
+{% endcomment %}
 <div class="page-card">
   <h2 class="section-title pt-0">Open ({{ openQuestions|length }})</h2>
-  <table class="data-table">
-    <tr>
-      <th>Question</th>
-      <th>Resource</th>
-      <th>Assigned to</th>
-      <th>Raised</th>
-      <th>Assign</th>
-      <th>Resolve</th>
-    </tr>
+  <div class="record-list">
     {% for question in openQuestions %}
-    <tr>
-      <td>{{ question.question }}</td>
-      <td data-label="Resource">{% if question.resource %}<a href="{{ question.resource.getUrl }}">{{ question.resource.name }}</a>{% else %}Chapter-wide{% endif %}</td>
-      <td data-label="Assigned to">{{ question.assignedTo|default:"-" }}</td>
-      <td data-label="Raised" class="md:whitespace-nowrap">{{ question.raisedAt|date:"M j, Y" }}</td>
-      <td>
-        <form action="" method="post" class="flex gap-2">
+    <div class="record-item">
+      <p class="record-prose">{{ question.question }}</p>
+      <p class="record-meta">
+        <span><span class="record-meta-label">Resource</span>
+          {% if question.resource %}<a href="{{ question.resource.getUrl }}">{{ question.resource.name }}</a>{% else %}Chapter-wide{% endif %}</span>
+        <span><span class="record-meta-label">Assigned to</span> {{ question.assignedTo|default:"nobody yet" }}</span>
+        <span><span class="record-meta-label">Raised</span> {{ question.raisedAt|date:"M j, Y" }}</span>
+      </p>
+      <div class="record-actions record-actions-split">
+        <form action="" method="post" class="record-action">
           {% csrf_token %}
           <input type="hidden" name="action" value="assign" />
           <input type="hidden" name="questionId" value="{{ question.id }}" />
-          <input type="text" name="assignedTo" class="form-field" placeholder="Name" value="{{ question.assignedTo }}" />
+          <div class="record-action-field">
+            <label for="assign-{{ question.id }}">Assign to</label>
+            <input type="text" name="assignedTo" id="assign-{{ question.id }}" class="form-field"
+                   placeholder="Name" value="{{ question.assignedTo }}" />
+          </div>
           <button type="submit" class="btn btn-secondary btn-small">Assign</button>
         </form>
-      </td>
-      <td>
-        <form action="" method="post" class="flex gap-2">
+        <form action="" method="post" class="record-action">
           {% csrf_token %}
           <input type="hidden" name="action" value="resolve" />
           <input type="hidden" name="questionId" value="{{ question.id }}" />
-          <input type="text" name="resolution" class="form-field" placeholder="Resolution" />
+          <div class="record-action-field">
+            <label for="resolve-{{ question.id }}">Resolve with</label>
+            <input type="text" name="resolution" id="resolve-{{ question.id }}" class="form-field"
+                   placeholder="What the answer turned out to be" />
+          </div>
           <button type="submit" class="btn btn-primary btn-small">Resolve</button>
         </form>
-      </td>
-    </tr>
+      </div>
+    </div>
     {% empty %}
-    <tr><td colspan="6" class="text-secondary">No open questions.</td></tr>
+    <p class="record-empty">No open questions.</p>
     {% endfor %}
-  </table>
+  </div>
 </div>
 
 <div class="page-card">
   <h2 class="section-title pt-0">Resolved ({{ resolvedQuestions|length }})</h2>
-  <table class="data-table">
-    <tr>
-      <th>Question</th>
-      <th>Resource</th>
-      <th>Resolution</th>
-      <th>Resolved</th>
-    </tr>
+  <div class="record-list">
     {% for question in resolvedQuestions %}
-    <tr>
-      <td>{{ question.question }}</td>
-      <td data-label="Resource">{% if question.resource %}{{ question.resource.name }}{% else %}Chapter-wide{% endif %}</td>
-      <td data-label="Resolution">{{ question.resolution|default:"-" }}</td>
-      <td data-label="Resolved" class="md:whitespace-nowrap">{{ question.resolvedAt|date:"M j, Y" }}</td>
-    </tr>
+    <div class="record-item">
+      <p class="record-prose">{{ question.question }}</p>
+      <p class="record-meta">
+        <span><span class="record-meta-label">Resource</span>
+          {% if question.resource %}<a href="{{ question.resource.getUrl }}">{{ question.resource.name }}</a>{% else %}Chapter-wide{% endif %}</span>
+        <span><span class="record-meta-label">Resolved</span> {{ question.resolvedAt|date:"M j, Y" }}</span>
+      </p>
+      <p class="pt-2"><span class="record-meta-label">Resolution</span><br />{{ question.resolution|default:"-" }}</p>
+    </div>
     {% empty %}
-    <tr><td colspan="4" class="text-secondary">Nothing resolved yet.</td></tr>
+    <p class="record-empty">Nothing resolved yet.</p>
     {% endfor %}
-  </table>
+  </div>
 </div>
 {% endblock page_content %}

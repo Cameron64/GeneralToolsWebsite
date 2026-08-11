@@ -126,6 +126,9 @@ NAV_TOOLS = [
     NavTool(routeName="chapter-tools-questions", title="Chapter Tools: Open Questions", permission=permissions.VIEW_CHAPTER_TOOL_AUDIT,
             icon="lock", domainSlug="access", breadcrumbLabel="Open Questions",
             description="Unresolved access questions for the IT sub-committee to assign and resolve."),
+    NavTool(routeName="chapter-tool-new", title="Add a Chapter Tool", permission=permissions.MANAGE_CHAPTER_TOOLS,
+            icon="archive", domainSlug="access", breadcrumbLabel="Add a Chapter Tool",
+            description="Record a new chapter system: what it is, how to get in, and who already has it."),
 ]
 
 # Which domain owns each gated route, by URL name - this is what lights up the
@@ -177,6 +180,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "manage-groups": "access",
     "chapter-tools": "access",
     "chapter-tools-questions": "access",
+    "chapter-tool-new": "access",
     # Access: detail/review/sub pages
     "review-access-request": "access",
     "manage-access-user": "access",
@@ -184,6 +188,11 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "manage-group-member-search": "access",  # fragment endpoint - active-state only, no breadcrumbs
     "manage-group-delete": "access",
     "chapter-tool-detail": "access",
+    "chapter-tool-edit": "access",
+    "chapter-tool-delete": "access",
+    "chapter-tool-child-new": "access",
+    "chapter-tool-child-edit": "access",
+    "chapter-tool-child-delete": "access",   # POST-only action - mapped for completeness
 }
 
 
