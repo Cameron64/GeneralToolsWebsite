@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
-{% load chapter_tools_tags %}
+{% load explain_tags %}
 {% block breadcrumbs %}{% url 'chapter-tool-edit' pk=resource.id as parentToolUrl %}{% breadcrumbs parentLabel=resource.name parentUrl=parentToolUrl currentLabel=childLabel %}{% endblock breadcrumbs %}
 {% block page_content %}
 
@@ -22,12 +22,10 @@
     {% if form.non_field_errors %}
     <div class="alert alert-error">{{ form.non_field_errors }}</div>
     {% endif %}
+    {% comment %} Which words this kind of child needs defined comes from the form's own EXPLAIN_SLUGS map, so each definition lands on its own field's label. It used to come from CHILD_SPECS, which could only ever place one, and only at the foot of the form. {% endcomment %}
     {% for field in form %}
-    {% include "tools/common/formRow.html" with field=field %}
+    {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
     {% endfor %}
-
-    {% comment %} Which definition this kind of child needs comes from CHILD_SPECS, not from a branch on childKind here. {% endcomment %}
-    {% if explainSlug %}{% explain explainSlug %}{% endif %}
 
     <div class="flex flex-wrap items-center gap-3 pt-4">
       <button type="submit" class="btn btn-primary">{% if isCreate %}Add {{ childLabel }}{% else %}Save changes{% endif %}</button>
@@ -35,4 +33,7 @@
     </div>
   </form>
 </div>
+
+{% comment %} Included for every child kind, not only holders: the holder form has the member typeahead, and a conditional include here would be a branch on childKind - the exact thing CHILD_SPECS exists to avoid. The script binds nothing when the page has no typeahead. {% endcomment %}
+{% include "tools/common/_typeaheadAssets.html" %}
 {% endblock page_content %}

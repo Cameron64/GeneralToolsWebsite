@@ -37,6 +37,10 @@ urlpatterns = [
     # not match <int:pk> anyway, but keeping the order explicit means adding a
     # non-numeric route later does not depend on remembering that.
     path("chapter-tools/new", chapterToolsViews.chapter_tool_create, name="chapter-tool-new"),
+    # JSON fragment endpoint behind the steward / holder-account pickers. Also a
+    # literal segment, so it must stay above <int:pk> for the same reason.
+    path("chapter-tools/member-search", chapterToolsViews.chapter_tool_member_search,
+         name="chapter-tool-member-search"),
     path("chapter-tools/<int:pk>", chapterToolsViews.chapter_tool_detail, name="chapter-tool-detail"),
     path("chapter-tools/<int:pk>/edit", chapterToolsViews.chapter_tool_edit, name="chapter-tool-edit"),
     path("chapter-tools/<int:pk>/delete", chapterToolsViews.chapter_tool_delete, name="chapter-tool-delete"),

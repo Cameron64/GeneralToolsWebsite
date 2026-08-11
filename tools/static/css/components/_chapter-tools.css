@@ -268,3 +268,115 @@
 .explain-ladder dd {
   color: var(--color-secondary);
 }
+
+/* ------------------------------------------------------------------------
+   The label row: a field's label and its definition on one line
+   ------------------------------------------------------------------------
+   The definitions used to sit in a block at the foot of the form, which is the
+   wrong place for them twice over: a reader meets the word at the field, and a
+   definition read after the field is filled in cannot change what was typed. */
+.explain-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(var(--spacing) * 2);
+  row-gap: calc(var(--spacing) * 1);
+  padding-bottom: calc(var(--spacing) * 1);
+}
+
+/* .form-row label carries its own pb-1. Inside a row the gap owns the spacing,
+   and a padded label sits its baseline off the summary's. */
+.explain-row > label {
+  padding-bottom: 0;
+}
+
+/* `flex: 1 1 12rem` is the whole trick, and it is why nothing moves when the
+   panel opens. Given room on the label's line the disclosure stays beside the
+   label and grows into the rest of the width; given less than 12rem it wraps
+   onto its own full-width line BEFORE it is opened - so the control the reader
+   is about to click never jumps out from under them, which is what a
+   width-changing [open] rule would have done.
+
+   The usual answer here would be an absolutely positioned popover. That is
+   unavailable: .page-card sets overflow-x:auto, so a floating panel is clipped
+   by its scroll container - see the note above .explain. */
+.explain-row > .explain {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding-top: 0;
+}
+
+/* Beside a heading rather than a field label. The heading already carries its
+   own space below it, so the row must not add a second helping. */
+.explain-row-heading {
+  padding-bottom: 0;
+}
+
+/* ------------------------------------------------------------------------
+   Member typeahead (forms.UserTypeaheadWidget + js/memberTypeahead.js)
+   ------------------------------------------------------------------------
+   A <select> of every member is unusable once the chapter is the size it
+   actually is, so a member is picked by typing. Two states, never both: a
+   search box when nobody is chosen, and a chip naming the chosen person when
+   somebody is. That is deliberate rather than tidy - a text box left showing
+   free text next to a hidden id is a box that can disagree with what will be
+   saved, and the disagreement is invisible.
+
+   The results panel reuses .search-results / .search-result-row from _access.css
+   (the group page's add-member box), so the two typeaheads in the app look like
+   one control instead of two. */
+.typeahead-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  max-width: var(--container-xl);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+}
+
+/* display:flex would otherwise beat the hidden attribute. */
+.typeahead-chosen[hidden] {
+  display: none;
+}
+
+.typeahead-chosen-label {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--color-dark);
+  overflow-wrap: anywhere;
+}
+
+/* The rows are real buttons, not clickable divs, so Tab reaches them and Enter
+   picks one without any key handling of our own. */
+.typeahead button.search-result-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.typeahead button.search-result-row:hover {
+  background: var(--color-paper);
+}
+
+.typeahead button.search-result-row:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.typeahead-option-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-dark);
+}
+
+.typeahead-option-detail {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-secondary);
+}

@@ -290,14 +290,14 @@ class GlossaryTests(TestCase):
 
     def test_the_explain_tag_renders_the_definition(self):
         rendered = Template(
-            '{% load chapter_tools_tags %}{% explain "steward" %}'
+            '{% load explain_tags %}{% explain "steward" %}'
         ).render(Context({}))
         self.assertIn("What a steward is", rendered)
         self.assertIn("<details", rendered)
 
     def test_the_explain_tag_renders_nothing_for_an_unknown_slug(self):
         rendered = Template(
-            '{% load chapter_tools_tags %}{% explain "no-such-entry" %}'
+            '{% load explain_tags %}{% explain "no-such-entry" %}'
         ).render(Context({}))
         self.assertNotIn("<details", rendered)
         self.assertEqual(rendered.strip(), "")

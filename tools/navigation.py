@@ -211,6 +211,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "chapter-tool-child-new": "access",
     "chapter-tool-child-edit": "access",
     "chapter-tool-child-delete": "access",   # POST-only action - mapped for completeness
+    "chapter-tool-member-search": "access",  # fragment endpoint - active-state only, no breadcrumbs
 }
 
 

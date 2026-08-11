@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
-{% load chapter_tools_tags %}
+{% load explain_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
 {% block page_content %}
 <div class="page-card max-w-3xl">
@@ -56,14 +56,22 @@
     {% if resource.annualCost %}<dt>Annual cost</dt><dd>${{ resource.annualCost }}</dd>{% endif %}
   </dl>
 
-  <h2 class="section-title">Who has it now</h2>
+  {% comment %} One definition per heading, deliberately: two disclosures on one flex line both grow, so they end up separated by a gap and each opens to half the width. {% endcomment %}
+  <div class="explain-row explain-row-heading">
+    <h2 class="section-title">Who has it now</h2>
+    {% if hasHolders and holderRows %}{% explain "holders" label="What this list is not" %}{% endif %}
+  </div>
   {% if hasHolders %}
+  {% comment %} The definition sits with the word it defines, not in a block at the foot of the page. Inside the dd rather than the dt: the dt column is `max-content`, so a panel opened there would be as narrow as the word "Steward". {% endcomment %}
   <dl class="detail-grid">
-    <dt>Steward</dt><dd>{{ resource.getStewardDisplayName|default:"-" }}</dd>
+    <dt>Steward</dt>
+    <dd><span class="explain-row">{{ resource.getStewardDisplayName|default:"-" }}{% explain "steward" %}</span></dd>
   </dl>
-  {% explain "steward" %}
   {% if holderRows %}
-  {% explain "access-level" label="What these access levels mean" %}
+  <div class="explain-row explain-row-heading">
+    <h3 class="menu-section-title">The roster</h3>
+    {% explain "access-level" label="What the levels mean" %}
+  </div>
   {% comment %} A record list rather than a table: this gained an access-level column, and five columns with a prose Note among them is the exact squeeze index.html and the questions workbench were both rebuilt to remove. {% endcomment %}
   <div class="record-list">
     {% for holder in holderRows %}
@@ -82,7 +90,6 @@
     </div>
     {% endfor %}
   </div>
-  {% explain "holders" label="What this list is and is not" %}
   {% else %}
   <p class="text-secondary">Nobody recorded yet. That is an open job for the IT Sub-Committee, not a sign that nobody has access.</p>
   {% endif %}
@@ -120,22 +127,23 @@
   {% if hasAudit %}
   <h2 class="section-title">Committee detail</h2>
   <div class="alert alert-info">You're viewing the restricted layer - this read was logged.</div>
-  {% comment %} The tier is rendered with its meaning attached, not as a bare colour name: "Red" on its own told a reader nothing about what they may or may not do. {% endcomment %}
+  {% comment %} The tier is rendered with its meaning attached, not as a bare colour name: "Red" on its own told a reader nothing about what they may or may not do. The ladder for the OTHER three rungs opens from inside the same callout, so the tier and its scale are one thing on the page rather than a fact here and a footnote further down. {% endcomment %}
   <div class="alert alert-info mb-4 pt-2">
     <b>Delegation tier: {{ resource.get_delegationTier_display }}.</b>
     {{ resource.getDelegationTierExplanation }}
+    {% explain "delegation-tier" label="What the other tiers mean" %}
   </div>
-  {% explain "delegation-tier" label="What all four tiers mean" %}
 
+  {% comment %} Each definition inside its own dd, beside the value it explains. The dd is the `1fr` column, so an opened panel has the width to be read; the dt column is `max-content` and would squeeze it to the width of its label. {% endcomment %}
   <dl class="detail-grid">
-    <dt>Last reviewed</dt><dd>{{ resource.lastReviewed|default:"Never" }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}</dd>
+    <dt>Last reviewed</dt>
+    <dd><span class="explain-row">{{ resource.lastReviewed|default:"Never" }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}{% explain "review" %}</span></dd>
     <dt>Reviewed by</dt><dd>{{ resource.reviewedBy|default:"-" }}</dd>
-    <dt>Requestable</dt><dd>{% if resource.requestable %}Yes{% else %}No{% endif %}</dd>
+    <dt>Requestable</dt>
+    <dd><span class="explain-row">{% if resource.requestable %}Yes{% else %}No{% endif %}{% explain "requestable" label="What decides this" %}</span></dd>
     <dt>Revocation note</dt><dd>{{ resource.revocationNote|default:"-" }}</dd>
     <dt>Continuity note</dt><dd>{{ resource.continuityNote|default:"-" }}</dd>
   </dl>
-  {% explain "review" label="What “reviewed” and “stale” mean" %}
-  {% explain "requestable" label="What decides whether members can request this" %}
 
   <h2 class="section-title">What this runs on</h2>
   {% if runsOnDependencies %}
@@ -159,9 +167,11 @@
   <p class="text-secondary">Nothing recorded yet. If this is infrastructure, that is a gap rather than an answer.</p>
   {% endif %}
 
-  <h2 class="section-title">Credentials</h2>
+  <div class="explain-row explain-row-heading">
+    <h2 class="section-title">Credentials</h2>
+    {% if credentials %}{% explain "credential-age" label="How age is counted" %}{% endif %}
+  </div>
   {% if credentials %}
-  {% explain "credential-age" label="How age and rotation are counted" %}
   <div class="record-list">
     {% for credential in credentials %}
     <div class="record-item">

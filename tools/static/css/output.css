@@ -2013,6 +2013,70 @@
   .explain-ladder dd {
     color: var(--color-secondary);
   }
+  .explain-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: calc(var(--spacing) * 2);
+    row-gap: calc(var(--spacing) * 1);
+    padding-bottom: calc(var(--spacing) * 1);
+  }
+  .explain-row > label {
+    padding-bottom: 0;
+  }
+  .explain-row > .explain {
+    flex: 1 1 12rem;
+    min-width: 0;
+    padding-top: 0;
+  }
+  .explain-row-heading {
+    padding-bottom: 0;
+  }
+  .typeahead-chosen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 3);
+    max-width: var(--container-xl);
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+    border: 1px solid var(--color-neutral-300);
+    border-radius: var(--radius-lg);
+    background: var(--color-white);
+  }
+  .typeahead-chosen[hidden] {
+    display: none;
+  }
+  .typeahead-chosen-label {
+    flex: 1 1 12rem;
+    min-width: 0;
+    color: var(--color-dark);
+    overflow-wrap: anywhere;
+  }
+  .typeahead button.search-result-row {
+    width: 100%;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .typeahead button.search-result-row:hover {
+    background: var(--color-paper);
+  }
+  .typeahead button.search-result-row:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+  .typeahead-option-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-dark);
+  }
+  .typeahead-option-detail {
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    color: var(--color-secondary);
+  }
 }
 @property --tw-rotate-x {
   syntax: "*";

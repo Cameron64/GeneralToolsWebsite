@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
-{% load chapter_tools_tags %}
+{% load explain_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Privileged Access" %}{% endblock breadcrumbs %}
 {% block page_content %}
 <div class="page-card max-w-3xl">
-  <h1 class="page-title">Privileged Access</h1>
+  {% comment %} The legend opens from the heading, which is the label for the whole page. Every row below carries an access-level badge, so there is no one field to hang it off - and it must not sit under the list, where it would only be found by somebody who had already finished guessing. {% endcomment %}
+  <div class="explain-row explain-row-heading">
+    <h1 class="page-title">Privileged Access</h1>
+    {% explain "access-level" label="What the levels mean" %}
+  </div>
   <p class="page-subtitle">
     Who can change other people's access, and where the chapter has nobody recorded who can.
   </p>
@@ -15,8 +19,6 @@
     {{ singleOwnerCount }} more depend{{ singleOwnerCount|pluralize:"s," }} on a single person.
     An unanswered row here is a question to go and ask, not proof that nobody has access.
   </div>
-
-  {% explain "access-level" label="What these access levels mean" %}
 
   <div class="record-list">
     {% for row in rows %}

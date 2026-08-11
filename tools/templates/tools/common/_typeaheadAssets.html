@@ -1,0 +1,14 @@
+{% comment %}
+The script behind forms.UserTypeaheadWidget. Include it once on any page whose
+form renders that widget:
+    {% include "tools/common/_typeaheadAssets.html" %}
+
+versionedStatic, not static: the whole reason the last round of this feature
+looked broken in a browser was a stale cached asset served without validators
+(see asset_tags.versionedStatic). A behaviour script cached against new markup
+fails more confusingly than a stale stylesheet, not less.
+
+`defer` is load-bearing - the script binds every [data-typeahead] as it runs, so
+it has to run after the form is parsed.
+{% endcomment %}{% load asset_tags %}
+<script src="{% versionedStatic 'js/memberTypeahead.js' %}" defer></script>
