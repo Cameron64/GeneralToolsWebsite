@@ -7,8 +7,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
+    # 0018 on this branch; the resolutions-demo branch's copy of this same file
+    # depends on its own 0023 instead, because that branch also carries the
+    # self-service access work and its merge migrations. The FILENAME is
+    # deliberately identical on both so the demo database's applied-migration
+    # record stays valid - only this dependency line differs.
+    #
+    # When this branch merges into resolutions-demo, git reports an add/add
+    # conflict on this file. Resolve it by keeping the DEMO side (0023): that
+    # branch has already applied this migration under this name, and renumbering
+    # it there would make Django try to add columns that already exist.
     dependencies = [
-        ('tools', '0023_alter_permissionrights_options'),
+        ('tools', '0018_alter_permissionrights_options'),
     ]
 
     operations = [
