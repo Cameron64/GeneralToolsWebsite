@@ -12,7 +12,8 @@ import json
 import tempfile
 from pathlib import Path
 
-from django.core.exceptions import ValidationError
+from django import forms
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
@@ -25,7 +26,7 @@ from tools.models import (
     ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder, ResourceQuestion,
     ToolAuditReadLog,
 )
-from tools.forms import ResourceDependencyForm
+from tools.forms import ChapterResourceForm, ResourceDependencyForm
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 
 
@@ -1682,3 +1683,113 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
         # renders it as &#x27; - comparing the raw string finds nothing and looks
         # exactly like the line being absent.
         self.assertIn(f'class="record-aside">{escape(summary)}', content)
+
+
+class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
+    """The details form's eighteen fields are grouped into fieldsets, and the
+    grouping is declared on the FORM rather than in the template.
+
+    That is the whole risk being covered. Because edit.html renders
+    FIELD_GROUPS instead of iterating the form, a field the form defines and the
+    groups omit would not error - it would simply never appear on the page, save
+    its default forever, and look like a field nobody had got round to using.
+    So the partition is asserted directly, and the render is asserted to contain
+    every field the form has."""
+
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.loginAs(self.editor)
+        self.resource = _makeResource()
+        self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+
+    def test_every_field_is_in_exactly_one_group(self):
+        grouped = [
+            key
+            for _legend, rows in ChapterResourceForm.FIELD_GROUPS
+            for row in rows
+            for key in row
+        ]
+        declared = set(ChapterResourceForm.base_fields)
+        self.assertEqual(
+            set(grouped), declared,
+            "FIELD_GROUPS and the form's own fields have diverged",
+        )
+        self.assertEqual(
+            len(grouped), len(set(grouped)),
+            "a field appears in two groups, so it would render twice and the "
+            "second copy would win on submit",
+        )
+
+    def test_the_last_group_is_exactly_the_restricted_fields(self):
+        """Why it matters that they line up exactly: the group is dropped whole
+        for a non-audit editor. A restricted field parked in an open group would
+        leave that group half-empty for them; an open field parked in the
+        restricted group would become uneditable by anyone without the audit
+        permission, quietly."""
+        legend, rows = ChapterResourceForm.FIELD_GROUPS[-1]
+        self.assertEqual(legend, "Committee only")
+        keys = [key for row in rows for key in row]
+        self.assertEqual(set(keys), set(ChapterResourceForm.RESTRICTED_KEYS))
+
+    def test_an_ungrouped_field_raises_instead_of_vanishing(self):
+        form = ChapterResourceForm(includeRestricted=True)
+        form.fields["inventedExtraField"] = forms.CharField(required=False)
+        with self.assertRaises(ImproperlyConfigured) as caught:
+            form.groupedFields()
+        self.assertIn("inventedExtraField", str(caught.exception))
+
+    def test_the_restricted_group_disappears_rather_than_rendering_empty(self):
+        form = ChapterResourceForm(includeRestricted=False)
+        legends = [legend for legend, _rows in form.groupedFields()]
+        self.assertNotIn("Committee only", legends)
+        # The open groups all survive, so the guard removed a group rather than
+        # collapsing the form.
+        self.assertEqual(
+            legends, ["What it is", "Getting in", "Who's answerable", "What it costs"],
+        )
+
+    def test_every_group_renders_a_legend_on_the_page(self):
+        content = self.client.get(self.editUrl).content.decode()
+        for legend, _rows in ChapterResourceForm.FIELD_GROUPS:
+            with self.subTest(legend=legend):
+                self.assertIn(
+                    f'<legend class="form-group-legend">{escape(legend)}</legend>',
+                    content,
+                )
+
+    def test_every_field_still_reaches_the_page(self):
+        """The regression the grouping could cause. formRow.html stamps
+        data-field on every row, so this counts rendered inputs without
+        depending on any label wording."""
+        content = self.client.get(self.editUrl).content.decode()
+        for key in ChapterResourceForm(includeRestricted=True).fields:
+            with self.subTest(field=key):
+                self.assertIn(f'data-field="{key}"', content)
+
+    def test_paired_fields_share_a_row_and_single_fields_do_not(self):
+        form = ChapterResourceForm(includeRestricted=True)
+        rows = {
+            tuple(field.name for field in fields): isPair
+            for _legend, groupRows in form.groupedFields()
+            for isPair, fields in groupRows
+        }
+        self.assertIs(rows[("steward", "stewardName")], True)
+        self.assertIs(rows[("lastReviewed", "reviewedBy")], True)
+        self.assertIs(rows[("name",)], False)
+        content = self.client.get(self.editUrl).content.decode()
+        self.assertIn('<div class="form-pair">', content)
+        # A single-field row gets a bare <div>, not class="" - an empty class
+        # attribute would mean the isPair branch had stopped working and every
+        # row was being wrapped the same way.
+        self.assertNotIn('<div class="">', content)
+
+    def test_the_group_styles_are_actually_compiled(self):
+        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
+        css = cssPath.read_text(encoding="utf-8")
+        for className in (".form-group", ".form-group-legend", ".form-pair"):
+            self.assertIn(className, css, f"{className} is used in a template but not compiled")
+        # The seam-suppressing variant. Without it the last group carries a rule
+        # along the bottom of the card, dividing it from nothing.
+        self.assertIn(".form-group:last-of-type", css)

@@ -46,3 +46,40 @@
   accent-color: var(--color-primary);
   @apply cursor-pointer flex-none;
 }
+/* Field groups: a real <fieldset>/<legend>, not a div and an <h3>. A legend is
+   announced with every control inside the group, so "Committee only" is read
+   out with each restricted field instead of being a heading a screen reader
+   passed a while ago. Grouping is declared on the form (FIELD_GROUPS), never
+   in the template.
+
+   The seam is a hairline between groups rather than a box around each one -
+   these sit INSIDE a .page-card, and a border-on-border reads as two nested
+   panels.
+
+   It is a border-BOTTOM, and that is not arbitrary. A <legend> is laid out
+   inside its fieldset's top border rather than below it, so `border-t` here drew
+   a rule that started to the RIGHT of the legend text and left the space above
+   it bare - it read as an underline on the heading. Putting the rule under the
+   group's last field puts it nowhere near a legend. The last group drops it,
+   since the card edge already ends the form. */
+.form-group {
+  @apply pb-5 mb-5 border-b border-neutral-200;
+}
+.form-group:last-of-type {
+  @apply pb-0 mb-0 border-b-0;
+}
+/* These are the only headings inside the details card (it has no h2 - the tab
+   strip already names the section), so they carry the whole job of breaking up
+   the form and are dark and full-strength rather than a quiet caption.
+
+   Sentence case, not the uppercase of .menu-section-title: all-caps costs
+   reading speed because it flattens word shape, and unlike the nav captions
+   these are read while somebody is working down a long form. */
+.form-group-legend {
+  @apply text-sm font-semibold text-dark pb-2;
+}
+/* Two rows abreast from `md` up. items-start so a field whose help text runs to
+   two lines does not drag its partner's input downward. */
+.form-pair {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-x-6 items-start;
+}

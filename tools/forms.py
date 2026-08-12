@@ -7,7 +7,7 @@ import copy
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, Permission
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -1108,6 +1108,58 @@ class ChapterResourceForm(forms.Form):
         Keys.CONTINUITY_NOTE,
     )
 
+    # How the eighteen fields are grouped on the page, as
+    # (legend, (row, row, ...)) where a row is a tuple of field keys. A row of
+    # one renders full width; a row of two renders side by side above `md`.
+    #
+    # Eighteen fields in one flat column was a wall with no landmarks in it. The
+    # groups are the seams somebody actually thinks in, and they are the same
+    # ones detail.html reads back ("How to get access", "Reference", "Committee
+    # detail") so the page you edit and the page you read agree.
+    #
+    # This lives on the FORM, not in the template, because the template renders
+    # groups rather than iterating the form: a field added to the class and
+    # forgotten here would silently never render, and a field nobody can see is
+    # a field nobody can fill in. groupedFields() raises instead.
+    #
+    # Two-field rows are genuine PAIRS only - a field and its alternative
+    # (steward account vs. name-only), or a claim and who made it (last
+    # reviewed / reviewed by). Fields that merely fit are not a pair; pairing
+    # unrelated ones makes the tab order jump sideways for no reason.
+    #
+    # The last group is exactly RESTRICTED_KEYS, which is why a non-audit editor
+    # loses the whole group rather than being shown an empty heading. A test
+    # holds those two lists to each other.
+    FIELD_GROUPS = (
+        ("What it is", (
+            (Keys.NAME,),
+            (Keys.BLURB,),
+            (Keys.CATEGORY,),
+        )),
+        ("Getting in", (
+            (Keys.ACCESS_MODEL,),
+            (Keys.HOW_TO_GET_ACCESS,),
+            (Keys.ACCESS_REQUEST_URL, Keys.SITE_URL),
+        )),
+        ("Who's answerable", (
+            (Keys.STEWARD, Keys.STEWARD_NAME),
+        )),
+        ("What it costs", (
+            (Keys.PAYER, Keys.ANNUAL_COST),
+            (Keys.COST_NOTE,),
+        )),
+        # Tier sits directly above `requestable` because it is one of that
+        # checkbox's three preconditions - on the old flat form the rule and the
+        # tick box were four rows apart.
+        ("Committee only", (
+            (Keys.DELEGATION_TIER,),
+            (Keys.REQUESTABLE,),
+            (Keys.LAST_REVIEWED, Keys.REVIEWED_BY),
+            (Keys.REVOCATION_NOTE,),
+            (Keys.CONTINUITY_NOTE,),
+        )),
+    )
+
     # Field -> chapterToolsHelp slug, read by the explainSlugFor filter so the
     # definition renders beside that field's own label. Only the words that look
     # ordinary and are not: `annualCost` needs no gloss, `delegationTier` does.
@@ -1280,6 +1332,39 @@ class ChapterResourceForm(forms.Form):
         if not includeRestricted:
             for key in self.RESTRICTED_KEYS:
                 del self.fields[key]
+
+    def groupedFields(self):
+        """The bound fields in FIELD_GROUPS order, as (legend, rows) pairs where
+        each row is (isPair, [bound fields]).
+
+        Keys already removed by __init__'s restricted-field deletion are skipped,
+        and a group left with nothing in it is dropped rather than rendered as an
+        empty heading - which is what makes the "Committee only" group disappear
+        wholesale for an editor without viewChapterToolAudit.
+
+        Raises if a field is in the form but in no group. edit.html renders THIS,
+        not the form, so without the check a new field would be silently
+        unreachable - it would validate, it would save its default, and nobody
+        could ever type into it. Loud at render time beats invisible."""
+        grouped = []
+        placed = set()
+        for legend, rows in self.FIELD_GROUPS:
+            boundRows = []
+            for row in rows:
+                placed.update(row)
+                fields = [self[key] for key in row if key in self.fields]
+                if fields:
+                    boundRows.append((len(fields) > 1, fields))
+            if boundRows:
+                grouped.append((legend, boundRows))
+        ungrouped = [key for key in self.fields if key not in placed]
+        if ungrouped:
+            raise ImproperlyConfigured(
+                f"{type(self).__name__}.FIELD_GROUPS is missing "
+                f"{', '.join(sorted(ungrouped))} - add each to a group or it will "
+                "never render."
+            )
+        return grouped
 
     def clean_name(self):
         name = self.cleaned_data[self.Keys.NAME].strip()
