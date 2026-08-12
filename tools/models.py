@@ -1337,6 +1337,22 @@ class ResourceCredential(models.Model):
     # people to ignore the flag.
     ROTATE_AFTER_DAYS = 365
 
+    # The kinds the chapter does not hold, vault, or rotate - so the vault
+    # collection, the lifecycle status, and both dates have no answer for them
+    # and are not asked for.
+    #
+    # An individual login is one person's own password on their own account. The
+    # chapter never sees it, cannot rotate it, and would be recording a fiction
+    # by dating it. A 2FA token is bound to one person's device or key; it is
+    # replaced when that person is replaced, not on a rotation schedule.
+    #
+    # This is the one place the rule lives. The form drops the fields, the
+    # detail page drops the badges, and getRotationStatus() returns
+    # "not-applicable" - all three read from here rather than repeating the
+    # membership test, which is how the layer bugs elsewhere in this module got
+    # started.
+    NO_ROTATION_KINDS = (Kind.INDIVIDUAL_LOGIN, Kind.TWO_FACTOR_TOKEN)
+
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="credentials")
     label = models.CharField(max_length=200, help_text="e.g. 'Example Org shared login #2'.")
     kind = models.IntegerField(choices=KIND_CHOICES)
@@ -1380,6 +1396,11 @@ class ResourceCredential(models.Model):
     def __str__(self) -> str:
         return f"{self.resource.name}: {self.label}"
 
+    def tracksRotation(self) -> bool:
+        """Whether rotation is a question worth asking of this credential at all.
+        See NO_ROTATION_KINDS."""
+        return self.kind not in self.NO_ROTATION_KINDS
+
     def getAgeDays(self) -> int | None:
         """Days since this secret was last changed, falling back to when it was
         added. None when neither date is recorded - which is a distinct answer
@@ -1394,15 +1415,26 @@ class ResourceCredential(models.Model):
         reported as overdue: it is reported as undated (see getRotationStatus),
         because "we do not know" and "we know it is old" prompt different work
         and collapsing them loses the distinction the registry exists to keep."""
+        if not self.tracksRotation():
+            return False
         if self.status == self.Status.RETIRED:
             return False
         age = self.getAgeDays()
         return age is not None and age > self.ROTATE_AFTER_DAYS
 
     def getRotationStatus(self) -> str:
-        """One of "retired", "unknown", "overdue", "never-rotated" or "ok" - the
-        template branches on this rather than re-deriving the combination, so the
-        four states stay four states on every surface that shows them."""
+        """One of "not-applicable", "retired", "unknown", "overdue",
+        "never-rotated" or "ok" - the template branches on this rather than
+        re-deriving the combination, so the states stay the same states on every
+        surface that shows them.
+
+        "not-applicable" is checked first and beats every other answer: an
+        individual login with no dates is not an undated credential, it is a
+        credential the chapter was never going to date, and reporting it as
+        "no dates recorded" would fill the register with gaps that can never be
+        closed."""
+        if not self.tracksRotation():
+            return "not-applicable"
         if self.status == self.Status.RETIRED:
             return "retired"
         if self.getAgeDays() is None:
@@ -1432,63 +1464,32 @@ class ResourceHolder(models.Model):
     )
 
     # `how` and `accessLevel` answer two different questions and neither implies
-    # the other: `how` is which door somebody comes through, this is how much
+    # the other: `how` is which door somebody comes through, `accessLevel` is what
     # they can do once inside. Most tools have both an ordinary tier and an
     # administrative one - a workspace has members and it has owners - and the
     # registry could not previously tell them apart, so "who has access to Slack"
     # and "who could delete the Slack workspace" were the same list.
     #
-    # These names are deliberately generic rather than any one vendor's, because
-    # the ladder has to fit every row in the register. The mapping is by meaning:
-    # a workspace's "primary owner" is PRIMARY_OWNER, its "owner" is OWNER, and
-    # anybody who can change other people's access is ADMIN.
-    class AccessLevel:
-        ORDINARY = 0
-        ADMIN = 1
-        OWNER = 2
-        PRIMARY_OWNER = 3
-        UNCONFIRMED = 4
-
-    ACCESS_LEVEL_CHOICES = (
-        (AccessLevel.ORDINARY, "Ordinary access"),
-        (AccessLevel.ADMIN, "Admin"),
-        (AccessLevel.OWNER, "Owner"),
-        (AccessLevel.PRIMARY_OWNER, "Primary owner"),
-        (AccessLevel.UNCONFIRMED, "Not confirmed yet"),
+    # accessLevel is FREE TEXT, and that is the second version of this field. It
+    # was a five-value enum of deliberately generic rungs (Ordinary / Admin /
+    # Owner / Primary owner / Not confirmed) chosen so one ladder could fit every
+    # row in the register. In use that turned out to be the wrong trade: no tool
+    # calls its tiers those words, so every entry was a translation, and the
+    # translation lost the only thing an editor actually knew - what the service
+    # itself calls the role. "Delegated user", "Billing contact", "Workspace
+    # member", "Repo maintainer" are all real answers that had no rung.
+    #
+    # Free text cannot be reported on, which is why the two booleans below exist
+    # instead of being derived from it. See canGrantAccess/ownsAccount.
+    ACCESS_LEVEL_EXAMPLES = (
+        "Admin",
+        "Owner",
+        "Primary owner",
+        "Delegated user",
+        "Ordinary member",
+        "Billing contact",
+        "Read only",
     )
-
-    ACCESS_LEVEL_EXPLANATIONS = {
-        AccessLevel.ORDINARY: (
-            "They can use this the way any member does. They cannot change what "
-            "anybody else is allowed to do."
-        ),
-        AccessLevel.ADMIN: (
-            "They can change settings and change other people's access, including "
-            "removing somebody. They cannot usually delete the whole thing or move "
-            "the billing."
-        ),
-        AccessLevel.OWNER: (
-            "They hold the account at the top level: billing, deletion, and who "
-            "the other owners are. Losing every owner is how a chapter loses a "
-            "tool permanently."
-        ),
-        AccessLevel.PRIMARY_OWNER: (
-            "The single account the service treats as the real owner. It usually "
-            "cannot be removed by anybody else, and transferring it is a "
-            "deliberate act. If this is one person and nobody else can reach it, "
-            "that is the chapter's single point of failure for this tool."
-        ),
-        AccessLevel.UNCONFIRMED: (
-            "Nobody has checked how much this person can actually do here. Treat "
-            "it as open work, not as ordinary access."
-        ),
-    }
-
-    # The levels that make somebody's departure or absence a chapter problem, and
-    # so the ones the privileged-access page reports on. UNCONFIRMED is not in
-    # this list because it is not a claim that somebody IS privileged - it is the
-    # absence of a claim either way, and the page reports it separately.
-    PRIVILEGED_LEVELS = (AccessLevel.ADMIN, AccessLevel.OWNER, AccessLevel.PRIMARY_OWNER)
 
     resource = models.ForeignKey(ChapterResource, on_delete=models.CASCADE, related_name="holders")
     personName = models.CharField(
@@ -1498,14 +1499,37 @@ class ResourceHolder(models.Model):
         User, on_delete=models.SET_NULL, blank=True, null=True, related_name="resourceHolderRows",
     )
     how = models.IntegerField(choices=HOW_CHOICES, default=How.INDIVIDUAL_LOGIN)
-    # Defaults to UNCONFIRMED, not ORDINARY, for the same reason `confirmed`
-    # defaults to False: a guess recorded as a fact is worse than a recorded gap.
-    # Every row that existed before this field was added is genuinely unconfirmed,
-    # and the migration says so instead of quietly calling them all ordinary.
-    accessLevel = models.IntegerField(
-        choices=ACCESS_LEVEL_CHOICES, default=AccessLevel.UNCONFIRMED,
-        help_text="How much this person can do here, not which door they come through.",
+    accessLevel = models.CharField(
+        max_length=100, blank=True,
+        help_text=(
+            "What the service itself calls this person's role, in its own words. "
+            "Blank reads as not recorded, which is a true answer and better than a "
+            "guessed one."
+        ),
     )
+    # The two facts the register has to be able to READ ACROSS rows, which is why
+    # they are structured while the role name is not. chapter_tools_privileged
+    # answers "where is the chapter one person away from losing something", and
+    # that question cannot be asked of free text - "Delegated user" does not say
+    # whether it can remove somebody, and no keyword list would reliably guess.
+    #
+    # They are deliberately two facts rather than one rung on a ladder, because
+    # they come apart in the wild: a billing contact owns the account and cannot
+    # touch membership, and a workspace admin removes people but cannot delete the
+    # workspace. Collapsing them is what made the old enum need four rungs to say
+    # two things.
+    canGrantAccess = models.BooleanField(
+        default=False,
+        help_text="They can change what other people here are allowed to do, including removing somebody.",
+    )
+    ownsAccount = models.BooleanField(
+        default=False,
+        help_text="They hold it at the top level: billing, deletion, and who the other owners are.",
+    )
+    # The single "has anybody actually checked this row" signal. It used to be
+    # duplicated: `confirmed` said it, and accessLevel had an UNCONFIRMED rung
+    # that said it again about one field, so a row could be confirmed with an
+    # unconfirmed level and neither reading was wrong. One flag now.
     confirmed = models.BooleanField(
         default=False, help_text="Unconfirmed holders render as open work, not silence.",
     )
@@ -1532,24 +1556,30 @@ class ResourceHolder(models.Model):
         return self.personName
 
     def isPrivileged(self) -> bool:
-        return self.accessLevel in self.PRIVILEGED_LEVELS
+        """Whether this person's departure or absence is a chapter problem.
 
-    def getAccessLevelExplanation(self) -> str:
-        return self.ACCESS_LEVEL_EXPLANATIONS.get(self.accessLevel, "")
+        Read from the two booleans, never from the role name: a registry that
+        guessed privilege by matching words would call a "Read only admin
+        console" holder an admin and miss a "Delegated user" who can remove
+        people, and both mistakes are silent."""
+        return self.canGrantAccess or self.ownsAccount
 
-    @classmethod
-    def getAccessLevelLegend(cls) -> list:
-        """The full ladder for the help popover - complete for the same reason
-        as getDelegationTierLegend: the rungs define each other."""
-        return [
-            {
-                "value": value,
-                "label": label,
-                "explanation": cls.ACCESS_LEVEL_EXPLANATIONS.get(value, ""),
-                "privileged": value in cls.PRIVILEGED_LEVELS,
-            }
-            for value, label in cls.ACCESS_LEVEL_CHOICES
-        ]
+    def getAccessLevelDisplay(self) -> str:
+        """The role name for reading. Blank is a real state - nobody wrote one
+        down - and must not render as an empty badge."""
+        return self.accessLevel.strip() or "Role not recorded"
+
+    def getPowerSummary(self) -> str:
+        """One short phrase naming what the two booleans amount to, so a reader
+        does not have to hold two checkboxes in their head. Deliberately not the
+        role name: the role name is the service's word, this is the chapter's."""
+        if self.ownsAccount and self.canGrantAccess:
+            return "Owns it, and can change other people's access"
+        if self.ownsAccount:
+            return "Owns it"
+        if self.canGrantAccess:
+            return "Can change other people's access"
+        return "No power over other people's access"
 
 
 class ResourceDependency(models.Model):

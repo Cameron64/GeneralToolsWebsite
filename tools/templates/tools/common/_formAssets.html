@@ -1,0 +1,23 @@
+{% comment %}
+The behaviour scripts behind the custom form widgets. Include once, at the end of
+any page that renders a Chapter Tools form:
+    {% include "tools/common/_formAssets.html" %}
+
+One include rather than one per widget, and unconditional rather than branched on
+which widget the page happens to use. Every script here binds by data attribute
+and does nothing at all when its attribute is absent, so the cost of loading a
+script a page does not need is a few hundred bytes - while a per-page list of
+which scripts that page needs is a second copy of the form definition, kept in a
+template, that goes wrong the first time a widget moves.
+
+versionedStatic, not static: the whole reason an earlier round of this feature
+looked broken in a browser was a stale cached asset served without validators
+(see asset_tags.versionedStatic). A behaviour script cached against new markup
+fails more confusingly than a stale stylesheet, not less.
+
+`defer` is load-bearing on all three - each binds its elements as it runs, so it
+has to run after the form is parsed.
+{% endcomment %}{% load asset_tags %}
+<script src="{% versionedStatic 'js/memberTypeahead.js' %}" defer></script>
+<script src="{% versionedStatic 'js/clearableDate.js' %}" defer></script>
+<script src="{% versionedStatic 'js/fieldSuppression.js' %}" defer></script>

@@ -2,9 +2,8 @@
 
 Why this module exists at all. The registry uses five words that look ordinary
 and are not: steward, review, delegation tier, requestable, and access level. A
-reader who guesses at any of them fills the row in wrong, and the two ladders
-(tier and access level) were previously rendered as a bare colour name or a bare
-noun with nothing behind them.
+reader who guesses at any of them fills the row in wrong, and the delegation
+tier was previously rendered as a bare colour name with nothing behind it.
 
 Why the text lives here rather than in the templates. Each term appears on at
 least two surfaces - the edit form and the reader-facing detail page - and the
@@ -20,12 +19,14 @@ to hang off - a review is two fields, the tier ladder is a set of values, and
 what members may request is a policy spanning three fields - and help_text is
 invisible to somebody who is only reading.
 
-The ladders deliberately do NOT restate their rungs here. `getEntry` pulls those
-from the model classmethods, so the tier wording has exactly one home
-(ChapterResource.DELEGATION_TIER_EXPLANATIONS) and this module cannot contradict
-it.
+The delegation-tier ladder deliberately does NOT restate its rungs here.
+`getEntry` pulls those from the model classmethod, so the tier wording has
+exactly one home (ChapterResource.DELEGATION_TIER_EXPLANATIONS) and this module
+cannot contradict it. Access level used to work the same way and no longer does:
+it is free text now, so there are no rungs to pull - the entry below explains the
+two structured questions that sit beside the free-text role instead.
 """
-from .models import ChapterResource, ResourceCredential, ResourceHolder
+from .models import ChapterResource, ResourceCredential
 
 # Slug -> entry. `title` is the popover heading, `body` the definition, and the
 # optional `bullets` a short list where the definition is genuinely a set of
@@ -85,9 +86,22 @@ GLOSSARY = {
         "body": (
             "How much a person can do once they are in, which is a different "
             "question from which door they came through. Two people can both "
-            "“have Slack” while one of them could delete it."
+            "“have Slack” while one of them could delete it. Write the role in "
+            "the service's own words, then answer the two questions the chapter "
+            "needs to be able to read across every tool:"
         ),
-        "ladder": "access-level",
+        "bullets": [
+            "Can they change other people's access here? That is anybody who "
+            "can add or remove somebody, whatever the service calls them.",
+            "Do they own the account? Billing, deletion, and who the other "
+            "owners are. Losing every owner is how a chapter loses a tool "
+            "permanently.",
+        ],
+        "closing": (
+            "Leave the role name blank rather than guessing, and leave the row "
+            "unconfirmed until somebody has actually looked. A blank reads as "
+            "open work. A guess reads as a fact."
+        ),
     },
     "credential-age": {
         "title": "Credential age and rotation",
@@ -98,16 +112,18 @@ GLOSSARY = {
             "than as new, because not knowing and knowing it is old are "
             "different problems. After "
             f"{ResourceCredential.ROTATE_AFTER_DAYS} days without a change it "
-            "is flagged as overdue."
+            "is flagged as overdue. An individual login and a 2FA token are one "
+            "person's own, so the chapter neither holds nor rotates them and they "
+            "are not dated or flagged at all."
         ),
     },
     "holders": {
         "title": "What this list is and is not",
         "body": (
             "Who can get into this today, as far as the chapter has checked. "
-            "“Not confirmed yet” means nobody has verified that person's "
-            "access, not that they have lost it. An empty list is an open job, "
-            "not evidence that nobody has access."
+            "“Unconfirmed” means nobody has verified that person's access, not "
+            "that they have lost it. An empty list is an open job, not evidence "
+            "that nobody has access."
         ),
     },
 }
@@ -129,6 +145,4 @@ def getEntry(slug: str) -> dict | None:
     ladder = resolved.pop("ladder", None)
     if ladder == "delegation-tier":
         resolved["items"] = ChapterResource.getDelegationTierLegend()
-    elif ladder == "access-level":
-        resolved["items"] = ResourceHolder.getAccessLevelLegend()
     return resolved

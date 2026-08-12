@@ -1,0 +1,15 @@
+{% comment %}
+Widget template for forms.SuggestingTextInput - a text box with example values.
+
+This is Django's own widgets/input.html plus a <datalist>. The `list` attribute
+is put on the input by the widget's get_context, not written here, so the id can
+be derived from the field's own id and two of these on one page cannot collide.
+
+No JS: <datalist> suggests without constraining, which is exactly the contract
+this field wants. A browser without it renders the plain text box and ignores the
+list, which is the correct degradation - the examples are a convenience, never a
+validation rule.
+{% endcomment %}<input type="{{ widget.type }}" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}>
+<datalist id="{{ widget.listId }}">
+  {% for suggestion in widget.suggestions %}<option value="{{ suggestion }}"></option>{% endfor %}
+</datalist>

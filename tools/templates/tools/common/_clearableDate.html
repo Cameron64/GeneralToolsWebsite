@@ -1,0 +1,16 @@
+{% comment %}
+Widget template for forms.ClearableDateInput - a date input with a Clear button.
+
+Django's own widgets/input.html, wrapped and given a button. Chrome's
+<input type="date"> offers no way to empty a date that has been set, so an
+optional date field was settable and not unsettable - see the widget's docstring.
+
+The button carries `hidden` in the markup and is revealed by js/clearableDate.js
+only when the input actually holds a date. Two reasons, both about not lying to
+the reader: with scripting off the button could not work, so it must not be
+there; and a Clear button on an already-empty field is a control that does
+nothing.
+{% endcomment %}<div class="clearable-date" data-clearable-date>
+  <input type="{{ widget.type }}" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}>
+  <button type="button" class="btn btn-secondary btn-small" data-clearable-date-clear hidden>Clear</button>
+</div>

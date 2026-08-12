@@ -34,6 +34,6 @@
   </form>
 </div>
 
-{% comment %} Included for every child kind, not only holders: the holder form has the member typeahead, and a conditional include here would be a branch on childKind - the exact thing CHILD_SPECS exists to avoid. The script binds nothing when the page has no typeahead. {% endcomment %}
-{% include "tools/common/_typeaheadAssets.html" %}
+{% comment %} Included for every child kind, not only the ones that use a given widget: a conditional include here would be a branch on childKind - the exact thing CHILD_SPECS exists to avoid. Each script binds nothing when its widget is absent from the page. {% endcomment %}
+{% include "tools/common/_formAssets.html" %}
 {% endblock page_content %}

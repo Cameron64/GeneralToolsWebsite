@@ -2077,6 +2077,24 @@
     line-height: var(--text-sm--line-height);
     color: var(--color-secondary);
   }
+  .clearable-date {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    max-width: var(--container-xl);
+  }
+  .clearable-date > input {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+  .clearable-date > button {
+    flex: 0 0 auto;
+  }
+  .form-row[hidden],
+  .form-row-checkbox[hidden] {
+    display: none;
+  }
 }
 @property --tw-rotate-x {
   syntax: "*";

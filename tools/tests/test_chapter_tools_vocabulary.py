@@ -19,8 +19,10 @@ from django.core.exceptions import ValidationError
 from django.template import Context, Template
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone as djangoTimezone
 
 from tools.chapterToolsHelp import GLOSSARY, getEntry
+from tools.forms import ResourceHolderForm
 from tools.models import ChapterResource, ResourceCredential, ResourceHolder
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 from tools.tests.test_chapter_tools import (
@@ -127,41 +129,95 @@ class DelegationTierFormRuleTests(LoginClientMixin, TestCase):
 
 
 class AccessLevelTests(TestCase):
-    def test_every_level_has_an_explanation(self):
-        for value, label in ResourceHolder.ACCESS_LEVEL_CHOICES:
-            self.assertTrue(
-                ResourceHolder.ACCESS_LEVEL_EXPLANATIONS.get(value),
-                f"access level {label} has no explanation",
-            )
+    """The role name is free text; privilege is read from the two booleans.
 
-    def test_a_new_holder_defaults_to_unconfirmed_not_ordinary(self):
+    Every test here is really the same assertion from a different side: NOTHING
+    may infer power from the words somebody typed. A register that parsed the
+    role name would call "Delegated user" ordinary and "Read-only admin console"
+    an admin, and both mistakes are silent.
+    """
+
+    def test_a_new_holder_records_no_role_and_no_power(self):
         """A guess recorded as a fact is worse than a recorded gap - the rule
-        `confirmed` already follows. Every row predating this field is genuinely
-        unchecked, and the default says so rather than calling them all
-        ordinary."""
+        `confirmed` already follows. A blank role reads as not recorded, which is
+        true, where "Ordinary access" would be an invented claim."""
         holder = ResourceHolder.objects.create(
             resource=_makeResource(), personName="Example Holder",
         )
-        self.assertEqual(holder.accessLevel, ResourceHolder.AccessLevel.UNCONFIRMED)
+        self.assertEqual(holder.accessLevel, "")
+        self.assertFalse(holder.canGrantAccess)
+        self.assertFalse(holder.ownsAccount)
         self.assertFalse(holder.isPrivileged())
 
-    def test_unconfirmed_and_ordinary_are_not_privileged(self):
-        """UNCONFIRMED is the absence of a claim, not a claim that somebody IS
-        privileged, so it must not inflate the privileged list."""
-        self.assertNotIn(ResourceHolder.AccessLevel.UNCONFIRMED, ResourceHolder.PRIVILEGED_LEVELS)
-        self.assertNotIn(ResourceHolder.AccessLevel.ORDINARY, ResourceHolder.PRIVILEGED_LEVELS)
+    def test_a_blank_role_renders_as_not_recorded_never_as_an_empty_badge(self):
+        holder = ResourceHolder.objects.create(
+            resource=_makeResource(), personName="Example Holder",
+        )
+        self.assertEqual(holder.getAccessLevelDisplay(), "Role not recorded")
 
-    def test_admin_owner_and_primary_owner_are_privileged(self):
+    def test_a_role_name_alone_confers_no_privilege(self):
+        """The words are the service's, not a permission. Typing "Owner" without
+        ticking a box must not put somebody on the privileged-access page - the
+        boxes are the claim, the word is the label."""
+        holder = ResourceHolder.objects.create(
+            resource=_makeResource(), personName="Example Holder",
+            accessLevel="Owner",
+        )
+        self.assertFalse(holder.isPrivileged())
+
+    def test_either_box_makes_somebody_privileged(self):
         resource = _makeResource()
-        for level in (ResourceHolder.AccessLevel.ADMIN, ResourceHolder.AccessLevel.OWNER,
-                      ResourceHolder.AccessLevel.PRIMARY_OWNER):
+        for index, (canGrant, owns) in enumerate([(True, False), (False, True), (True, True)]):
             holder = ResourceHolder.objects.create(
-                resource=resource, personName=f"Example Holder {level}", accessLevel=level,
+                resource=resource, personName=f"Example Holder {index}",
+                accessLevel="Delegated user",
+                canGrantAccess=canGrant, ownsAccount=owns,
             )
-            self.assertTrue(holder.isPrivileged(), f"level {level} should be privileged")
+            self.assertTrue(holder.isPrivileged(), f"{canGrant}/{owns} should be privileged")
+
+    def test_the_power_summary_names_each_combination_distinctly(self):
+        resource = _makeResource()
+        summaries = set()
+        for index, (canGrant, owns) in enumerate(
+                [(False, False), (True, False), (False, True), (True, True)]):
+            holder = ResourceHolder.objects.create(
+                resource=resource, personName=f"Example Summary Holder {index}",
+                canGrantAccess=canGrant, ownsAccount=owns,
+            )
+            summaries.add(holder.getPowerSummary())
+        self.assertEqual(len(summaries), 4)
+
+    def test_the_role_name_is_stripped_so_two_spellings_do_not_appear(self):
+        form = ResourceHolderForm(data={
+            "personName": "Example Holder", "how": "0", "accessLevel": "  Admin  ",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["accessLevel"], "Admin")
+
+    def test_the_form_offers_examples_without_constraining_the_answer(self):
+        """A datalist suggests; it must not validate. A role nobody thought of
+        is the case the free-text field exists for."""
+        form = ResourceHolderForm(data={
+            "personName": "Example Holder", "how": "0",
+            "accessLevel": "Regional coordinator (invented)",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
 
 
 class CredentialAgeTests(TestCase):
+    """Dates here come from _today(), never the stdlib's date.today().
+
+    The model measures age against djangoTimezone.now().date(), which honours
+    settings.TIME_ZONE - UTC. The stdlib call reads the machine clock, so on a
+    Central-time laptop the two disagree for the five hours after 19:00 and every
+    age assertion here failed by exactly one day. That is the test being wrong
+    about which clock the app keeps, not the app being wrong.
+    """
+
+    @staticmethod
+    def _today():
+        return djangoTimezone.now().date()
+
     def _credential(self, **overrides):
         defaults = {
             "resource": _makeResource(),
@@ -184,20 +240,20 @@ class CredentialAgeTests(TestCase):
         """A credential rotated today has an age of 0, which is falsy - so any
         caller testing truthiness reports it as unknown. That exact bug was
         written into this feature's template once."""
-        credential = self._credential(lastRotated=datetime.date.today())
+        credential = self._credential(lastRotated=self._today())
         self.assertEqual(credential.getAgeDays(), 0)
         self.assertEqual(credential.getRotationStatus(), "ok")
 
     def test_age_falls_back_to_addedAt_when_never_rotated(self):
         credential = self._credential(
-            addedAt=datetime.date.today() - datetime.timedelta(days=10),
+            addedAt=self._today() - datetime.timedelta(days=10),
         )
         self.assertEqual(credential.getAgeDays(), 10)
         self.assertEqual(credential.getRotationStatus(), "never-rotated")
 
     def test_overdue_past_the_threshold(self):
         credential = self._credential(
-            lastRotated=datetime.date.today() - datetime.timedelta(
+            lastRotated=self._today() - datetime.timedelta(
                 days=ResourceCredential.ROTATE_AFTER_DAYS + 1,
             ),
         )
@@ -206,7 +262,7 @@ class CredentialAgeTests(TestCase):
 
     def test_a_retired_credential_is_never_overdue(self):
         credential = self._credential(
-            lastRotated=datetime.date.today() - datetime.timedelta(days=5000),
+            lastRotated=self._today() - datetime.timedelta(days=5000),
             status=ResourceCredential.Status.RETIRED,
         )
         self.assertFalse(credential.isRotationOverdue())
@@ -266,9 +322,11 @@ class GlossaryTests(TestCase):
         """A template typo must not 500 a page whose real content is fine."""
         self.assertIsNone(getEntry("no-such-entry"))
 
-    def test_the_two_ladders_are_attached_from_the_models(self):
-        """The rung text has exactly one home - the model dicts - so the
-        glossary cannot drift from what the detail page renders."""
+    def test_the_tier_ladder_is_attached_from_the_model(self):
+        """The rung text has exactly one home - the model dict - so the glossary
+        cannot drift from what the detail page renders. Access level used to work
+        this way too and no longer does: the role is free text, so there are no
+        rungs to pull and the entry has to carry its own two questions."""
         tier = getEntry("delegation-tier")
         self.assertEqual(len(tier["items"]), len(ChapterResource.DELEGATION_TIER_CHOICES))
         self.assertIn(
@@ -276,8 +334,12 @@ class GlossaryTests(TestCase):
             [item["explanation"] for item in tier["items"]],
         )
 
+        # access-level no longer has a ladder to pull - the role is free text -
+        # so it must carry its own two questions instead of silently rendering
+        # an empty popover.
         level = getEntry("access-level")
-        self.assertEqual(len(level["items"]), len(ResourceHolder.ACCESS_LEVEL_CHOICES))
+        self.assertIsNone(level.get("items"))
+        self.assertEqual(len(level["bullets"]), 2)
 
     def test_getEntry_does_not_mutate_the_glossary(self):
         """It pops the `ladder` key off a copy. Popping off the original would

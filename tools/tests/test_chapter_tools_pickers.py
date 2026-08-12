@@ -97,8 +97,13 @@ class FormRowExplainTests(TestCase):
         rendered = self._render("explainSlug=form.accessLevel|explainSlugFor")
         self.assertIn('class="explain-row"', rendered)
         self.assertIn("<details", rendered)
-        # The definition sits inside the label row, not after the widget.
-        self.assertLess(rendered.find("<details"), rendered.find("<select"))
+        # The definition sits inside the label row, not after the widget. The
+        # widget is what the field renders - accessLevel is a text box with a
+        # datalist now, so anchor on the input, not on a <select> that would make
+        # this assertion pass by finding nothing.
+        widgetAt = rendered.find("<input")
+        self.assertNotEqual(widgetAt, -1)
+        self.assertLess(rendered.find("<details"), widgetAt)
 
     def test_no_slug_renders_no_label_row_at_all(self):
         rendered = self._render()
@@ -339,7 +344,7 @@ class StewardPickerTests(LoginClientMixin, TestCase):
             {
                 "personName": "", "user": str(self.steward.pk),
                 "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
-                "accessLevel": str(ResourceHolder.AccessLevel.OWNER),
+                "accessLevel": "Owner", "canGrantAccess": "on", "ownsAccount": "on",
                 "confirmed": "on", "note": "",
             },
         )
