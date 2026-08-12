@@ -1,7 +1,18 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
 {% load explain_tags %}
-{% block breadcrumbs %}{% url 'chapter-tool-edit' pk=resource.id as parentToolUrl %}{% breadcrumbs parentLabel=resource.name parentUrl=parentToolUrl currentLabel=childLabel %}{% endblock breadcrumbs %}
+{% comment %}
+  backUrl comes from the view (_backToSection) rather than being built here. It
+  is the workbench opened on the section this row belongs to, and every way out
+  of this page uses it - breadcrumb, subtitle link and Cancel - so backing out
+  lands where saving lands instead of on the details form.
+
+  Built in the view because a {% templatetag openblock %} with {% templatetag closeblock %} cannot wrap
+  {% templatetag openblock %} block {% templatetag closeblock %} tags in a template that extends another: blocks are
+  collected at parse time and are not inside the with's scope when the parent
+  renders them. One string on the context is also the version a test can assert.
+{% endcomment %}
+{% block breadcrumbs %}{% breadcrumbs parentLabel=resource.name parentUrl=backUrl currentLabel=childLabel %}{% endblock breadcrumbs %}
 {% block page_content %}
 
 {% comment %}
@@ -15,7 +26,7 @@
 
 <div class="page-card max-w-2xl">
   <h1 class="page-title">{% if isCreate %}Add a {{ childLabel }}{% else %}Edit {{ childLabel }}{% endif %}</h1>
-  <p class="page-subtitle">On <a href="{% url 'chapter-tool-edit' pk=resource.id %}">{{ resource.name }}</a></p>
+  <p class="page-subtitle">On <a href="{{ backUrl }}">{{ resource.name }}</a></p>
 
   <form action="" method="post">
     {% csrf_token %}
@@ -29,7 +40,7 @@
 
     <div class="flex flex-wrap items-center gap-3 pt-4">
       <button type="submit" class="btn btn-primary">{% if isCreate %}Add {{ childLabel }}{% else %}Save changes{% endif %}</button>
-      <a href="{% url 'chapter-tool-edit' pk=resource.id %}" class="btn btn-secondary">Cancel</a>
+      <a href="{{ backUrl }}" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
 </div>

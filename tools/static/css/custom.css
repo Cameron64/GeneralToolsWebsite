@@ -59,6 +59,7 @@
   @import "./components/_mobile-menu.css";
   @import "./components/_dropdowns.css";
   @import "./components/_breadcrumbs.css";
+  @import "./components/_tabs.css";
   @import "./components/_layout.css";
   @import "./components/_buttons.css";
   @import "./components/_forms.css";

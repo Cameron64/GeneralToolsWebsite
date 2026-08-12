@@ -11,15 +11,24 @@
   round trips on a phone, and the whole reason this page exists is that the
   registry was previously editable only through /admin/.
 
-  Single column at every width, and the child rows are .record-item cards
-  rather than a table - see components/_chapter-tools.css for why a table
-  cannot work here (the Tailwind CLI cannot run on this machine, so there is no
-  responsive utility vocabulary to lay one out with).
+  The sections are TABS rather than the five stacked cards this replaced. The
+  stack was not merely long: every child row is added on its own page which
+  redirects back here, so adding a second holder meant landing at the top of the
+  page and scrolling down past a list that had just grown by one - once per row.
+  The active tab lives in ?tab= exactly so the child views can redirect into it
+  (see _backToSection in chapterToolsViews.py), which is what removes that
+  scroll. Tabs held in CSS or JS state could not do it; the tab has to survive a
+  round trip. Links, not role="tab" - see components/_tabs.css for why.
+
+  Single column at every width, and the child rows are .record-item cards rather
+  than a table - see components/_chapter-tools.css for why a table cannot work
+  here.
 
   hasAudit gates the restricted layer. The template guard is the SECOND line of
   defence, not the first: the view already omits the restricted form fields, the
   credential rows, and the RUNS_ON edges from the context, so a guard removed
-  here still cannot render them.
+  here still cannot render them. _activeTab applies the same rule to the tab
+  strip, so a hand-typed ?tab=credentials lands on details instead.
 
   Comment BLOCK tag, not the short hash-brace form - that form is single-line
   only in Django and a multi-line one renders as literal page text.
@@ -37,6 +46,27 @@
 <div class="alert alert-success mb-4">Saved.</div>
 {% endif %}
 
+{% if not isCreate %}
+{% comment %}
+  A nav of links, not a role="tablist". Each one is a page load that the server
+  answers with one section, so announcing it as a tab switch would promise a
+  panel swap that does not happen. aria-current matches .breadcrumbs.
+
+  Counts sit in the label so the strip says where the rows are without opening
+  anything - including a zero, which on the holder list is a known gap worth
+  seeing rather than something to hide.
+{% endcomment %}
+<nav class="tab-nav" aria-label="Sections of this chapter tool">
+  <a class="tab" href="?tab=details" {% if tab == 'details' %}aria-current="page"{% endif %}>Details</a>
+  <a class="tab" href="?tab=holders" {% if tab == 'holders' %}aria-current="page"{% endif %}>Who has it <span class="tab-count">({{ holders|length }})</span></a>
+  <a class="tab" href="?tab=dependencies" {% if tab == 'dependencies' %}aria-current="page"{% endif %}>What it needs <span class="tab-count">({{ dependencies|length }})</span></a>
+  {% if hasAudit %}
+  <a class="tab" href="?tab=credentials" {% if tab == 'credentials' %}aria-current="page"{% endif %}>Credentials <span class="tab-count">({{ credentials|length }})</span></a>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% if isCreate or tab == 'details' %}
 <div class="page-card max-w-2xl">
   <h2 class="section-title pt-0">Details</h2>
   {% if not hasAudit %}
@@ -72,8 +102,26 @@
   </form>
 </div>
 
+{% comment %}
+  Deleting the tool is a detail of the tool itself, so it sits at the foot of
+  this section rather than in a sixth card below every other one. It is also the
+  only destructive action on the page, and a tab it has to be opened to reach is
+  a better place for it than the permanent bottom of a scroll.
+{% endcomment %}
+{% if not isCreate %}
+<div class="page-card max-w-2xl">
+  <h2 class="section-title pt-0">Delete this chapter tool</h2>
+  <p class="form-help pb-4">
+    Removes the tool and everything recorded against it. You'll be asked to type its name first.
+  </p>
+  <a href="{% url 'chapter-tool-delete' pk=resource.id %}" class="btn btn-danger">Delete {{ resource.name }}</a>
+</div>
+{% endif %}
+{% endif %}
+
 {% if not isCreate %}
 
+{% if tab == 'holders' %}
 {% comment %}
   Holders are the OPEN layer - the roster is gated on viewResourceHolders for
   reading, but there is nothing committee-only about the rows themselves, so any
@@ -83,7 +131,7 @@
 {% endcomment %}
 <div class="page-card">
   <div class="record-head">
-    <h2 class="section-title pt-0">Who has it now ({{ holders|length }})</h2>
+    <h2 class="section-title pt-0">Who has it now</h2>
     <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='holders' %}" class="btn btn-secondary btn-small">Add a holder</a>
   </div>
   <div class="record-list">
@@ -99,10 +147,20 @@
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">How they get in</span> {{ holder.get_how_display }}</span>
-        <span><span class="record-meta-label">What that means here</span> {{ holder.getPowerSummary }}</span>
         {% if holder.user %}<span><span class="record-meta-label">Echo account</span> {{ holder.user.username }}</span>{% endif %}
       </p>
-      {% if holder.note %}<p class="record-meta"><span>{{ holder.note }}</span></p>{% endif %}
+      {% comment %}
+        The power summary gets its own line rather than a slot in the strip
+        above, for the same reason it moved on detail.html: that strip is for
+        SHORT facts laid out inline, and .record-meta-label renders uppercase and
+        letter-spaced. A whole sentence in there became the loudest thing on the
+        card and shouted over the name it was describing.
+
+        No label. The badge in the head already names the role and this line says
+        what the role amounts to, so a third heading would be for one fact.
+      {% endcomment %}
+      <p class="record-aside">{{ holder.getPowerSummary }}</p>
+      {% if holder.note %}<p class="record-prose">{{ holder.note }}</p>{% endif %}
       <div class="record-actions">
         <div class="flex flex-wrap gap-2">
           <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='holders' childId=holder.id %}" class="btn btn-secondary btn-small">Edit</a>
@@ -119,17 +177,19 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
 
+{% if tab == 'dependencies' %}
 <div class="page-card">
   <div class="record-head">
-    <h2 class="section-title pt-0">What this needs ({{ dependencies|length }})</h2>
+    <h2 class="section-title pt-0">What this needs</h2>
     <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='dependencies' %}" class="btn btn-secondary btn-small">Add a dependency</a>
   </div>
   <div class="record-list">
     {% for dependency in dependencies %}
     <div class="record-item">
       <p class="record-title">{{ dependency.get_kind_display }} <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a></p>
-      {% if dependency.note %}<p class="record-meta"><span>{{ dependency.note }}</span></p>{% endif %}
+      {% if dependency.note %}<p class="record-prose">{{ dependency.note }}</p>{% endif %}
       <div class="record-actions">
         <div class="flex flex-wrap gap-2">
           <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='dependencies' childId=dependency.id %}" class="btn btn-secondary btn-small">Edit</a>
@@ -151,6 +211,10 @@
     resource, so editing them here would be editing a row this page does not
     show. They are listed anyway because an edge that is invisible from this end
     just gets added a second time from it.
+
+    In this tab rather than one of its own: it is the same question asked the
+    other way round, and a tab you cannot act in would be a tab that only ever
+    disappoints whoever opens it.
   {% endcomment %}
   {% if dependents %}
   <h3 class="menu-section-title">What needs this ({{ dependents|length }})</h3>
@@ -160,19 +224,20 @@
     <div class="record-item">
       <p class="record-title"><a href="{{ dependency.resource.getUrl }}">{{ dependency.resource.name }}</a> {{ dependency.get_kind_display|lower }} this</p>
       <p class="record-meta">
-        {% if dependency.note %}<span>{{ dependency.note }}</span>{% endif %}
         <span><a href="{% url 'chapter-tool-edit' pk=dependency.resource.id %}">Edit {{ dependency.resource.name }} &rarr;</a></span>
       </p>
+      {% if dependency.note %}<p class="record-prose">{{ dependency.note }}</p>{% endif %}
     </div>
     {% endfor %}
   </div>
   {% endif %}
 </div>
+{% endif %}
 
-{% if hasAudit %}
+{% if hasAudit and tab == 'credentials' %}
 <div class="page-card">
   <div class="record-head">
-    <h2 class="section-title pt-0">Credentials ({{ credentials|length }})</h2>
+    <h2 class="section-title pt-0">Credentials</h2>
     <a href="{% url 'chapter-tool-child-new' pk=resource.id childKind='credentials' %}" class="btn btn-secondary btn-small">Add a credential</a>
   </div>
   <div class="alert alert-info mb-4">
@@ -198,7 +263,7 @@
           {% if credential.getAgeDays is not None %}{{ credential.getAgeDays }} day{{ credential.getAgeDays|pluralize }}{% else %}unknown{% endif %}</span>
         <span><span class="record-meta-label">Vault collection</span> {{ credential.vaultCollection|default:"-" }}</span>
       </p>
-      {% if credential.note %}<p class="record-meta"><span>{{ credential.note }}</span></p>{% endif %}
+      {% if credential.note %}<p class="record-prose">{{ credential.note }}</p>{% endif %}
       <div class="record-actions">
         <div class="flex flex-wrap gap-2">
           <a href="{% url 'chapter-tool-child-edit' pk=resource.id childKind='credentials' childId=credential.id %}" class="btn btn-secondary btn-small">Edit</a>
@@ -216,14 +281,6 @@
   </div>
 </div>
 {% endif %}
-
-<div class="page-card max-w-2xl">
-  <h2 class="section-title pt-0">Delete this chapter tool</h2>
-  <p class="form-help pb-4">
-    Removes the tool and everything recorded against it. You'll be asked to type its name first.
-  </p>
-  <a href="{% url 'chapter-tool-delete' pk=resource.id %}" class="btn btn-danger">Delete {{ resource.name }}</a>
-</div>
 
 {% endif %}
 

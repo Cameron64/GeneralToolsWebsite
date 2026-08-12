@@ -18,6 +18,7 @@ from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
+from django.utils.html import escape
 from django.urls import reverse
 
 from tools.models import (
@@ -1053,9 +1054,17 @@ class ChapterToolsCrudGateTests(LoginClientMixin, TestCase):
 
     def test_an_editor_can_reach_the_workbench(self):
         self.loginAs(self.editor)
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Who has it now")
+        # The bare URL opens on Details, so the roster heading is no longer the
+        # marker for "the workbench loaded" - it is the marker for one tab. The
+        # tab strip is what proves the workbench itself rendered.
+        self.assertContains(response, 'class="tab-nav"')
+        self.assertContains(response, "Details")
+        # Paired, so this keeps meaning something if the sections were dropped
+        # from the page rather than moved into tabs.
+        self.assertContains(self.client.get(f"{url}?tab=holders"), "Who has it now")
 
     def test_the_edit_link_is_hidden_from_a_member_and_shown_to_an_editor(self):
         detailUrl = self.resource.getUrl()
@@ -1118,10 +1127,15 @@ class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
         self.assertContains(response, CONTINUITY_SENTINEL)
 
     def test_credentials_are_hidden_from_a_non_audit_editor_and_shown_to_an_audit_one(self):
+        # Asked for by tab, because that is the only place the section renders
+        # now. The non-audit half is the stronger assertion of the two: asking
+        # for ?tab=credentials WITHOUT the permission does not render them, it
+        # falls back to details - see _activeTab.
+        credentialsTab = f"{self.editUrl}?tab=credentials"
         self.loginAs(self.editor)
-        self.assertNotContains(self.client.get(self.editUrl), CRED_SENTINEL)
+        self.assertNotContains(self.client.get(credentialsTab), CRED_SENTINEL)
         self.loginAs(self.auditEditor)
-        self.assertContains(self.client.get(self.editUrl), CRED_SENTINEL)
+        self.assertContains(self.client.get(credentialsTab), CRED_SENTINEL)
 
     def test_a_non_audit_editor_cannot_reach_the_credential_routes(self):
         credential = self.resource.credentials.first()
@@ -1147,10 +1161,11 @@ class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
             self.assertEqual(self.client.get(url).status_code, 200, url)
 
     def test_a_runs_on_edge_is_hidden_from_a_non_audit_editor(self):
+        dependenciesTab = f"{self.editUrl}?tab=dependencies"
         self.loginAs(self.editor)
-        self.assertNotContains(self.client.get(self.editUrl), RUNS_ON_SENTINEL)
+        self.assertNotContains(self.client.get(dependenciesTab), RUNS_ON_SENTINEL)
         self.loginAs(self.auditEditor)
-        self.assertContains(self.client.get(self.editUrl), RUNS_ON_SENTINEL)
+        self.assertContains(self.client.get(dependenciesTab), RUNS_ON_SENTINEL)
 
     def test_a_non_audit_editor_cannot_post_a_runs_on_edge(self):
         other = _makeResource(name="Example Bank")
@@ -1459,10 +1474,20 @@ class ChapterToolsTemplateCommentTests(LoginClientMixin, TestCase):
         self.assertIn(presenceMarker, content)
 
     def test_the_workbench_renders_no_comment_text(self):
-        self._assertClean(
-            self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})),
-            "Who has it now",
-        )
+        # Every tab, not just the default one. The sections are behind ?tab= now,
+        # so checking the bare URL would leave three panels' worth of comments -
+        # and this template carries the longest comments in the feature - never
+        # looked at. The marker is per tab for the same reason _assertClean pairs
+        # one at all: an empty panel would otherwise pass the leak loop.
+        url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        for tab, marker in (
+            ("details", "Delete this chapter tool"),
+            ("holders", "Who has it now"),
+            ("dependencies", "What this needs"),
+            ("credentials", "Credentials"),
+        ):
+            with self.subTest(tab=tab):
+                self._assertClean(self.client.get(f"{url}?tab={tab}"), marker)
 
     def test_the_child_form_renders_no_comment_text(self):
         self._assertClean(
@@ -1505,16 +1530,23 @@ class ChapterToolsReadabilityTests(LoginClientMixin, TestCase):
         self.assertNotContains(response, "data-table")
 
     def test_the_workbench_child_sections_are_record_lists(self):
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
-        self.assertContains(response, "record-list")
-        self.assertNotContains(response, "data-table")
+        url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        for tab in ("holders", "dependencies", "credentials"):
+            with self.subTest(tab=tab):
+                response = self.client.get(f"{url}?tab={tab}")
+                self.assertContains(response, "record-list")
+                self.assertNotContains(response, "data-table")
 
     def test_the_record_and_detail_grid_styles_are_actually_compiled(self):
-        """output.css cannot be regenerated on this machine (the Tailwind CLI
-        hits a lightningcss DLL failure), so a class used in a template is only
-        real if it is already in the compiled file. This asserts the hand-mirrored
-        rules are present AND that .detail-grid stacks at the same 48rem
-        breakpoint .data-table collapses at."""
+        """A class used in a template does nothing unless output.css was rebuilt,
+        and a stale output.css fails silently - the class sits in the markup with
+        no rule behind it. This asserts the rules are compiled AND that
+        .detail-grid stacks at the same 48rem breakpoint .data-table collapses at.
+
+        (The note that used to be here, that the Tailwind CLI could not run on
+        this machine, is wrong: the standalone binary builds fine. Believing it
+        was broken is what let this file go stale enough to lose four utilities
+        the resolutions templates were using.)"""
         cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
         css = cssPath.read_text(encoding="utf-8")
         for className in (".record-list", ".record-item", ".record-meta",
@@ -1522,3 +1554,131 @@ class ChapterToolsReadabilityTests(LoginClientMixin, TestCase):
             self.assertIn(className, css, f"{className} is used in a template but not compiled")
         self.assertIn("grid-template-columns: 1fr", css)
         self.assertIn("@media (width < 48rem)", css)
+
+
+class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
+    """The workbench's sections are tabs in the URL rather than five stacked
+    cards. The point of putting the tab in the URL is that the child views can
+    redirect back into it - without that, adding a second holder still means
+    landing on the details form and scrolling to find the button again, which was
+    the whole complaint. So the redirect targets are the load-bearing assertions
+    here, not the markup."""
+
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.loginAs(self.editor)
+        self.resource = _makeResource()
+        self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        # _makeResource creates no children. Both power flags are on so
+        # getPowerSummary returns its LONGEST sentence - the one that was being
+        # rendered into the uppercase label slot.
+        self.holder = ResourceHolder.objects.create(
+            resource=self.resource, personName="Example Workbench Holder",
+            accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
+        )
+
+    def test_the_default_tab_is_details(self):
+        response = self.client.get(self.editUrl)
+        self.assertContains(response, 'href="?tab=details" aria-current="page"')
+        self.assertNotContains(response, "Who has it now")
+
+    def test_each_tab_renders_only_its_own_section(self):
+        """Only one panel at a time - otherwise this is the old stacked page with
+        a row of links bolted on top of it."""
+        markers = {
+            "details": "Delete this chapter tool",
+            "holders": "Who has it now",
+            "dependencies": "What this needs",
+        }
+        for tab, marker in markers.items():
+            with self.subTest(tab=tab):
+                content = self.client.get(f"{self.editUrl}?tab={tab}").content.decode()
+                self.assertIn(marker, content)
+                for otherTab, otherMarker in markers.items():
+                    if otherTab != tab:
+                        self.assertNotIn(otherMarker, content)
+
+    def test_an_unknown_tab_falls_back_to_details_rather_than_404ing(self):
+        """A tab is a view preference. A stale bookmark should land on the page
+        you asked for."""
+        for bogus in ("", "nope", "holders/../credentials", "DETAILS"):
+            with self.subTest(tab=bogus):
+                response = self.client.get(f"{self.editUrl}?tab={bogus}")
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'href="?tab=details" aria-current="page"')
+
+    def test_the_credentials_tab_is_absent_for_an_editor_without_the_audit_permission(self):
+        plainEditor = UserFactory.make("plain", perms=("manageChapterTools",))
+        self.loginAs(plainEditor)
+        response = self.client.get(self.editUrl)
+        self.assertNotContains(response, "?tab=credentials")
+        # And forcing it lands on details rather than an empty labelled tab that
+        # implies there is something there to be shown.
+        forced = self.client.get(f"{self.editUrl}?tab=credentials")
+        self.assertContains(forced, 'href="?tab=details" aria-current="page"')
+
+    def test_adding_a_child_returns_to_that_child_s_own_tab(self):
+        """The reason the tab is in the URL at all."""
+        other = _makeResource(name="Example Bank")
+        cases = (
+            ("holders", {"personName": "Example New Holder", "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
+                         "accessLevel": "Member", "note": ""}),
+            ("dependencies", {"dependsOn": str(other.pk),
+                              "kind": str(ResourceDependency.Kind.SIGN_IN), "note": ""}),
+        )
+        for childKind, payload in cases:
+            with self.subTest(childKind=childKind):
+                response = self.client.post(
+                    reverse("chapter-tool-child-new",
+                            kwargs={"pk": self.resource.pk, "childKind": childKind}),
+                    payload,
+                )
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response["Location"], f"{self.editUrl}?tab={childKind}")
+
+    def test_deleting_a_child_returns_to_that_child_s_own_tab(self):
+        response = self.client.post(
+            reverse("chapter-tool-child-delete",
+                    kwargs={"pk": self.resource.pk, "childKind": "holders",
+                            "childId": self.holder.pk}),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{self.editUrl}?tab=holders")
+
+    def test_cancelling_out_of_a_child_form_returns_to_the_same_tab(self):
+        """Cancel and save land in the same place. A Cancel that dropped you on
+        the details form would reintroduce the scroll for anybody who changed
+        their mind."""
+        response = self.client.get(
+            reverse("chapter-tool-child-new",
+                    kwargs={"pk": self.resource.pk, "childKind": "holders"}),
+        )
+        self.assertEqual(response.context["backUrl"], f"{self.editUrl}?tab=holders")
+        self.assertContains(response, f'href="{self.editUrl}?tab=holders"')
+
+    def test_the_tab_styles_are_actually_compiled(self):
+        """Same rule as the record-list check above: a class in a template does
+        nothing until output.css is rebuilt."""
+        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
+        css = cssPath.read_text(encoding="utf-8")
+        for className in (".tab-nav", ".tab", ".tab-count"):
+            self.assertIn(className, css, f"{className} is used in a template but not compiled")
+        # The active marker is a variant, so its absence would leave every tab
+        # looking identical while the markup still said which one was current.
+        self.assertIn('.tab[aria-current="page"]', css)
+
+    def test_the_power_summary_is_not_a_label_on_the_workbench_either(self):
+        """The same defect that was fixed on the detail page: getPowerSummary
+        returns a sentence, and .record-meta-label renders uppercase and
+        letter-spaced, so a sentence in that slot shouts over the name it
+        describes."""
+        content = self.client.get(f"{self.editUrl}?tab=holders").content.decode()
+        self.assertNotIn("What that means here", content)
+        summary = self.holder.getPowerSummary()
+        self.assertGreater(len(summary), 20, "guard: this only proves anything for a sentence")
+        # escape() because the sentence contains an apostrophe and the template
+        # renders it as &#x27; - comparing the raw string finds nothing and looks
+        # exactly like the line being absent.
+        self.assertIn(f'class="record-aside">{escape(summary)}', content)

@@ -1,0 +1,47 @@
+/* URL-driven tabs. Each tab is a LINK to ?tab=<key> and the server renders the
+   one panel; there is no client-side switching and no script.
+
+   That is a deliberate choice, not a limitation. Every child row on the chapter
+   tools workbench is added and edited on its own page which then redirects back
+   here, so the active section has to survive a round trip. Tabs held in CSS or
+   JS state cannot: you would save a holder and land back on the first tab every
+   time, which is worse than the stacked page this replaced. A tab in the URL is
+   a place the server can send you back to.
+
+   So these are marked up as navigation - a <nav> of links with aria-current on
+   the active one - and NOT with role="tab"/role="tabpanel"/aria-selected. Those
+   roles promise a screen reader that activating a tab swaps a panel in place
+   without leaving the page, which is not what happens here. Announcing a page
+   navigation as a tab switch is a worse experience than announcing it honestly.
+   Same reason .breadcrumbs uses aria-current rather than inventing a role.
+
+   Keyboard support therefore comes free and correct: they are links, so Tab
+   reaches them and Enter follows them. No key handlers to get wrong. */
+.tab-nav {
+  @apply flex flex-wrap items-center gap-x-1 mb-4 border-b border-neutral-200;
+}
+
+/* Wraps rather than scrolling sideways on a narrow screen. A horizontally
+   scrolling tab strip hides tabs off the right edge with nothing to say they are
+   there, and this row is the only way to reach three of the four sections. */
+.tab {
+  @apply no-underline text-secondary text-sm font-medium px-4 py-3 rounded-t-lg;
+  @apply hover:text-dark hover:bg-paper hover:no-underline visited:text-secondary;
+  /* Transparent until active, so becoming active changes the colour of an
+     existing border instead of adding one and shifting the label up a pixel. */
+  border-bottom: 2px solid transparent;
+  /* Pull the tab's own border down onto the nav's, so the active marker reads as
+     part of one continuous line rather than floating above a second rule. */
+  margin-bottom: -1px;
+}
+
+.tab[aria-current="page"] {
+  @apply text-dark;
+  border-bottom-color: var(--color-primary);
+}
+
+/* The count is part of the label, so it is one link and one tap target. Tabular
+   figures keep the row from reflowing as counts change width. */
+.tab-count {
+  font-variant-numeric: tabular-nums;
+}
