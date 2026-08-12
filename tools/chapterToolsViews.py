@@ -203,7 +203,11 @@ def chapter_tool_detail(request, pk):
             # `how` is which door they come through, `accessLevel` is what they
             # can do once inside - two facts the registry used to conflate, so
             # "who has Slack" and "who could delete Slack" were one list.
-            "accessLevel": holder.get_accessLevel_display(),
+            # accessLevel is the service's own word for the role and is free
+            # text; powerSummary is the chapter's reading of the two booleans,
+            # and is what the badge colour comes from.
+            "accessLevel": holder.getAccessLevelDisplay(),
+            "powerSummary": holder.getPowerSummary(),
             "privileged": holder.isPrivileged(),
             "confirmed": holder.confirmed,
             "note": holder.note,
@@ -250,19 +254,21 @@ def chapter_tools_privileged(request):
     if hasAudit:
         _logRestrictedRead(request.user, "privileged-access")
 
-    ownerLevels = (
-        ResourceHolder.AccessLevel.OWNER,
-        ResourceHolder.AccessLevel.PRIMARY_OWNER,
-    )
+    # Read from the two structured booleans, never from the role name. The role
+    # name is free text in whatever words the service uses, so no page can ask a
+    # question of it - which is exactly why ResourceHolder carries ownsAccount
+    # and canGrantAccess alongside it.
     rows = []
     for resource in ChapterResource.objects.prefetch_related("holders").order_by("category", "name"):
         holders = list(resource.holders.all())
-        owners = [holder for holder in holders if holder.accessLevel in ownerLevels]
+        owners = [holder for holder in holders if holder.ownsAccount]
         privileged = [holder for holder in holders if holder.isPrivileged()]
-        unconfirmed = [
-            holder for holder in holders
-            if holder.accessLevel == ResourceHolder.AccessLevel.UNCONFIRMED
-        ]
+        # `confirmed` is now the single "has anybody actually checked this row"
+        # signal. It used to be asked twice - this flag, and an UNCONFIRMED rung
+        # on the access-level ladder that said it again about one field - so a row
+        # could be confirmed with an unconfirmed level and this page counted the
+        # second one only.
+        unconfirmed = [holder for holder in holders if not holder.confirmed]
 
         # Three distinct findings, deliberately not collapsed into one "risk"
         # score. "Nobody is recorded" is a gap in the register; "one person is

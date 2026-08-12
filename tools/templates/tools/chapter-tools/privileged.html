@@ -7,7 +7,7 @@
   {% comment %} The legend opens from the heading, which is the label for the whole page. Every row below carries an access-level badge, so there is no one field to hang it off - and it must not sit under the list, where it would only be found by somebody who had already finished guessing. {% endcomment %}
   <div class="explain-row explain-row-heading">
     <h1 class="page-title">Privileged Access</h1>
-    {% explain "access-level" label="What the levels mean" %}
+    {% explain "access-level" label="How to read these" %}
   </div>
   <p class="page-subtitle">
     Who can change other people's access, and where the chapter has nobody recorded who can.
@@ -37,14 +37,15 @@
       <p class="record-meta">
         <span><span class="record-meta-label">Category</span> {{ row.resource.get_category_display }}</span>
         <span><span class="record-meta-label">Holders recorded</span> {{ row.holderCount }}</span>
-        {% if row.unconfirmedCount %}<span><span class="record-meta-label">Access level unchecked</span> {{ row.unconfirmedCount }}</span>{% endif %}
+        {% if row.unconfirmedCount %}<span><span class="record-meta-label">Nobody has checked</span> {{ row.unconfirmedCount }}</span>{% endif %}
       </p>
 
       {% if row.privileged %}
       <p class="record-meta">
+        {% comment %} The label is the chapter's reading (getPowerSummary, from the two booleans) rather than the service's word for the role, because this page reads ACROSS tools: "Delegated user" and "Workspace admin" may be the same power, and a column of vendor nouns cannot be compared down the page. The role name itself is on the tool's own detail page, where it is the useful form. {% endcomment %}
         {% for holder in row.privileged %}
-        <span><span class="record-meta-label">{{ holder.get_accessLevel_display }}</span>
-          {{ holder.getDisplayName }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
+        <span><span class="record-meta-label">{{ holder.getPowerSummary }}</span>
+          {{ holder.getDisplayName }}{% if holder.accessLevel %} ({{ holder.accessLevel }}){% endif %}{% if not holder.confirmed %} - unconfirmed{% endif %}</span>
         {% endfor %}
       </p>
       {% endif %}
@@ -55,7 +56,7 @@
         No holders are recorded for this at all, so there is nothing here to check yet.
         {% elif row.finding == "unconfirmed-only" %}
         Nobody is recorded as an owner, and {{ row.unconfirmedCount }} holder{{ row.unconfirmedCount|pluralize }}
-        {{ row.unconfirmedCount|pluralize:"has,have" }} an access level nobody has checked. The owner may
+        {{ row.unconfirmedCount|pluralize:"has,have" }} not been checked by anybody. The owner may
         already be on this list unverified, which is the cheapest thing to find out.
         {% elif row.finding == "no-owner" %}
         People hold this, but nobody is recorded as owner. If recovering this account needs an owner,

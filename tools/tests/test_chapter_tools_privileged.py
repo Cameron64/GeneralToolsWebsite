@@ -18,9 +18,17 @@ from tools.tests.test_chapter_tools import _makeResource
 HOLDER_SENTINEL = "Example Holder"
 
 
-def _holder(resource, name, level, confirmed=True):
+def _holder(resource, name, role="", canGrant=False, owns=False, confirmed=True):
+    """One holder row.
+
+    `role` is free text and is deliberately NOT what any assertion below turns
+    on - the findings are computed from canGrant/owns. That separation is the
+    thing worth testing: the page has to keep working when somebody types
+    "Delegated user" instead of a word this file happens to know.
+    """
     return ResourceHolder.objects.create(
-        resource=resource, personName=name, accessLevel=level, confirmed=confirmed,
+        resource=resource, personName=name, accessLevel=role,
+        canGrantAccess=canGrant, ownsAccount=owns, confirmed=confirmed,
     )
 
 
@@ -32,7 +40,7 @@ class PrivilegedAccessGateTests(LoginClientMixin, TestCase):
 
     def setUp(self):
         self.resource = _makeResource()
-        _holder(self.resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.OWNER)
+        _holder(self.resource, HOLDER_SENTINEL, role="Owner", canGrant=True, owns=True)
         self.url = reverse("chapter-tools-privileged")
 
     def test_a_plain_member_gets_a_404(self):
@@ -86,30 +94,36 @@ class PrivilegedAccessFindingTests(LoginClientMixin, TestCase):
 
     def test_holders_but_no_owner_is_no_owner(self):
         resource = _makeResource(name="Example Unowned Tool")
-        _holder(resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.ORDINARY)
+        _holder(resource, HOLDER_SENTINEL, role="Ordinary member")
         self.assertEqual(self._findingFor(resource)["finding"], "no-owner")
 
-    def test_only_unconfirmed_levels_is_reported_separately(self):
+    def test_only_unchecked_holders_is_reported_separately(self):
         """The owner may already be on the list, unverified - which is the
         cheapest thing to go and find out, so it gets its own finding rather than
-        being lumped in with "no owner"."""
+        being lumped in with "no owner".
+
+        Driven by `confirmed`, which is now the single "has anybody looked" flag.
+        It used to be asked twice - this flag and an UNCONFIRMED rung on the
+        access ladder - and this page counted only the second one, so a row that
+        was unconfirmed overall but had a level typed in was reported as checked.
+        """
         resource = _makeResource(name="Example Unchecked Tool")
-        _holder(resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.UNCONFIRMED)
+        _holder(resource, HOLDER_SENTINEL, confirmed=False)
         row = self._findingFor(resource)
         self.assertEqual(row["finding"], "unconfirmed-only")
         self.assertEqual(row["unconfirmedCount"], 1)
 
     def test_one_owner_is_single_owner(self):
         resource = _makeResource(name="Example Single Owner Tool")
-        _holder(resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.PRIMARY_OWNER)
+        _holder(resource, HOLDER_SENTINEL, role="Primary owner", canGrant=True, owns=True)
         row = self._findingFor(resource)
         self.assertEqual(row["finding"], "single-owner")
         self.assertEqual(row["ownerCount"], 1)
 
     def test_two_owners_is_ok(self):
         resource = _makeResource(name="Example Two Owner Tool")
-        _holder(resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.OWNER)
-        _holder(resource, "Example Second Holder", ResourceHolder.AccessLevel.PRIMARY_OWNER)
+        _holder(resource, HOLDER_SENTINEL, role="Owner", canGrant=True, owns=True)
+        _holder(resource, "Example Second Holder", role="Primary owner", canGrant=True, owns=True)
         row = self._findingFor(resource)
         self.assertEqual(row["finding"], "ok")
         self.assertEqual(row["ownerCount"], 2)
@@ -119,7 +133,7 @@ class PrivilegedAccessFindingTests(LoginClientMixin, TestCase):
         or delete the account, so they answer the privileged question and not the
         bus-factor one."""
         resource = _makeResource(name="Example Admin Only Tool")
-        _holder(resource, HOLDER_SENTINEL, ResourceHolder.AccessLevel.ADMIN)
+        _holder(resource, HOLDER_SENTINEL, role="Admin", canGrant=True)
         row = self._findingFor(resource)
         self.assertEqual(row["ownerCount"], 0)
         self.assertEqual(len(row["privileged"]), 1)
@@ -129,8 +143,8 @@ class PrivilegedAccessFindingTests(LoginClientMixin, TestCase):
         """The page exists to surface what is missing; sorted by name the empty
         rows bury themselves among the healthy ones."""
         healthy = _makeResource(name="AAA Example Healthy Tool")
-        _holder(healthy, "Example Owner One", ResourceHolder.AccessLevel.OWNER)
-        _holder(healthy, "Example Owner Two", ResourceHolder.AccessLevel.OWNER)
+        _holder(healthy, "Example Owner One", role="Owner", canGrant=True, owns=True)
+        _holder(healthy, "Example Owner Two", role="Owner", canGrant=True, owns=True)
         _makeResource(name="ZZZ Example Empty Tool")
 
         rows = self.client.get(self.url).context["rows"]

@@ -92,12 +92,14 @@
       <div class="record-head">
         <span class="record-title">{{ holder.getDisplayName }}</span>
         <span>
-          {% if holder.isPrivileged %}<span class="badge badge-denied">{{ holder.get_accessLevel_display }}</span>{% else %}<span class="badge badge-inactive">{{ holder.get_accessLevel_display }}</span>{% endif %}
+          {% comment %} Badge text is the role name the editor typed; badge colour comes from isPrivileged, i.e. from the two booleans. Same rule as detail.html - the word is never parsed to decide the colour. {% endcomment %}
+          {% if holder.isPrivileged %}<span class="badge badge-denied">{{ holder.getAccessLevelDisplay }}</span>{% else %}<span class="badge badge-inactive">{{ holder.getAccessLevelDisplay }}</span>{% endif %}
           {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
         </span>
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">How they get in</span> {{ holder.get_how_display }}</span>
+        <span><span class="record-meta-label">What that means here</span> {{ holder.getPowerSummary }}</span>
         {% if holder.user %}<span><span class="record-meta-label">Echo account</span> {{ holder.user.username }}</span>{% endif %}
       </p>
       {% if holder.note %}<p class="record-meta"><span>{{ holder.note }}</span></p>{% endif %}
@@ -225,6 +227,6 @@
 
 {% endif %}
 
-{% comment %} The steward field is a member typeahead, which needs its script. Deferred, so position in the body does not matter. {% endcomment %}
-{% include "tools/common/_typeaheadAssets.html" %}
+{% comment %} This form has a member typeahead (steward) and a clearable date (last reviewed), both of which need their scripts. Deferred, so position in the body does not matter. {% endcomment %}
+{% include "tools/common/_formAssets.html" %}
 {% endblock page_content %}

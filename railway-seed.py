@@ -685,7 +685,6 @@ Cat, Access, Payer = ChapterResource.Category, ChapterResource.AccessModel, Chap
 Tier = ChapterResource.DelegationTier
 CredKind, CredStatus = ResourceCredential.Kind, ResourceCredential.Status
 HolderHow = ResourceHolder.How
-HolderLevel = ResourceHolder.AccessLevel
 DepKind = ResourceDependency.Kind
 CHAPTER_TOOLS_LAST_REVIEWED = datetime.date(2026, 8, 10)
 CHAPTER_TOOLS_REVIEWED_BY = "IT Sub-Committee"
@@ -780,7 +779,7 @@ CHAPTER_RESOURCES = [
             # gap is that no Owner or Admin is recorded, which is what the
             # privileged-access page reports as "no owner recorded".
             dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
-                 accessLevel=HolderLevel.ORDINARY,
+                 accessLevel="Member", canGrantAccess=False, ownsAccount=False,
                  note="Holds a member account. Who holds Owner and Admin is still to be confirmed."),
         ],
         credentials=[
@@ -922,7 +921,8 @@ CHAPTER_RESOURCES = [
             # reads as "no owner recorded" - which is the distinction the level
             # ladder exists to make.
             dict(personName="Cam D.", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
-                 accessLevel=HolderLevel.ADMIN, note="Site admin."),
+                 accessLevel="Site admin", canGrantAccess=True, ownsAccount=False,
+                 note="Site admin."),
         ],
         credentials=[
             dict(label="Per-person app account", kind=CredKind.INDIVIDUAL_LOGIN,
@@ -958,10 +958,10 @@ CHAPTER_RESOURCES = [
             # "one owner only", which is the bus-factor finding rather than a
             # gap in the register.
             dict(personName="Devon K.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
-                 accessLevel=HolderLevel.PRIMARY_OWNER,
+                 accessLevel="Super Administrator", canGrantAccess=True, ownsAccount=True,
                  note="In the Cloudflare vault collection. Can manage DNS records and domain settings."),
             dict(personName="Priya R.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
-                 accessLevel=HolderLevel.ADMIN,
+                 accessLevel="Administrator", canGrantAccess=True, ownsAccount=False,
                  note="Added to the vault collection. Access not yet confirmed against the live account."),
         ],
         credentials=[
@@ -1001,10 +1001,10 @@ CHAPTER_RESOURCES = [
             # Two owners - the only shape on this demo register that is not a
             # finding, so the page has something healthy to contrast against.
             dict(personName="Theo A.", how=HolderHow.VAULT_COLLECTION, confirmed=True,
-                 accessLevel=HolderLevel.OWNER,
+                 accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
                  note="In the DigitalOcean vault collection. Can manage the droplet running the wiki."),
             dict(personName="Nadia S.", how=HolderHow.VAULT_COLLECTION, confirmed=False,
-                 accessLevel=HolderLevel.OWNER,
+                 accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
                  note="Added to the vault collection. Access not yet confirmed against the live account."),
         ],
         credentials=[
@@ -1063,16 +1063,18 @@ for spec in CHAPTER_RESOURCES:
     )
     chapterResourcesByName[spec["name"]] = resource
 
-    # accessLevel and the two credential dates are read with .get() rather than
-    # [], so a spec that does not state them lands on the model's own honest
-    # default (UNCONFIRMED / not recorded) instead of this loader inventing one.
-    # That is the same rule the rest of this block follows: a demo row may be
-    # invented, but it must not claim a fact nobody decided.
+    # accessLevel, the two power booleans and the two credential dates are read
+    # with .get() rather than [], so a spec that does not state them lands on the
+    # model's own honest default (blank / False / not recorded) instead of this
+    # loader inventing one. That is the same rule the rest of this block follows:
+    # a demo row may be invented, but it must not claim a fact nobody decided.
     for holder in spec["holders"]:
         ResourceHolder.objects.update_or_create(
             resource=resource, personName=holder["personName"],
             defaults=dict(how=holder["how"], confirmed=holder["confirmed"], note=holder["note"],
-                          accessLevel=holder.get("accessLevel", HolderLevel.UNCONFIRMED)),
+                          accessLevel=holder.get("accessLevel", ""),
+                          canGrantAccess=holder.get("canGrantAccess", False),
+                          ownsAccount=holder.get("ownsAccount", False)),
         )
         holderCount += 1
     for credential in spec["credentials"]:

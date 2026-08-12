@@ -1292,7 +1292,7 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
             reverse("chapter-tool-child-new",
                     kwargs={"pk": resource.pk, "childKind": "holders"}),
             {"personName": "", "user": "", "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
-             "accessLevel": str(ResourceHolder.AccessLevel.ORDINARY),
+             "accessLevel": "Ordinary member",
              "confirmed": "", "note": ""},
         )
         self.assertEqual(response.status_code, 200)
@@ -1305,13 +1305,13 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         self.client.post(addUrl, {
             "personName": "Example Holder", "user": "",
             "how": str(ResourceHolder.How.VAULT_COLLECTION),
-            "accessLevel": str(ResourceHolder.AccessLevel.OWNER),
+            "accessLevel": "Owner", "canGrantAccess": "on", "ownsAccount": "on",
             "confirmed": "on", "note": "",
         })
         holder = ResourceHolder.objects.get(resource=resource)
         self.assertTrue(holder.confirmed)
         self.assertEqual(holder.how, ResourceHolder.How.VAULT_COLLECTION)
-        self.assertEqual(holder.accessLevel, ResourceHolder.AccessLevel.OWNER)
+        self.assertEqual(holder.accessLevel, "Owner")
         self.assertTrue(holder.isPrivileged())
 
         editUrl = reverse("chapter-tool-child-edit", kwargs={
@@ -1321,7 +1321,7 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         self.client.post(editUrl, {
             "personName": "Example Holder", "user": "",
             "how": str(ResourceHolder.How.INDIVIDUAL_LOGIN),
-            "accessLevel": str(ResourceHolder.AccessLevel.ORDINARY),
+            "accessLevel": "Ordinary member",
             "note": "Now unconfirmed.",
         })
         holder.refresh_from_db()

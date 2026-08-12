@@ -1163,6 +1163,56 @@ class UserTypeaheadWidget(forms.Widget):
         return context
 
 
+class SuggestingTextInput(forms.TextInput):
+    """A plain text box that offers examples, using a native <datalist>.
+
+    For a field where the useful answer is whatever the outside world calls the
+    thing - a service's own name for a role - so a fixed list would be wrong, but
+    a blank box gives an editor nothing to aim at and produces seven spellings of
+    the same word.
+
+    A datalist rather than JS: it suggests without constraining, it is reachable
+    from the keyboard, it does not need a script, and a browser that does not
+    support it degrades to exactly the plain text box this field is meant to be.
+    """
+
+    template_name = "tools/common/_suggestingText.html"
+
+    def __init__(self, suggestions, attrs=None):
+        super().__init__(attrs)
+        self._suggestions = tuple(suggestions)
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        widget = context["widget"]
+        # Derived from the field's own id so two suggesting inputs on one page
+        # cannot share a list. `attrs` carries the auto id Django assigns.
+        listId = f"{(attrs or {}).get('id') or ('id_' + name)}-examples"
+        widget["attrs"]["list"] = listId
+        widget["listId"] = listId
+        widget["suggestions"] = self._suggestions
+        return context
+
+
+class ClearableDateInput(forms.DateInput):
+    """A date input with a visible Clear button.
+
+    <input type="date"> has no clear affordance in Chrome - a date that has been
+    set can only be removed by focusing the field and pressing Delete, which
+    nothing on screen says. So a field that is optional in the model, optional in
+    the form, and documented as meaning "not recorded when blank" was in practice
+    one-way: settable and not unsettable. That is worse than a missing feature,
+    because the value it strands is a claim about reality that somebody has since
+    found to be wrong.
+
+    The button starts hidden and is shown by js/clearableDate.js only when there
+    is something to clear, so with scripting off the control is exactly the date
+    input it was before - no dead button.
+    """
+
+    template_name = "tools/common/_clearableDate.html"
+
+
 class ChapterResourceForm(forms.Form):
     """Create/edit one ChapterResource.
 
@@ -1328,9 +1378,10 @@ class ChapterResourceForm(forms.Form):
         help_text=(
             "The day somebody last checked this row against reality - a check, not "
             f"an edit. Blank, or older than {ChapterResource.STALE_AFTER_DAYS} days, "
-            "shows a stale flag to the committee."
+            "shows a stale flag to the committee. Clear it if the last review "
+            "turns out not to have happened."
         ),
-        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+        widget=ClearableDateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
     )
     reviewedBy = forms.CharField(
         label="Reviewed by",
@@ -1452,6 +1503,8 @@ class ResourceHolderForm(forms.Form):
         USER = "user"
         HOW = "how"
         ACCESS_LEVEL = "accessLevel"
+        CAN_GRANT_ACCESS = "canGrantAccess"
+        OWNS_ACCOUNT = "ownsAccount"
         CONFIRMED = "confirmed"
         NOTE = "note"
 
@@ -1481,16 +1534,39 @@ class ResourceHolderForm(forms.Form):
         empty_value=ResourceHolder.How.INDIVIDUAL_LOGIN,
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
-    accessLevel = forms.TypedChoiceField(
+    accessLevel = forms.CharField(
         label="What they can do here",
-        choices=ResourceHolder.ACCESS_LEVEL_CHOICES,
-        coerce=int,
-        empty_value=ResourceHolder.AccessLevel.UNCONFIRMED,
+        required=False,
+        max_length=100,
         help_text=(
-            "How much power they hold, which is a different question from which "
-            "door they come through. All five levels are in the definition next to this label."
+            "Whatever this service calls the role - its word, not ours. Start "
+            "typing for examples. Leave it blank rather than guessing."
         ),
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
+        widget=SuggestingTextInput(
+            suggestions=ResourceHolder.ACCESS_LEVEL_EXAMPLES,
+            attrs={"class": "form-field w-full", "placeholder": "e.g. Admin, Delegated user"},
+        ),
+    )
+    # Two checkboxes rather than a second dropdown, and asked separately from the
+    # role name above, because these are the only two things the register can read
+    # ACROSS rows - see the comment on ResourceHolder.canGrantAccess. A free-text
+    # role is for the person reading this one row; these are for the page that
+    # asks where the chapter is one person away from losing something.
+    canGrantAccess = forms.BooleanField(
+        label="Can change other people's access here",
+        required=False,
+        help_text="Including removing somebody. Tick this for an admin, a moderator, or anybody who manages the member list.",
+        widget=forms.CheckboxInput(),
+    )
+    ownsAccount = forms.BooleanField(
+        label="Owns the account",
+        required=False,
+        help_text=(
+            "Billing, deletion, and who the other owners are. If this is the only "
+            "ticked box on the whole tool, that is the chapter's single point of "
+            "failure for it."
+        ),
+        widget=forms.CheckboxInput(),
     )
     confirmed = forms.BooleanField(
         label="Confirmed",
@@ -1512,6 +1588,11 @@ class ResourceHolderForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields[self.Keys.USER].queryset = _activeUsers()
+
+    def clean_accessLevel(self):
+        """Stripped, because the field is free text and " Admin" and "Admin"
+        would otherwise be two roles on a page that lists them side by side."""
+        return self.cleaned_data.get(self.Keys.ACCESS_LEVEL, "").strip()
 
     def clean(self):
         cleaned = super().clean()
@@ -1538,6 +1619,24 @@ class ResourceCredentialForm(forms.Form):
     # the same panel twice on one short form reads as two different definitions.
     EXPLAIN_SLUGS = {Keys.LAST_ROTATED: "credential-age"}
 
+    # The four fields that have no answer for an individual login or a 2FA token.
+    # The membership rule itself is ResourceCredential.NO_ROTATION_KINDS - this is
+    # only the list of fields it applies to.
+    #
+    # Enforced in BOTH directions on purpose. The browser hides these rows and
+    # empties them (js/fieldSuppression.js), which is what makes the form short.
+    # clean() blanks them again on the server, which is what makes the rule true:
+    # a suppressed row is still in the POST when scripting is off, and an editor
+    # switching an existing vault login to an individual login would otherwise
+    # keep its old rotation dates - dates that now describe a secret the chapter
+    # does not hold.
+    SUPPRESSED_BY_KIND_KEYS = (
+        Keys.VAULT_COLLECTION,
+        Keys.STATUS,
+        Keys.ADDED_AT,
+        Keys.LAST_ROTATED,
+    )
+
     label = forms.CharField(
         label="Label",
         max_length=200,
@@ -1546,10 +1645,36 @@ class ResourceCredentialForm(forms.Form):
     )
     kind = forms.TypedChoiceField(
         label="Kind",
-        choices=ResourceCredential.KIND_CHOICES,
+        # The blank first choice is load-bearing, not decoration. Without it a
+        # <select> preselects its first option - "Individual login" - so a NEW
+        # credential form opened to add a shared vault login would already have
+        # answered this question wrongly, and (since that kind suppresses them)
+        # would already be missing the vault, status and date fields the editor
+        # came to fill in. The blank also makes clean_kind's required check
+        # reachable: with no empty option it could never fire, because a select
+        # always posts something.
+        choices=(("", "Choose one"),) + ResourceCredential.KIND_CHOICES,
         coerce=int,
         empty_value=None,
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
+        # The field's own required check is what enforces this now that a blank
+        # option exists, so the message goes here. It used to live in a
+        # clean_kind() that could never run: with no blank option a select always
+        # posts a real value, so the empty case was unreachable and the friendly
+        # message was dead text.
+        error_messages={"required": "Pick what kind of credential this is."},
+        help_text=(
+            "An individual login or a 2FA token is one person's own, so the vault, "
+            "status and date questions below do not apply and are not asked."
+        ),
+        # The two data- attributes are what js/fieldSuppression.js binds to. They
+        # are rendered from the model constant and the form constant rather than
+        # written into a template, so the browser cannot disagree with clean()
+        # about which kinds suppress which fields.
+        widget=forms.Select(attrs={
+            "class": "form-field w-full",
+            "data-suppress-when": ",".join(str(kind) for kind in ResourceCredential.NO_ROTATION_KINDS),
+            "data-suppress-fields": ",".join(SUPPRESSED_BY_KIND_KEYS),
+        }),
     )
     vaultCollection = forms.CharField(
         label="Vault collection",
@@ -1572,7 +1697,7 @@ class ResourceCredentialForm(forms.Form):
             "As far as anybody knows. Leave it blank rather than guessing - blank "
             "reads as “not recorded”, and a guess reads as a fact."
         ),
-        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+        widget=ClearableDateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
     )
     lastRotated = forms.DateField(
         label="Last rotated",
@@ -1581,7 +1706,7 @@ class ResourceCredentialForm(forms.Form):
             "The day the secret was last actually changed. Not the day somebody "
             f"looked at it. Flagged as overdue after {ResourceCredential.ROTATE_AFTER_DAYS} days."
         ),
-        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
+        widget=ClearableDateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-field w-full"}),
     )
     note = forms.CharField(
         label="Note",
@@ -1593,8 +1718,34 @@ class ResourceCredentialForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": "2", "class": "form-field w-full"}),
     )
 
+    # What each suppressed field becomes when the kind does not ask for it. Not
+    # "empty" for all four: `status` is a NOT NULL column with a meaningful
+    # default, and blanking it to None would fail at the database rather than at
+    # the form.
+    SUPPRESSED_VALUES = {
+        Keys.VAULT_COLLECTION: "",
+        Keys.STATUS: ResourceCredential.Status.LIVE,
+        Keys.ADDED_AT: None,
+        Keys.LAST_ROTATED: None,
+    }
+
     def clean(self):
         cleaned = super().clean()
+
+        # Applied BEFORE the date-order rule below, deliberately. Changing an
+        # existing vault login to an individual login clears both dates, and
+        # re-checking their order afterwards would be checking two values that no
+        # longer exist - and running the check first could reject the save with an
+        # error about fields the editor can no longer see.
+        if self.suppressesDetailFields(cleaned.get(self.Keys.KIND)):
+            for key, value in self.SUPPRESSED_VALUES.items():
+                cleaned[key] = value
+                # Errors raised by the per-field clean of a field this kind does
+                # not ask for would block a save on a question the form is no
+                # longer putting. Discard them with the value.
+                self.errors.pop(key, None)
+            return cleaned
+
         # A secret cannot have been changed before it existed. Caught here rather
         # than left to the reader, because getAgeDays() prefers lastRotated and
         # would otherwise report a negative age as though it were fresh.
@@ -1606,14 +1757,12 @@ class ResourceCredentialForm(forms.Form):
             ))
         return cleaned
 
-    def clean_kind(self):
-        # `kind` has no model default on purpose, and TypedChoiceField coerces
-        # an empty submission to empty_value=None rather than failing, so the
-        # required check has to be made here or a None reaches a NOT NULL column.
-        kind = self.cleaned_data.get(self.Keys.KIND)
-        if kind is None:
-            raise ValidationError("Pick what kind of credential this is.")
-        return kind
+    @staticmethod
+    def suppressesDetailFields(kind) -> bool:
+        """Whether this kind drops the vault, status and date questions. Reads
+        the model's rule rather than restating it - see
+        ResourceCredential.NO_ROTATION_KINDS."""
+        return kind in ResourceCredential.NO_ROTATION_KINDS
 
 
 class ResourceDependencyForm(forms.Form):

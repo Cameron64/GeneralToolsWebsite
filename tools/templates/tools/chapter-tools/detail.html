@@ -70,7 +70,7 @@
   {% if holderRows %}
   <div class="explain-row explain-row-heading">
     <h3 class="menu-section-title">The roster</h3>
-    {% explain "access-level" label="What the levels mean" %}
+    {% explain "access-level" label="How to read these" %}
   </div>
   {% comment %} A record list rather than a table: this gained an access-level column, and five columns with a prose Note among them is the exact squeeze index.html and the questions workbench were both rebuilt to remove. {% endcomment %}
   <div class="record-list">
@@ -79,12 +79,14 @@
       <div class="record-head">
         <span class="record-title">{{ holder.name }}</span>
         <span>
+          {% comment %} The badge text is the service's own word for the role, and its COLOUR comes from powerSummary - i.e. from the two booleans, never from the word. A registry that coloured "Delegated user" by matching the string would call it ordinary, and that is precisely the row somebody needs to see. {% endcomment %}
           {% if holder.privileged %}<span class="badge badge-denied">{{ holder.accessLevel }}</span>{% else %}<span class="badge badge-inactive">{{ holder.accessLevel }}</span>{% endif %}
           {% if holder.confirmed %}<span class="badge badge-active">Confirmed</span>{% else %}<span class="badge badge-unresolved">Unconfirmed</span>{% endif %}
         </span>
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">How they get in</span> {{ holder.how }}</span>
+        <span><span class="record-meta-label">What that means here</span> {{ holder.powerSummary }}</span>
       </p>
       {% if holder.note %}<p class="record-prose">{{ holder.note }}</p>{% endif %}
     </div>
@@ -178,21 +180,26 @@
       <div class="record-head">
         <span class="record-title">{{ credential.label }}</span>
         <span>
+          {% comment %} An individual login or a 2FA token is one person's own, so the chapter never vaults, dates or rotates it - getRotationStatus returns "not-applicable" and none of these badges apply. Rendering "No dates recorded" on such a row would report a gap that can never be closed, and a register full of permanent gaps trains people to ignore the real ones. {% endcomment %}
           {% if credential.getRotationStatus == "overdue" %}<span class="badge badge-denied">Rotation overdue</span>{% endif %}
           {% if credential.getRotationStatus == "never-rotated" %}<span class="badge badge-unresolved">Never rotated</span>{% endif %}
           {% if credential.getRotationStatus == "unknown" %}<span class="badge badge-unresolved">No dates recorded</span>{% endif %}
           {% if credential.getRotationStatus == "ok" %}<span class="badge badge-active">Rotated</span>{% endif %}
-          <span class="badge badge-inactive">{{ credential.get_status_display }}</span>
+          {% if credential.tracksRotation %}<span class="badge badge-inactive">{{ credential.get_status_display }}</span>{% endif %}
         </span>
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">Kind</span> {{ credential.get_kind_display }}</span>
+        {% if credential.tracksRotation %}
         <span><span class="record-meta-label">Last rotated</span> {{ credential.lastRotated|default:"not recorded" }}</span>
         <span><span class="record-meta-label">First existed</span> {{ credential.addedAt|default:"not recorded" }}</span>
         {% comment %} "is not None", not truthiness: a credential rotated today has an age of 0, which {% if %} would treat as falsy and report as unknown. {% endcomment %}
         <span><span class="record-meta-label">Age</span>
           {% if credential.getAgeDays is not None %}{{ credential.getAgeDays }} day{{ credential.getAgeDays|pluralize }}{% else %}unknown{% endif %}</span>
         {% if credential.vaultCollection %}<span><span class="record-meta-label">Vault collection</span> {{ credential.vaultCollection }}</span>{% endif %}
+        {% else %}
+        <span><span class="record-meta-label">Rotation</span> not tracked - this is one person's own</span>
+        {% endif %}
       </p>
       {% if credential.note %}<p class="record-prose">{{ credential.note }}</p>{% endif %}
     </div>

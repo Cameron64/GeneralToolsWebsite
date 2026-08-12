@@ -380,3 +380,42 @@
   line-height: var(--text-sm--line-height);
   color: var(--color-secondary);
 }
+
+/* --- a date input you can empty again ------------------------------------ */
+
+/* The Clear button sits on the date input's own line rather than under it. A
+   button on its own row reads as an action on the whole form, which is exactly
+   what it is not - and on a phone that is one more thing between the field and
+   the next label.
+
+   The input keeps `flex: 1 1 auto` and the button `flex: 0 0 auto`, so the date
+   control takes the width and the button stays its own size at every width
+   instead of stretching to half the row. */
+.clearable-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  max-width: var(--container-xl);
+}
+
+.clearable-date > input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.clearable-date > button {
+  flex: 0 0 auto;
+}
+
+/* A suppressed form row is hidden with the `hidden` attribute. That works today
+   with no help - neither .form-row nor .form-row-checkbox sets `display`, so the
+   UA sheet's [hidden] rule is unopposed. This is a guard, not a fix: the moment
+   somebody gives .form-row a display (a flex row, a grid) the attribute silently
+   stops working and a suppressed field comes back onto the page still carrying
+   its old value. Cheaper to state the requirement than to find that later.
+   Same class of collision as .typeahead-chosen[hidden] above, which is real. */
+.form-row[hidden],
+.form-row-checkbox[hidden] {
+  display: none;
+}
