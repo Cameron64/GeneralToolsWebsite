@@ -1300,6 +1300,36 @@
     flex: none;
     cursor: pointer;
   }
+  .form-group {
+    margin-bottom: calc(var(--spacing) * 5);
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+    border-color: var(--color-neutral-200);
+    padding-bottom: calc(var(--spacing) * 5);
+  }
+  .form-group:last-of-type {
+    margin-bottom: calc(var(--spacing) * 0);
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 0px;
+    padding-bottom: calc(var(--spacing) * 0);
+  }
+  .form-group-legend {
+    padding-bottom: calc(var(--spacing) * 2);
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-dark);
+  }
+  .form-pair {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    align-items: flex-start;
+    column-gap: calc(var(--spacing) * 6);
+    @media (width >= 48rem) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
   .data-table {
     width: 100%;
     border-collapse: collapse;

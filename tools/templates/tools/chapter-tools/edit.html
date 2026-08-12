@@ -68,7 +68,13 @@
 
 {% if isCreate or tab == 'details' %}
 <div class="page-card max-w-2xl">
-  <h2 class="section-title pt-0">Details</h2>
+  {% comment %}
+    No "Details" heading on this card. The tab strip directly above already says
+    Details and marks it current, and the fieldset legends below name their own
+    groups - a third copy of the word sat between them and turned the top of the
+    card into two stacked headings saying nothing new. The group legends are the
+    headings inside this card now.
+  {% endcomment %}
   {% if not hasAudit %}
   <div class="alert alert-info mb-4">
     You're editing the open layer. The committee-only fields (delegation tier, review dates,
@@ -81,6 +87,18 @@
     <div class="alert alert-error">{{ form.non_field_errors }}</div>
     {% endif %}
     {% comment %}
+      Grouped into fieldsets rather than iterating the form flat: eighteen fields
+      in one column had no landmarks in it. The groups, their order, and which
+      two sit abreast are declared in ChapterResourceForm.FIELD_GROUPS - NOT
+      here. Putting the list in the template would mean a field added to the form
+      and forgotten in the list renders nowhere at all, silently; groupedFields()
+      raises instead. So there is nothing to keep in step by hand.
+
+      Still ONE form and one save button. The halves cannot be split into
+      separate submissions even though they look separable: `requestable`
+      validates against `steward` (open layer) AND `delegationTier` (restricted),
+      so a form holding only one of them cannot check its own rule.
+
       explainSlugFor hangs each definition off its own field's label, from the
       form's EXPLAIN_SLUGS map. This replaced a block of four definitions below
       the submit button: a definition read after the field has been filled in
@@ -88,11 +106,20 @@
 
       The hasAudit branch that used to guard three of them is gone and is not
       missing - the restricted fields are absent from a non-audit editor's form
-      entirely, so their definitions cannot render either. One less place for the
-      two lists to disagree.
+      entirely, so their definitions cannot render either, and the group they
+      live in drops out with them. One less place for the two lists to disagree.
     {% endcomment %}
-    {% for field in form %}
-    {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
+    {% for legend, rows in form.groupedFields %}
+    <fieldset class="form-group">
+      <legend class="form-group-legend">{{ legend }}</legend>
+      {% for isPair, fields in rows %}
+      <div {% if isPair %}class="form-pair"{% endif %}>
+        {% for field in fields %}
+        {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </fieldset>
     {% endfor %}
 
     <div class="flex flex-wrap items-center gap-3 pt-4">
