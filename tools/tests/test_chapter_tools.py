@@ -1482,10 +1482,11 @@ class ChapterToolsTemplateCommentTests(LoginClientMixin, TestCase):
         # one at all: an empty panel would otherwise pass the leak loop.
         url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
         for tab, marker in (
-            ("details", "Delete this chapter tool"),
+            ("details", "Save changes"),
             ("holders", "Who has it now"),
             ("dependencies", "What this needs"),
             ("credentials", "Credentials"),
+            ("delete", "Delete this chapter tool"),
         ):
             with self.subTest(tab=tab):
                 self._assertClean(self.client.get(f"{url}?tab={tab}"), marker)
@@ -1589,9 +1590,10 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
         """Only one panel at a time - otherwise this is the old stacked page with
         a row of links bolted on top of it."""
         markers = {
-            "details": "Delete this chapter tool",
+            "details": "Save changes",
             "holders": "Who has it now",
             "dependencies": "What this needs",
+            "delete": "Delete this chapter tool",
         }
         for tab, marker in markers.items():
             with self.subTest(tab=tab):
@@ -1619,6 +1621,41 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
         # implies there is something there to be shown.
         forced = self.client.get(f"{self.editUrl}?tab=credentials")
         self.assertContains(forced, 'href="?tab=details" aria-current="page"')
+
+    def test_the_delete_control_is_only_on_its_own_tab(self):
+        """It used to sit at the foot of the details tab, which is the form people
+        open most - so the one destructive control on the page was also the one
+        hardest to avoid scrolling past."""
+        deleteUrl = reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk})
+        for tab in ("details", "holders", "dependencies", "credentials"):
+            with self.subTest(tab=tab):
+                self.assertNotContains(self.client.get(f"{self.editUrl}?tab={tab}"), deleteUrl)
+        onTab = self.client.get(f"{self.editUrl}?tab=delete")
+        self.assertContains(onTab, deleteUrl)
+        self.assertContains(onTab, 'href="?tab=delete" aria-current="page"')
+
+    def test_the_delete_tab_is_two_steps_from_a_deleted_row(self):
+        """Opening the section deletes nothing, and the section itself only links
+        onward to the typed-name confirmation. A tab labelled Delete would be a
+        trap if either half of that were untrue."""
+        response = self.client.get(f"{self.editUrl}?tab=delete")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ChapterResource.objects.filter(pk=self.resource.pk).exists())
+        # A link, not a form that posts to the delete view from here.
+        content = response.content.decode()
+        deleteUrl = reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk})
+        self.assertIn(f'href="{deleteUrl}"', content)
+        self.assertNotIn(f'action="{deleteUrl}"', content)
+
+    def test_the_delete_tab_is_not_gated_on_the_audit_permission(self):
+        """Unlike credentials. Deleting needs manageChapterTools, which is what
+        this whole page needs, so hiding the tab from an editor who may delete
+        would only hide the button from the person allowed to press it."""
+        plainEditor = UserFactory.make("plain", perms=("manageChapterTools",))
+        self.loginAs(plainEditor)
+        self.assertContains(self.client.get(self.editUrl), "?tab=delete")
+        self.assertContains(
+            self.client.get(f"{self.editUrl}?tab=delete"), "Delete this chapter tool")
 
     def test_adding_a_child_returns_to_that_child_s_own_tab(self):
         """The reason the tab is in the URL at all."""
@@ -1793,3 +1830,27 @@ class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
         # The seam-suppressing variant. Without it the last group carries a rule
         # along the bottom of the card, dividing it from nothing.
         self.assertIn(".form-group:last-of-type", css)
+
+    def test_a_definition_marker_stays_on_its_label_s_line(self):
+        """Two of the four paired rows have a definition on the LEFT field only
+        (steward, lastReviewed). While the closed marker had a 12rem flex basis it
+        could not fit beside a label in a ~18rem column, so it wrapped and pushed
+        that field's input one line below its partner's - the pair stopped lining
+        up on every row that had a definition.
+
+        Asserted against the compiled CSS because that is the failure this had:
+        the markup was already right and only the layout was wrong."""
+        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
+        css = cssPath.read_text(encoding="utf-8")
+        self.assertIn("flex: 0 1 auto", css)
+        # And the open panel still gets the full row - the body is a child of the
+        # <details>, so a box sized to "What's this?" would render the whole
+        # delegation-tier ladder in a 7rem column.
+        self.assertIn(".explain-row > .explain[open]", css)
+        # Both paired rows that carry a definition still render the wrapper the
+        # rules above target.
+        content = self.client.get(self.editUrl).content.decode()
+        for key in ("steward", "lastReviewed"):
+            with self.subTest(field=key):
+                start = content.index(f'data-field="{key}"')
+                self.assertIn('class="explain-row"', content[start:start + 400])
