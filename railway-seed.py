@@ -971,11 +971,19 @@ CHAPTER_RESOURCES = [
                  addedAt=datetime.date(2024, 6, 1), lastRotated=datetime.date(2025, 1, 15),
                  note="One password, held by everyone who manages DNS or the domain."),
             # Added recently and never rotated: a distinct state from overdue,
-            # and from having no dates at all.
-            dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
+            # and from having no dates at all. On an API token rather than the
+            # 2FA token that used to carry it - a 2FA token is bound to one
+            # person's device, so the chapter neither vaults nor rotates it and
+            # it has no rotation state to demonstrate.
+            dict(label="DNS API token", kind=CredKind.API_TOKEN,
                  vaultCollection="cloudflare", status=CredStatus.LIVE,
                  addedAt=datetime.date(2026, 3, 1),
-                 note="Stored next to the password so it stays usable by everyone on the login. Counted separately because it rotates separately."),
+                 note="Used by the deploy scripts to update DNS records. Rotates separately from the login."),
+            # The not-tracked state, so the demo box shows that one too. No vault
+            # collection and no dates, which is what the form would now save.
+            dict(label="Shared 2FA token", kind=CredKind.TWO_FACTOR_TOKEN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="Held on one person's device. Not vaulted and not rotated on a schedule, so no dates are recorded for it."),
         ],
         questions=["Confirm who is currently in the Cloudflare vault collection."],
     ),
