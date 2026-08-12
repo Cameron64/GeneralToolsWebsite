@@ -104,6 +104,24 @@ class CredentialKindSuppressionTests(TestCase):
         ))
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_an_unparseable_value_in_a_suppressed_field_is_discarded_not_raised(self):
+        """A field this kind does not ask for must not be able to block the save.
+        The per-field clean still runs and still errors, so clean() has to drop
+        that error along with the value - otherwise a scriptless browser posting
+        a half-typed date on a field the editor cannot see makes the form
+        permanently unsaveable, with the error pointing at nothing on screen."""
+        form = forms.ResourceCredentialForm(data=_credentialPayload(
+            kind=str(ResourceCredential.Kind.TWO_FACTOR_TOKEN),
+            addedAt="not-a-date",
+        ))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["addedAt"])
+
+    def test_the_same_unparseable_value_still_errors_on_a_kind_that_asks(self):
+        form = forms.ResourceCredentialForm(data=_credentialPayload(addedAt="not-a-date"))
+        self.assertFalse(form.is_valid())
+        self.assertIn("addedAt", form.errors)
+
     def test_the_date_order_rule_still_applies_to_a_kind_that_uses_dates(self):
         form = forms.ResourceCredentialForm(data=_credentialPayload(
             addedAt="2024-06-01", lastRotated="2024-01-01",
