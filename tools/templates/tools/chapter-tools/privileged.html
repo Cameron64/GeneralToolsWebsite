@@ -37,16 +37,32 @@
       <p class="record-meta">
         <span><span class="record-meta-label">Category</span> {{ row.resource.get_category_display }}</span>
         <span><span class="record-meta-label">Holders recorded</span> {{ row.holderCount }}</span>
-        {% if row.unconfirmedCount %}<span><span class="record-meta-label">Nobody has checked</span> {{ row.unconfirmedCount }}</span>{% endif %}
+        {% comment %} "Unchecked", not "Nobody has checked": every label in this strip is followed by its value, so a label that is already a sentence renders as "NOBODY HAS CHECKED 1" and the number reads as a stray. {% endcomment %}
+        {% if row.unconfirmedCount %}<span><span class="record-meta-label">Unchecked</span> {{ row.unconfirmedCount }}</span>{% endif %}
       </p>
 
-      {% if row.privileged %}
-      <p class="record-meta">
-        {% comment %} The label is the chapter's reading (getPowerSummary, from the two booleans) rather than the service's word for the role, because this page reads ACROSS tools: "Delegated user" and "Workspace admin" may be the same power, and a column of vendor nouns cannot be compared down the page. The role name itself is on the tool's own detail page, where it is the useful form. {% endcomment %}
-        {% for holder in row.privileged %}
-        <span><span class="record-meta-label">{{ holder.getPowerSummary }}</span>
-          {{ holder.getDisplayName }}{% if holder.accessLevel %} ({{ holder.accessLevel }}){% endif %}{% if not holder.confirmed %} - unconfirmed{% endif %}</span>
-        {% endfor %}
+      {% if row.owners or row.accessOnly %}
+      {% comment %}
+      Two lines at most, grouped by power, with the names composed in the view
+      (_namePeople). NOT a line per person: that put getPowerSummary's sentence
+      in the label slot, where it renders uppercase and letter-spaced, so a tool
+      with two owners shouted the same 43-character phrase twice and buried the
+      names underneath it.
+
+      The label is the chapter's reading of the two booleans rather than the
+      service's word for the role, because this page reads ACROSS tools:
+      "Delegated user" and "Workspace admin" may be the same power, and a column
+      of vendor nouns cannot be compared down the page. Each name still carries
+      its own role in brackets, which is the form that is useful once you have
+      found the row you came for.
+
+      record-meta-stack, not the inline strip: these values are lists of people
+      and can each be longer than a line, so flowing them side by side puts the
+      start of the second group somewhere in the middle of the first.
+      {% endcomment %}
+      <p class="record-meta record-meta-stack">
+        {% if row.owners %}<span><span class="record-meta-label">Owns it</span> {{ row.owners }}</span>{% endif %}
+        {% if row.accessOnly %}<span><span class="record-meta-label">Can change access</span> {{ row.accessOnly }}</span>{% endif %}
       </p>
       {% endif %}
 

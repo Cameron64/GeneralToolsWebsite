@@ -69,6 +69,44 @@ def _edges(manager, kind: int, otherEnd: str) -> list:
     return list(manager.filter(kind=kind).select_related(otherEnd))
 
 
+def _namePeople(holders) -> str:
+    """Several people on one line, each with the role they were recorded under.
+
+    Built here rather than in the template because the privileged-access page
+    GROUPS people by what they can do - all the owners on one line, everyone who
+    can only change access on another - and Django templates cannot join a list
+    of composed items without a loop that has to test forloop.last, which is how
+    that page ended up rendering one line per person in the first place.
+
+    Grouping is the whole point. The alternative, and what this replaced, was a
+    line per person labelled with the sentence getPowerSummary() returns. In the
+    label slot that sentence renders uppercase and letter-spaced, so a tool with
+    two owners printed the same 43-character run of capitals twice and the names
+    - the only part that varied, and the only part anybody came to read - were
+    the quietest thing on the card. A short label with several names after it is
+    the same information the way the register is actually read: down the label
+    column first, then across.
+
+    The role and the unconfirmed flag share one parenthetical so a name carries
+    at most one bracket. "Devon K. (Owner, unconfirmed)" is one fact about one
+    person; a name trailed by a separate bracket and a separate dash is three
+    things to reassemble."""
+    described = []
+    for holder in holders:
+        qualifiers = []
+        # The service's own word for the role, when somebody wrote one down.
+        # Blank is common and is a true answer - see getAccessLevelDisplay - but
+        # here it just means no parenthetical, because "(Role not recorded)"
+        # beside every name would be noise on a page about owners.
+        if holder.accessLevel.strip():
+            qualifiers.append(holder.accessLevel.strip())
+        if not holder.confirmed:
+            qualifiers.append("unconfirmed")
+        suffix = f" ({', '.join(qualifiers)})" if qualifiers else ""
+        described.append(f"{holder.getDisplayName()}{suffix}")
+    return ", ".join(described)
+
+
 def _parseId(rawValue) -> int | None:
     """Defensively parse a POSTed pk. A stale form / back-button repost can
     submit a non-numeric or missing id; treat that as "no such row" rather
@@ -288,7 +326,18 @@ def chapter_tools_privileged(request):
 
         rows.append({
             "resource": resource,
-            "privileged": privileged,
+            # Grouped by power, not listed per person - see _namePeople. Two
+            # lines at most, and each carries a short label the eye can find
+            # again on the next card down.
+            #
+            # `owners` and `accessOnly` partition `privileged` exactly:
+            # isPrivileged() is ownsAccount OR canGrantAccess, so anybody in
+            # privileged who is not an owner is in the second group by
+            # definition. Nobody can appear on both lines and nobody is dropped.
+            "owners": _namePeople(owners),
+            "accessOnly": _namePeople([
+                holder for holder in privileged if not holder.ownsAccount
+            ]),
             "unconfirmedCount": len(unconfirmed),
             "holderCount": len(holders),
             "ownerCount": len(owners),
