@@ -570,12 +570,20 @@ def chapter_tool_create(request):
     })
 
 
-# The workbench's sections, as tab keys. Three of the four are deliberately the
-# SAME strings as CHILD_SPECS' keys, so a child view can send the editor back to
-# the section it came from with `?tab={childKind}` and no lookup table. A mapping
+# The workbench's sections, as tab keys. Three of them are deliberately the SAME
+# strings as CHILD_SPECS' keys, so a child view can send the editor back to the
+# section it came from with `?tab={childKind}` and no lookup table. A mapping
 # between two near-identical vocabularies is a thing that drifts; sharing one
 # spelling means it cannot.
-EDIT_TABS = ("details", *CHILD_SPECS)
+#
+# `delete` is a section of this page and not a child kind - it holds one button,
+# which links out to the typed-name confirmation at chapter_tool_delete. It gets
+# a tab rather than a card under the details form so that the only destructive
+# control on the workbench is somewhere you have to go, instead of the permanent
+# bottom of the section people edit most. It needs no permission of its own:
+# chapter_tool_delete requires exactly the MANAGE_CHAPTER_TOOLS this whole view
+# already requires, so an editor who can reach the tab can use it.
+EDIT_TABS = ("details", *CHILD_SPECS, "delete")
 
 
 def _activeTab(request, hasAudit: bool) -> str:

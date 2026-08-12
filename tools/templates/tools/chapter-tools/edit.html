@@ -63,6 +63,13 @@
   {% if hasAudit %}
   <a class="tab" href="?tab=credentials" {% if tab == 'credentials' %}aria-current="page"{% endif %}>Credentials <span class="tab-count">({{ credentials|length }})</span></a>
   {% endif %}
+  {% comment %}
+    Last, and with no count - it is one button, not a list. The link opens a
+    section; it does not delete anything, and what it opens is itself only a link
+    to the typed-name confirmation. So there are two pages between this tab and a
+    deleted row.
+  {% endcomment %}
+  <a class="tab" href="?tab=delete" {% if tab == 'delete' %}aria-current="page"{% endif %}>Delete</a>
 </nav>
 {% endif %}
 
@@ -129,21 +136,6 @@
   </form>
 </div>
 
-{% comment %}
-  Deleting the tool is a detail of the tool itself, so it sits at the foot of
-  this section rather than in a sixth card below every other one. It is also the
-  only destructive action on the page, and a tab it has to be opened to reach is
-  a better place for it than the permanent bottom of a scroll.
-{% endcomment %}
-{% if not isCreate %}
-<div class="page-card max-w-2xl">
-  <h2 class="section-title pt-0">Delete this chapter tool</h2>
-  <p class="form-help pb-4">
-    Removes the tool and everything recorded against it. You'll be asked to type its name first.
-  </p>
-  <a href="{% url 'chapter-tool-delete' pk=resource.id %}" class="btn btn-danger">Delete {{ resource.name }}</a>
-</div>
-{% endif %}
 {% endif %}
 
 {% if not isCreate %}
@@ -306,6 +298,28 @@
     <p class="record-empty">No credential objects recorded.</p>
     {% endfor %}
   </div>
+</div>
+{% endif %}
+
+{% if tab == 'delete' %}
+{% comment %}
+  Its own section rather than a card under the details form. It is the only
+  destructive control on the workbench, and at the foot of the details tab it sat
+  permanently below the form people open most - so the thing you should have to go
+  looking for was the thing hardest to avoid scrolling past.
+
+  Not gated separately: chapter_tool_delete requires the same
+  manage-chapter-tools permission this whole page does, so a second guard here
+  would only be a second thing to keep in step. See EDIT_TABS.
+{% endcomment %}
+<div class="page-card max-w-2xl">
+  <h2 class="section-title pt-0">Delete this chapter tool</h2>
+  <p class="form-help pb-4">
+    Removes the tool and everything recorded against it - holders, dependency edges in both
+    directions, and any credential rows. The next page lists what goes with it and asks you to
+    type the name first.
+  </p>
+  <a href="{% url 'chapter-tool-delete' pk=resource.id %}" class="btn btn-danger">Delete {{ resource.name }}</a>
 </div>
 {% endif %}
 

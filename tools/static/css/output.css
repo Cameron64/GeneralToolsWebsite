@@ -2136,9 +2136,12 @@
     padding-bottom: 0;
   }
   .explain-row > .explain {
-    flex: 1 1 12rem;
+    flex: 0 1 auto;
     min-width: 0;
     padding-top: 0;
+  }
+  .explain-row > .explain[open] {
+    flex: 1 1 100%;
   }
   .explain-row-heading {
     padding-bottom: 0;

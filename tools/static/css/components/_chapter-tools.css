@@ -324,20 +324,40 @@
   padding-bottom: 0;
 }
 
-/* `flex: 1 1 12rem` is the whole trick, and it is why nothing moves when the
-   panel opens. Given room on the label's line the disclosure stays beside the
-   label and grows into the rest of the width; given less than 12rem it wraps
-   onto its own full-width line BEFORE it is opened - so the control the reader
-   is about to click never jumps out from under them, which is what a
-   width-changing [open] rule would have done.
+/* Sized to its own text - `auto`, not a 12rem basis - so the CLOSED marker sits
+   on the label's line at every width this form is laid out at.
 
-   The usual answer here would be an absolutely positioned popover. That is
-   unavailable: .page-card sets overflow-x:auto, so a floating panel is clipped
-   by its scroll container - see the note above .explain. */
+   That basis is what this rule used to say, and it was chosen to keep anything
+   from moving when the panel opens: a disclosure given less than 12rem of room
+   wrapped onto its own line before it was ever clicked, so it could not jump out
+   from under the reader afterwards. The cost only appeared once fields were laid
+   out two abreast (.form-pair, ~18rem a column): the marker wrapped in every
+   narrow column, which pushed that field's input a line lower than its
+   partner's. So the field with a definition and the field beside it stopped
+   lining up - a permanent lopsidedness on every row, paid to avoid one reflow on
+   one click.
+
+   The trade is now the other way round. Closed, the marker is beside its label
+   and the inputs line up. Opened, [open] takes the full row so the panel is a
+   readable width, which does move the marker down a line - after the click, with
+   focus still on it, which is when a reader is looking at the panel rather than
+   at the control.
+
+   The full-width [open] is not optional, it is what makes the panel readable at
+   all: the body is a child of the <details>, so a details box sized to
+   "What's this?" would render the delegation-tier ladder in a 7rem column. The
+   usual answer - an absolutely positioned popover, sized independently of the
+   trigger - is unavailable: .page-card sets overflow-x:auto, so a floating panel
+   is clipped by its scroll container, and only at some widths. See the note
+   above .explain. */
 .explain-row > .explain {
-  flex: 1 1 12rem;
+  flex: 0 1 auto;
   min-width: 0;
   padding-top: 0;
+}
+
+.explain-row > .explain[open] {
+  flex: 1 1 100%;
 }
 
 /* Beside a heading rather than a field label. The heading already carries its
