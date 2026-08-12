@@ -1872,6 +1872,7 @@
     overflow-wrap: anywhere;
   }
   .record-prose {
+    padding-top: calc(var(--spacing) * 2);
     color: var(--color-dark);
     overflow-wrap: anywhere;
   }
@@ -1887,12 +1888,23 @@
   .record-meta > * {
     min-width: 0;
   }
+  .record-meta-stack {
+    display: grid;
+    gap: calc(var(--spacing) * 1);
+  }
   .record-meta-label {
     font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
     letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
     color: var(--color-secondary);
+  }
+  .record-aside {
+    padding-top: calc(var(--spacing) * 1);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    color: var(--color-secondary);
+    overflow-wrap: anywhere;
   }
   .record-actions {
     display: grid;

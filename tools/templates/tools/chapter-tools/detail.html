@@ -86,8 +86,20 @@
       </div>
       <p class="record-meta">
         <span><span class="record-meta-label">How they get in</span> {{ holder.how }}</span>
-        <span><span class="record-meta-label">What that means here</span> {{ holder.powerSummary }}</span>
       </p>
+      {% comment %}
+      The power summary gets its own line instead of a slot in the strip above.
+      That strip is for short facts - a date, a category, a name - laid out
+      inline so several fit on one line; powerSummary is a sentence, and a
+      sentence in there wraps mid-phrase and drags its label away from it.
+
+      No label on it, deliberately. The badge in the head already names the role,
+      and this line says what that role amounts to, so a "What that means here"
+      label would be a third heading for one fact. record-aside rather than
+      record-prose keeps it distinguishable from the holder's own note below:
+      this line is the register's reading, the note is what a person wrote.
+      {% endcomment %}
+      <p class="record-aside">{{ holder.powerSummary }}</p>
       {% if holder.note %}<p class="record-prose">{{ holder.note }}</p>{% endif %}
     </div>
     {% endfor %}

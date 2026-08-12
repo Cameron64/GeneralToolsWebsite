@@ -62,8 +62,14 @@
 }
 
 /* Full-sentence content (a question, a note). Not .record-title: this is the
-   thing being read, so it stays normal weight at body size. */
+   thing being read, so it stays normal weight at body size.
+
+   The padding is on the top because this follows the meta strip on some cards
+   (a holder's note) and leads on others (a question, where the meta strip comes
+   after). Flush against the strip, the last label/value pair and the first line
+   of prose read as one run of text. */
 .record-prose {
+  padding-top: calc(var(--spacing) * 2);
   color: var(--color-dark);
   overflow-wrap: anywhere;
 }
@@ -85,12 +91,40 @@
   min-width: 0;
 }
 
+/* One pair per line, for the cards whose VALUES are lists or sentences rather
+   than the short facts the inline strip assumes. Flowing a list of names beside
+   another list of names puts the start of the second one somewhere in the middle
+   of the first, and the reader cannot tell which label owns which name.
+
+   A grid rather than `flex-direction: column`, so the row gap set above still
+   applies and the two layouts stay one component with one spacing scale. */
+.record-meta-stack {
+  display: grid;
+  gap: calc(var(--spacing) * 1);
+}
+
+/* Labels stay SHORT - one or two words. This is uppercase and letter-spaced, so
+   a label carrying a whole sentence becomes the loudest thing on the card and
+   drowns the value it is supposed to introduce. When the label wants to be a
+   sentence, the content belongs in .record-aside below with no label at all. */
 .record-meta-label {
   font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
   color: var(--color-secondary);
+}
+
+/* A quiet sentence of the register's own - what a row amounts to, as opposed to
+   what somebody wrote about it. Sits between the meta strip and .record-prose in
+   loudness on purpose: smaller and greyer than the note below it, so a card with
+   both does not read as two paragraphs by the same author. */
+.record-aside {
+  padding-top: calc(var(--spacing) * 1);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-secondary);
+  overflow-wrap: anywhere;
 }
 
 /* Divider above the controls, so a record reads "what this is" then "what I can
