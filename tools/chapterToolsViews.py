@@ -570,6 +570,44 @@ def chapter_tool_create(request):
     })
 
 
+# The workbench's sections, as tab keys. Three of the four are deliberately the
+# SAME strings as CHILD_SPECS' keys, so a child view can send the editor back to
+# the section it came from with `?tab={childKind}` and no lookup table. A mapping
+# between two near-identical vocabularies is a thing that drifts; sharing one
+# spelling means it cannot.
+EDIT_TABS = ("details", *CHILD_SPECS)
+
+
+def _activeTab(request, hasAudit: bool) -> str:
+    """Which section the workbench should render, from ?tab=.
+
+    Anything unrecognised falls back to details rather than 404ing: the tab is a
+    view preference, and a stale bookmark or a hand-typed URL should land you on
+    the page you asked for, not on an error.
+
+    `credentials` also falls back for an editor without the audit permission, so
+    the tab strip and the panel agree. This is the tab STRIP's guard only - it
+    decides which tab is highlighted, not what may be read. The panel is guarded
+    separately and the view never puts credentials in the context at all without
+    the permission, so a forced ?tab=credentials renders an empty details page
+    rather than anything restricted."""
+    requested = request.GET.get("tab", "")
+    if requested == "credentials" and not hasAudit:
+        return "details"
+    return requested if requested in EDIT_TABS else "details"
+
+
+def _backToSection(pk: int, childKind: str) -> str:
+    """The workbench URL, opened on the section a child row belongs to.
+
+    Every add, edit and delete of a child row ends here. Returning to the bare
+    URL would drop the editor on the details form, so adding three holders meant
+    three trips back to the top of the page and three scrolls down to find the
+    button again. `childKind` is already one of the tab keys - see EDIT_TABS - so
+    there is nothing to translate."""
+    return f"{reverse('chapter-tool-edit', kwargs={'pk': pk})}?tab={childKind}"
+
+
 @login_required
 @permission_required(permissions.MANAGE_CHAPTER_TOOLS)
 def chapter_tool_edit(request, pk):
@@ -577,7 +615,13 @@ def chapter_tool_edit(request, pk):
 
     One page rather than one per child kind, because the alternative is a
     round trip per row on a phone. The child rows are links out to a single
-    focused form each; only the resource's own fields post from here."""
+    focused form each; only the resource's own fields post from here.
+
+    The sections are tabs now rather than a stack of five cards. Stacked, adding
+    a second holder meant landing at the top of the page after the redirect and
+    scrolling back down past a list that had just grown by one, every time. The
+    tab is in the URL precisely so the child views can redirect into it - see
+    _activeTab and EDIT_TABS."""
     resource = get_object_or_404(ChapterResource, pk=pk)
     includeRestricted = _canEditRestricted(request.user)
     form = _buildResourceForm(request, resource, includeRestricted)
@@ -611,6 +655,7 @@ def chapter_tool_edit(request, pk):
         "hasAudit": includeRestricted,
         "isCreate": False,
         "saved": request.GET.get("saved") == "1",
+        "tab": _activeTab(request, includeRestricted),
         "holders": list(resource.holders.all()),
         "dependencies": list(dependencyQuery),
         "dependents": list(dependentQuery),
@@ -727,7 +772,7 @@ def chapter_tool_child_edit(request, pk, childKind, childId=None):
             "added" if childId is None else "edited",
             spec.label, resource.name,
         )
-        return redirect("chapter-tool-edit", pk=resource.pk)
+        return redirect(_backToSection(resource.pk, childKind))
 
     return render(request, "tools/chapter-tools/child.html", {
         "form": form,
@@ -735,6 +780,9 @@ def chapter_tool_child_edit(request, pk, childKind, childId=None):
         "childLabel": spec.label,
         "childKind": childKind,
         "isCreate": childId is None,
+        # The same URL the successful POST above redirects to, so cancelling and
+        # saving land in the same place. Every way out of this page uses it.
+        "backUrl": _backToSection(resource.pk, childKind),
     })
 
 
@@ -744,7 +792,7 @@ def chapter_tool_child_delete(request, pk, childKind, childId):
     """Delete one child row. POST only - a GET-deletable URL gets emptied by a
     link prefetcher or a crawler, and no typed confirmation would save it."""
     if request.method != "POST":
-        return redirect("chapter-tool-edit", pk=pk)
+        return redirect(_backToSection(pk, childKind))
     resolved = _resolveChild(request, pk, childKind, childId)
     if resolved is None:
         raise Http404("No such child kind for this resource.")
@@ -755,4 +803,4 @@ def chapter_tool_child_delete(request, pk, childKind, childId):
         "ChapterTools: %s deleted a %s (%s) from '%s'",
         request.user.getUserNameString(), spec.label, describe, resource.name,
     )
-    return redirect("chapter-tool-edit", pk=resource.pk)
+    return redirect(_backToSection(resource.pk, childKind))
