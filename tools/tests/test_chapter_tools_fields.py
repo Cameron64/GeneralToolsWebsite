@@ -228,7 +228,9 @@ class CredentialKindSuppressionSaveTests(LoginClientMixin, TestCase):
             resource=self.resource, label=CREDENTIAL_SENTINEL,
             kind=ResourceCredential.Kind.INDIVIDUAL_LOGIN,
         )
-        body = self.client.get(self.resource.getUrl()).content.decode()
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and this section does not render at all.
+        body = self.client.get(f"{self.resource.getUrl()}?tab=credentials").content.decode()
         self.assertIn("not tracked", body)
         self.assertNotIn("No dates recorded", body)
 
@@ -238,7 +240,9 @@ class CredentialKindSuppressionSaveTests(LoginClientMixin, TestCase):
             resource=self.resource, label=CREDENTIAL_SENTINEL,
             kind=ResourceCredential.Kind.VAULT_SHARED_LOGIN,
         )
-        body = self.client.get(self.resource.getUrl()).content.decode()
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and this section does not render at all.
+        body = self.client.get(f"{self.resource.getUrl()}?tab=credentials").content.decode()
         self.assertIn("No dates recorded", body)
 
 
@@ -390,7 +394,9 @@ class HolderRolePickerTests(LoginClientMixin, TestCase):
             accessLevel="Delegated user", ownsAccount=True, confirmed=True,
         )
         self.loginAs(organizer)
-        body = self.client.get(self.resource.getUrl()).content.decode()
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and this section does not render at all.
+        body = self.client.get(f"{self.resource.getUrl()}?tab=holders").content.decode()
         self.assertIn("Delegated user", body)
         self.assertIn("Owns it", body)
 

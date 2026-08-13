@@ -375,7 +375,9 @@ class DetailPageDefinitionsTests(LoginClientMixin, TestCase):
         ))
 
     def test_the_steward_definition_follows_the_steward_value(self):
-        response = self.client.get(self.resource.getUrl())
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and none of the fields below render at all.
+        response = self.client.get(f"{self.resource.getUrl()}?tab=holders")
         value = _positionOf(response, "Jo Vega")
         definition = _positionOf(response, "The one person answerable for this tool")
         self.assertLess(value, definition)
@@ -386,7 +388,9 @@ class DetailPageDefinitionsTests(LoginClientMixin, TestCase):
         self.assertIn("explain-row", body[max(0, value - 200):definition])
 
     def test_the_tier_ladder_opens_from_inside_the_tier_callout(self):
-        response = self.client.get(self.resource.getUrl())
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and none of the fields below render at all.
+        response = self.client.get(f"{self.resource.getUrl()}?tab=committee")
         callout = _positionOf(response, "Delegation tier:")
         ladder = _positionOf(response, "What the other tiers mean")
         body = response.content.decode()
@@ -396,7 +400,9 @@ class DetailPageDefinitionsTests(LoginClientMixin, TestCase):
         self.assertLess(ladder, alertEnd)
 
     def test_the_review_definition_sits_with_the_review_date(self):
-        response = self.client.get(self.resource.getUrl())
+        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
+        # on the access panel and none of the fields below render at all.
+        response = self.client.get(f"{self.resource.getUrl()}?tab=committee")
         label = _positionOf(response, "Last reviewed")
         definition = _positionOf(response, "A review is a check, not an edit")
         nextLabel = _positionOf(response, "Reviewed by")
