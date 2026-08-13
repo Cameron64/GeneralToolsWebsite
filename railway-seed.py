@@ -1517,12 +1517,27 @@ DEPENDENCY_EDGES = [
     dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="DigitalOcean", note=""),
     dict(fromName="Chapter wiki (Outline)", kind=DepKind.RUNS_ON, toName="Cloudflare", note="DNS and domain only"),
     dict(fromName="Echo (this site)", kind=DepKind.RUNS_ON, toName="Cloudflare", note=""),
-    # The calendar is the case REACHED_THROUGH was added for: nobody is granted
-    # access to it, things are on it because Echo published them. Read backwards
-    # on Echo's page this is also the useful half - it names what Echo is the
-    # front door for.
+    # The three things Echo is the front door for. Read backwards on Echo's page
+    # this is the useful half - it names what publishing an event in Echo
+    # actually reaches, which is the whole argument for Echo existing: one form
+    # creates the calendar entry, the Zoom meeting, and the Action Network event.
+    #
+    # The calendar is the case REACHED_THROUGH was invented for: nobody is
+    # granted access to it at all.
+    #
+    # Zoom and Action Network are the softer case, and the notes carry why. Both
+    # DO have a direct route for a different audience - a meeting host gets the
+    # shared Zoom login, an organiser gets their own Action Network account - so
+    # the edge is true for the person attending or RSVPing, not for the person
+    # running the thing. That is what the note slot is for, and it is also why
+    # the wording on both surfaces no longer claims access is impossible
+    # directly: see the templates.
     dict(fromName="Google Calendar", kind=DepKind.REACHED_THROUGH, toName="Echo (this site)",
          note="publish an event in Echo and it appears here"),
+    dict(fromName="Zoom", kind=DepKind.REACHED_THROUGH, toName="Echo (this site)",
+         note="attendees get the join link from the Echo-published event; hosts get the shared login instead"),
+    dict(fromName="Action Network", kind=DepKind.REACHED_THROUGH, toName="Echo (this site)",
+         note="Echo creates the event here, which is what people RSVP to; organisers get their own login instead"),
 ]
 
 CHAPTER_WIDE_QUESTIONS = [
