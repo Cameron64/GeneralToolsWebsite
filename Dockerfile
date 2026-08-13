@@ -85,5 +85,22 @@ USER appuser
 # Expose the application port
 EXPOSE 8000 
 
-# Start the application using Gunicorn
-CMD ["/entrypoint.sh"]
+# @ DEMO ONLY - do not carry this hunk upstream.
+#
+# Upstream this is `CMD ["/entrypoint.sh"]`, which is correct for the nginx +
+# selenium compose stack: gunicorn on a fixed 8000 behind nginx, and real
+# secrets mounted in.
+#
+# The Railway demo box has neither. It needs railway-entrypoint.sh, which
+# writes the stub secrets.json that DEBUG=False insists on, then serves with
+# `runserver --insecure` on $PORT because there is no nginx to hand static
+# files to. That was supposed to come from railway.json's startCommand, but
+# railway.json is untracked, so any upload path that ships committed blobs
+# drops it - and Docker then falls back to this CMD, gunicorn boots with no
+# secrets.json, and the box 502s with a stack trace that names gunicorn and
+# never mentions the missing file.
+#
+# Pointing CMD at the demo entrypoint makes the box boot correctly whether or
+# not railway.json is read. If it IS read, its startCommand is this same
+# command, so the two agree rather than fight.
+CMD ["bash", "/app/railway-entrypoint.sh"]
