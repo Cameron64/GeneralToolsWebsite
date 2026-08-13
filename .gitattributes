@@ -4,3 +4,11 @@
 # --path-as-root .` uploads the broken working copy. (DEMO branch only.)
 railway-entrypoint.sh text eol=lf
 railway-seed.py text eol=lf
+
+# entrypoint.sh is the UPSTREAM entrypoint and is baked into the image as
+# `CMD ["/entrypoint.sh"]`. railway-entrypoint.sh replaces it via the
+# railway.json startCommand, so it normally never runs - but when that
+# startCommand is not applied for any reason, Docker falls back to the CMD and
+# a CRLF shebang kills the container with `env: 'bash\r'` and no other clue.
+# Pinning it to LF costs nothing and removes the landmine. (DEMO branch only.)
+entrypoint.sh text eol=lf
