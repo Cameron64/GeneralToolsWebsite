@@ -103,4 +103,24 @@ EXPOSE 8000
 # Pointing CMD at the demo entrypoint makes the box boot correctly whether or
 # not railway.json is read. If it IS read, its startCommand is this same
 # command, so the two agree rather than fight.
-CMD ["bash", "/app/railway-entrypoint.sh"]
+#
+# The demo scripts get their OWN COPY lines rather than being picked up by the
+# `COPY . .` above. Two reasons, both learned the hard way on 2026-08-13:
+#
+# A missing file under `COPY . .` fails at RUN time, as `bash: no such file`,
+# ten restarts deep, with the deploy still marked SUCCESS. A missing file in an
+# explicit COPY fails the BUILD, immediately, naming the file. When a script is
+# load-bearing for boot, the loud failure is the one worth having.
+#
+# And /entrypoint.sh is already baked this way, which is exactly why an LF fix
+# to it took effect on a deploy where /app/railway-entrypoint.sh was still
+# absent - the dedicated COPY layer and the `COPY . .` layer do not necessarily
+# carry the same context. Do not assume one proves the other.
+COPY railway-entrypoint.sh /railway-entrypoint.sh
+COPY railway-seed.py /app/railway-seed.py
+RUN chmod +x /railway-entrypoint.sh
+
+# The pre-flight listing is deliberate and cheap. If this ever fails again, the
+# first log line says what the container actually has in /app instead of
+# leaving it to be guessed at from the outside.
+CMD ["bash", "-c", "echo '--- /app contents ---'; ls -1 /app | head -40; echo '--- booting ---'; exec bash /railway-entrypoint.sh"]
