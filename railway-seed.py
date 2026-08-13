@@ -1542,9 +1542,38 @@ CHAPTER_WIDE_QUESTIONS = [
                     "gets moved in rather than noted."),
 ]
 
-# Retired: an earlier boot seeded a single placeholder question. Remove it by its
-# exact text so the demo box does not accumulate two generations of examples.
-ResourceQuestion.objects.filter(question__startswith="(Demo placeholder)").delete()
+# Retired questions, removed by exact text.
+#
+# Questions are create-only by design - assigning or resolving one in the app has
+# to survive a redeploy - which means they are the ONE child table with no sweep
+# behind it. Holders and credentials get pruned to match the spec further down,
+# so editing one of those is self-healing; editing a question's text just leaves
+# the old row on the box forever, and the register accumulates generations.
+#
+# That is not only clutter. Both of the entries below were found live on
+# 2026-08-13 and the first one is the reason this list exists: it asks who holds
+# EDIT RIGHTS on the calendar, which is the exact claim the calendar row was
+# corrected to remove. Its card now says nobody is granted anything and nobody
+# signs in, and directly underneath sat an open question presupposing the
+# opposite - the same defect the stale-holder sweep was written to stop, arriving
+# through the one door that has no sweep.
+#
+# So: when a question's text is CHANGED rather than added, retire the old text
+# here in the same edit. Nothing else will.
+RETIRED_QUESTIONS = [
+    # Generic placeholder from the first demo boot.
+    "(Demo placeholder)",
+    # Contradicts the corrected Google Calendar row (see above).
+    "Confirm which chapter addresses currently hold edit rights on the calendar.",
+    # Answered by the Slack card itself, which now documents per-person accounts.
+    "How does account sharing work?",
+]
+ResourceQuestion.objects.filter(question__startswith=RETIRED_QUESTIONS[0]).delete()
+_retired = ResourceQuestion.objects.filter(question__in=RETIRED_QUESTIONS[1:])
+for row in _retired:
+    report.append(f"  retired stale question: {row.resource.name if row.resource_id else 'chapter-wide'}"
+                  f" / {row.question[:60]}")
+_retired.delete()
 
 chapterResourcesByName = {}
 credentialCount = holderCount = questionsCreated = 0
