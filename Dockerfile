@@ -116,9 +116,12 @@ EXPOSE 8000
 # to it took effect on a deploy where /app/railway-entrypoint.sh was still
 # absent - the dedicated COPY layer and the `COPY . .` layer do not necessarily
 # carry the same context. Do not assume one proves the other.
+# No chmod +x on these. These lines sit after `USER appuser`, so a chmod of a
+# root-owned file at / fails the build with "Operation not permitted" - and the
+# execute bit is not needed anyway, because the CMD below invokes the script as
+# an argument to bash rather than executing it directly.
 COPY railway-entrypoint.sh /railway-entrypoint.sh
 COPY railway-seed.py /app/railway-seed.py
-RUN chmod +x /railway-entrypoint.sh
 
 # The pre-flight listing is deliberate and cheap. If this ever fails again, the
 # first log line says what the container actually has in /app instead of
