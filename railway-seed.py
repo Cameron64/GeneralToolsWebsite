@@ -643,11 +643,34 @@ report.append("resolutions: now %d (%s)" % (
     dict((s, Resolution.objects.filter(status=s).count()) for s, _ in S.CHOICES)))
 
 # --- Chapter Tools (IT access registry) -----------------------------------------
-# Seven real chapter systems, seeded exactly as approved for the demo box - no
-# additional services beyond the two infrastructure rows added 2026-08-11
-# (Cloudflare, DigitalOcean) plus their dependency edges on the other five.
-# Every field is populated so the pages can be pressure tested with nothing
-# rendering as a dash.
+# Thirteen real chapter systems, seeded for the demo box: the original five, the
+# two infrastructure rows added 2026-08-11 (Cloudflare, DigitalOcean), and six
+# added 2026-08-13 so that every state the registry can represent has at least
+# one row demonstrating it. Every field is populated so the pages can be
+# pressure tested with nothing rendering as a dash.
+#
+# WHY THE SIX ARE THESE SIX. They are not padding and they are not invented
+# services. Five of them were already named in the prose of the original rows
+# with no row of their own, which made the register quietly self-contradictory -
+# four rows sent a reader to "the chapter password vault" and the vault was not
+# in the list; Echo's continuity note rests on the GitHub organisation and that
+# was not in the list either; and Action Network is the system this entire site
+# exists to publish into. A registry that omits the thing its own instructions
+# point at is the defect, so adding them is a correction rather than a demo prop.
+#
+# The sixth (the bank account) is the one genuinely new category, and it earns
+# its place by being the only row where somebody owns a thing they cannot hand
+# out - which the holder model calls out in its own docstring as the case a
+# single privilege ladder cannot express.
+#
+# THE COVERAGE RULE, and why it is checked rather than trusted. The register is
+# a demo of what the registry can SAY, so every enum value, every rotation
+# state, and both staleness states need a live example. That silently rots the
+# moment somebody edits one row and takes the last example of a state with it,
+# which no test catches because the seed is not under test. The check at the
+# bottom of this block reports what is uncovered into the boot log. It
+# deliberately warns rather than raising - see its comment: a raise here would
+# fail the entrypoint and 502 the box over a cosmetic gap.
 #
 # TWO RULES THIS BLOCK EXISTS TO KEEP, both easy to break by "just adding one
 # more row" and neither caught by any test:
@@ -688,6 +711,47 @@ HolderHow = ResourceHolder.How
 DepKind = ResourceDependency.Kind
 CHAPTER_TOOLS_LAST_REVIEWED = datetime.date(2026, 8, 10)
 CHAPTER_TOOLS_REVIEWED_BY = "IT Sub-Committee"
+
+# Most rows share the review stamp above; a few override it, and one of them
+# overrides it to None. That is why this is a sentinel rather than
+# spec.get("lastReviewed", CHAPTER_TOOLS_LAST_REVIEWED): None and "" are REAL
+# values on these two fields - "nobody has ever reviewed this" is the state that
+# raises the Stale flag - so a plain .get() default would make the honest answer
+# unrepresentable and silently stamp the never-reviewed row as reviewed. Same
+# reasoning the credential model gives for leaving addedAt nullable instead of
+# auto_now_add.
+_UNSET = object()
+
+
+def _rowValue(spec, key, default):
+    value = spec.get(key, _UNSET)
+    return default if value is _UNSET else value
+
+
+def _seedQuestion(resource, question):
+    """Create one open question if its text is not already on the box, and
+    return 1 if it was created.
+
+    A question may be written as a bare string or as a dict carrying
+    assignedTo / resolvedAt / resolution. Both forms exist because most
+    questions are genuinely just a question, and making every one of them a dict
+    to accommodate the few that are assigned or closed would bury the text - the
+    only part a reader of this file cares about - inside punctuation.
+
+    get_or_create, and the extra fields ride in `defaults` so they apply ON
+    CREATE ONLY. That is what keeps the create-only promise this block has always
+    made: assigning or resolving a question inside the app must survive the next
+    redeploy, and an update_or_create here would silently stamp it back to
+    whatever this file says every time the box boots."""
+    if isinstance(question, str):
+        question = {"question": question}
+    _, wasCreated = ResourceQuestion.objects.get_or_create(
+        resource=resource, question=question["question"],
+        defaults=dict(assignedTo=question.get("assignedTo", ""),
+                      resolvedAt=question.get("resolvedAt"),
+                      resolution=question.get("resolution", "")),
+    )
+    return 1 if wasCreated else 0
 
 CHAPTER_RESOURCES = [
     dict(
@@ -1026,6 +1090,426 @@ CHAPTER_RESOURCES = [
         ],
         questions=["Confirm who is currently in the DigitalOcean vault collection."],
     ),
+    # --- added 2026-08-13, see "WHY THE SIX ARE THESE SIX" above ---------------
+    dict(
+        name="Action Network", category=Cat.ORGANIZING,
+        # MIXED is the honest answer and not a hedge: organisers sign in as
+        # themselves, and the key Echo publishes with is a separate credential no
+        # person signs in with. Calling the whole row INDIVIDUAL would hide the
+        # second half, and calling it SERVICE_ACCOUNT would hide the first.
+        accessModel=Access.MIXED,
+        # The one genuinely mixed payer in the register. National provides the
+        # platform to chapters at no cost to us; metered add-ons are billed to
+        # whoever turns them on. Both halves are true at once, which is exactly
+        # what this value is for.
+        payer=Payer.MIXED,
+        blurb=(
+            "The chapter's membership, dues, and public event platform. Every event published "
+            "through Echo is created here, and this is where RSVPs and member records live."
+        ),
+        annualCost=None,
+        costNote=(
+            "National provides the chapter's access to the platform at no charge to us. Metered "
+            "add-ons such as text banking are billed separately, which is why the payer reads "
+            "Mixed. Whether the chapter has ever been billed for one still needs confirming with "
+            "the Treasurer."
+        ),
+        howToGetAccess=(
+            "Ask the IT Sub-Committee in Slack and say which committee you organise for. "
+            "Organisers get their own login, so there is no shared password to be handed. The key "
+            "Echo publishes with is a separate thing and is not given out to people."
+        ),
+        siteUrl="https://actionnetwork.org",
+        accessRequestUrl="",
+        stewardName="IT Sub-Committee",
+        # Red for a reason worth stating precisely, because it is NOT the usual
+        # one: revoking here is cheap (individual logins), so the tier is not
+        # about revocation cost at all. It is Red because a login reads the
+        # member list, which is the "read member data" clause of the Red rung.
+        delegationTier=Tier.RED,
+        revocationNote=(
+            "Individual logins, so removing one organiser is a single action that costs nobody "
+            "else anything. The reason this is Red is not the cost of revoking it - it is that "
+            "anybody who holds a login can read the member list while they have it."
+        ),
+        continuityNote=(
+            "The platform is national's, so a lost login is recovered through them rather than "
+            "through anything the chapter holds. What the chapter has to keep is more than one "
+            "person able to add and remove organiser logins."
+        ),
+        holders=[
+            dict(personName="Marisol Vega", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Group administrator", canGrantAccess=True, ownsAccount=False,
+                 note="Adds and removes organiser logins on the chapter's group."),
+            # The service-account door, which no other row demonstrates. Not a
+            # person, deliberately named as one anyway: the roster answers "who
+            # can get in", and an automated account that can get in belongs on it
+            # or the list quietly under-reports.
+            dict(personName="Echo publishing account", how=HolderHow.SERVICE_ACCOUNT, confirmed=True,
+                 accessLevel="API user", canGrantAccess=False, ownsAccount=False,
+                 note="Not a person. This is what Echo signs in as when it publishes an event, "
+                      "and it is on this list because it can get in."),
+            dict(personName="Ines Okafor", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 accessLevel="Organizer", canGrantAccess=False, ownsAccount=False,
+                 note="Organiser login for one committee. Not yet checked against the live account."),
+        ],
+        credentials=[
+            dict(label="Per-person organiser login", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One login per organiser. There is no shared web login for this service."),
+            dict(label="Publishing API key", kind=CredKind.API_TOKEN,
+                 vaultCollection="action-network", status=CredStatus.LIVE,
+                 addedAt=datetime.date(2025, 4, 10), lastRotated=datetime.date(2026, 6, 20),
+                 note="Used by Echo to create events. Rotating it stops event publishing until "
+                      "Echo's copy is updated too, so the two have to move together."),
+            # The retired state, which nothing else in the register shows. Kept as
+            # a row rather than deleted on purpose, and the note says why: a
+            # credential that vanishes from a list is indistinguishable from one
+            # that never existed, so the register loses the fact that it was
+            # replaced.
+            dict(label="Retired publishing API key", kind=CredKind.API_TOKEN,
+                 vaultCollection="action-network", status=CredStatus.RETIRED,
+                 addedAt=datetime.date(2023, 9, 1), lastRotated=datetime.date(2024, 2, 14),
+                 note="Replaced by the key above and no longer accepted. Kept as a row so the "
+                      "register shows it was retired rather than letting it silently disappear."),
+        ],
+        questions=[
+            dict(question="Confirm which committees currently hold organiser logins here, and "
+                          "whether any belong to people who have stepped back.",
+                 assignedTo="Marisol Vega"),
+            dict(question="Decide where Echo's publishing key is stored so exactly one copy is "
+                          "authoritative.",
+                 assignedTo="IT Sub-Committee", resolvedAt=ct(2026, 7, 28, 18),
+                 resolution="Agreed that the vault collection holds the only authoritative copy "
+                            "and Echo reads it from there. Closed at the July committee meeting."),
+        ],
+    ),
+    dict(
+        name="National membership list", category=Cat.ORGANIZING,
+        accessModel=Access.INDIVIDUAL,
+        # The only NATIONAL payer, and it is a real one: chapters are given this
+        # access, they do not buy it.
+        payer=Payer.NATIONAL,
+        blurb=(
+            "National's own record of who is a member in good standing. Where the chapter's "
+            "membership numbers come from when they have to be right."
+        ),
+        annualCost=None,
+        costNote="Provided by national. There is nothing for the chapter to pay and no plan to choose.",
+        howToGetAccess=(
+            "This one is not granted locally. National decides which chapter officers may pull the "
+            "list, so the route is through whoever currently holds it rather than through the IT "
+            "Sub-Committee."
+        ),
+        siteUrl="",
+        accessRequestUrl="",
+        stewardName="IT Sub-Committee",
+        delegationTier=Tier.RED,
+        revocationNote=(
+            "Not the chapter's to revoke. Access is held per person at national, so removing "
+            "somebody means asking national to remove them, and the chapter cannot verify that it "
+            "happened."
+        ),
+        continuityNote=(
+            "More than one officer needs to hold this, because a chapter that cannot see its own "
+            "membership numbers cannot run a vote. Nothing about that recovery path is in the "
+            "chapter's hands."
+        ),
+        # No owner and no one who can grant: national holds both. That makes this
+        # row read as "no owner recorded" on the privileged-access page, which is
+        # the correct reading rather than a gap in the register - and it is the
+        # only row where that is true by design rather than by omission.
+        holders=[
+            dict(personName="Teodora Marchetti", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Named recipient", canGrantAccess=False, ownsAccount=False,
+                 note="Named at national as able to pull the list. Cannot add anybody else."),
+        ],
+        credentials=[
+            dict(label="Per-person national login", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One login per named officer, issued by national. Nothing shared."),
+        ],
+        questions=[
+            dict(question="Confirm which chapter officers national currently has on file for this, "
+                          "and whether that list is still the right one.",
+                 assignedTo="Teodora Marchetti"),
+        ],
+    ),
+    dict(
+        name="Password vault", category=Cat.INFRASTRUCTURE,
+        accessModel=Access.INDIVIDUAL,
+        payer=Payer.CHAPTER,
+        blurb=(
+            "Where the chapter's shared passwords live. Four other things on this list are reached "
+            "by getting a password out of here first, which makes this the door in front of the "
+            "doors."
+        ),
+        annualCost=None,
+        # Deliberately does not claim a host. DigitalOcean's row says only the
+        # wiki runs on that account, and inventing a hosting fact here to fill the
+        # blank would contradict a row that was checked. "Not known" is the true
+        # answer and it is an open question below rather than a shrug.
+        costNote=(
+            "No per-seat charge. Where this is hosted, and whether anything is billed for it, "
+            "still needs confirming - see the open question."
+        ),
+        howToGetAccess=(
+            "Ask for an account, and say which tool you actually need. An account on its own gives "
+            "you nothing: it is only the door, and each shared password sits in a collection that "
+            "somebody still has to add you to. Two steps, and people routinely stop after the "
+            "first one and assume it did not work."
+        ),
+        siteUrl="",
+        accessRequestUrl="",
+        # The steward is an Echo ACCOUNT here, not a text name - the only two rows
+        # in the register where that is true. Everything else falls back to
+        # stewardName, which is the realistic shape (most stewards have no
+        # account), but a register where the FK is never exercised cannot show
+        # that a steward can be a real reviewable person.
+        steward="jordan.castillo",
+        stewardName="",
+        delegationTier=Tier.YELLOW,
+        # One of two requestable rows. Nothing renders a button yet - that is M2,
+        # and `requestable` currently shows up only as a Yes/No on the committee
+        # tab - so this exists to demonstrate the field and the invariant behind
+        # it: the model refuses to let a row be requestable without a steward, or
+        # above Yellow. These two rows are the honest candidates because both
+        # genuinely should be self-serve.
+        requestable=True,
+        revocationNote=(
+            "Removing somebody's vault account does not take back a password they already copied "
+            "out of it, so a departure means changing the shared passwords they could see, not "
+            "just deleting the account. That is the work, and it lands on whoever is left."
+        ),
+        continuityNote=(
+            "More than one person holds vault admin, so accounts and collections can still be "
+            "managed if any one of them is unreachable. Losing every admin at once would strand "
+            "every shared password in the chapter, which is why that number must never be one."
+        ),
+        holders=[
+            # Both linked to real Echo accounts, which no other row does. The
+            # roster renders the account's own name through getDisplayName, so
+            # this is the branch where the register and the app agree on who
+            # somebody is instead of holding two spellings of them.
+            dict(personName="Jordan Castillo", user="jordan.castillo",
+                 how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Vault admin", canGrantAccess=True, ownsAccount=True,
+                 note="Creates vault accounts and decides who is in each collection."),
+            dict(personName="Maria Flores", user="maria.flores",
+                 how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Ordinary member", canGrantAccess=False, ownsAccount=False,
+                 note="Has an account and is in one collection. Cannot add anybody."),
+        ],
+        credentials=[
+            dict(label="Per-person vault account", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One account per person, with collections shared onto it."),
+            # Retire-candidate: a distinct state from retired, and the one the
+            # register exists to surface. It also carries dates old enough to be
+            # overdue, so this row shows both badges at once - which is realistic,
+            # because "nobody knows what uses it" is exactly why it never got
+            # rotated.
+            dict(label="Admin panel token", kind=CredKind.API_TOKEN,
+                 vaultCollection="vault", status=CredStatus.RETIRE_CANDIDATE,
+                 addedAt=datetime.date(2024, 11, 5),
+                 note="Nothing is known to use this. Flagged to retire rather than deleted, "
+                      "because pulling a token no-one has traced is how something breaks a week "
+                      "later with no obvious cause."),
+        ],
+        questions=[
+            dict(question="Confirm where the vault is hosted and whether anything is billed for it.",
+                 assignedTo="Jordan Castillo"),
+        ],
+    ),
+    dict(
+        name="Chapter bank account", category=Cat.FINANCE,
+        accessModel=Access.INDIVIDUAL,
+        payer=Payer.FREE,
+        blurb=(
+            "The chapter's money: dues passed back from national, fundraising, and everything the "
+            "chapter spends. Signing authority rather than a login is the thing that matters here."
+        ),
+        annualCost=None,
+        costNote=(
+            "No subscription. Any account fee is a bank charge rather than a software bill, and "
+            "the amount still needs confirming with the Treasurer."
+        ),
+        howToGetAccess=(
+            "You do not request this one. Who may sign for the chapter is a chapter decision, not "
+            "something a committee hands out, so the route is a vote and then paperwork at the "
+            "bank."
+        ),
+        siteUrl="",
+        accessRequestUrl="",
+        stewardName="Treasurer",
+        delegationTier=Tier.RED,
+        # A review date old enough to be stale, so the flag has a live example.
+        # Picked deliberately on the row where going unreviewed is most obviously
+        # a problem rather than on a harmless one.
+        lastReviewed=datetime.date(2026, 2, 20),
+        revocationNote=(
+            "Removing a signer is paperwork at the bank, not a setting somebody can change. It "
+            "takes days rather than minutes, it cannot be done quietly, and until it completes the "
+            "former signer can still sign."
+        ),
+        continuityNote=(
+            "Two signers, so the chapter is not one person away from being locked out of its own "
+            "money. Neither of them can add a third without a chapter decision."
+        ),
+        holders=[
+            # The "Owns it" summary with nothing beside it - the case the holder
+            # model's own docstring names (a billing contact who owns the account
+            # and cannot touch membership) and which no other row in the register
+            # produces. Every other privileged holder here can also grant, so
+            # without this row the power summary has three of its four states.
+            dict(personName="Teodora Marchetti", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Primary signer", canGrantAccess=False, ownsAccount=True,
+                 note="Signing authority on the account. Cannot add another signer without a "
+                      "chapter decision, which is why this reads as owning it while being unable "
+                      "to hand it out."),
+            dict(personName="Wendell Achebe", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Second signer", canGrantAccess=False, ownsAccount=False,
+                 note="Second signer, so no single absence stops the chapter paying for anything."),
+        ],
+        credentials=[
+            dict(label="Per-person online banking login", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="One login per signer, in their own name. Nothing shared, and nothing that "
+                      "could be shared without the bank noticing."),
+            dict(label="Second-factor device", kind=CredKind.TWO_FACTOR_TOKEN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="Bound to one signer's own phone. Not vaulted, because vaulting it would "
+                      "defeat the point of it."),
+        ],
+        questions=[
+            dict(question="Check that the signers recorded here still match what the bank has on file.",
+                 assignedTo="Treasurer"),
+        ],
+    ),
+    dict(
+        name="Chapter social accounts", category=Cat.SOCIAL,
+        # The row that demonstrates not knowing. Every field below is either a
+        # real answer or an honest "not known", and the point of it is that the
+        # registry has to be able to hold a row like this without it looking
+        # half-filled-in - because a register that can only express settled facts
+        # gets the unsettled ones left out of it entirely.
+        accessModel=Access.UNCONFIRMED,
+        payer=Payer.UNCONFIRMED,
+        blurb=(
+            "The chapter's public accounts on the main social platforms. Announcements, event "
+            "promotion, and most of what somebody sees of the chapter before they ever turn up."
+        ),
+        annualCost=None,
+        costNote="Nothing recorded. Posting is free; whether anything was ever paid for promotion is not known.",
+        howToGetAccess=(
+            "Ask in Slack and say what you need to post. Nobody has written down how getting into "
+            "these actually works, so expect the answer to be a person rather than a process."
+        ),
+        siteUrl="",
+        accessRequestUrl="",
+        # Blank on purpose, and it is the only blank steward in the register. It
+        # is NOT the same statement as the calendar's "Nobody - owner unknown":
+        # there, somebody looked and found no owner. Here nobody has looked yet,
+        # and an empty field is what that looks like.
+        stewardName="",
+        delegationTier=Tier.YELLOW,
+        # Never reviewed, so the Stale flag has its other example - the one where
+        # there is no date at all rather than an old one. The two read
+        # differently to somebody deciding what to pick up, which is why both are
+        # here.
+        lastReviewed=None,
+        reviewedBy="",
+        revocationNote=(
+            "Not known, because how people get in is not known. If any of these turns out to be a "
+            "shared password, removing one person means changing it for everybody who posts."
+        ),
+        continuityNote=(
+            "Not known. Whether a second person can get into each account is the first thing to "
+            "find out, because the answer being no is how a chapter loses its own name to an "
+            "account nobody can log into."
+        ),
+        holders=[
+            # accessLevel left blank so the roster renders "Role not recorded" -
+            # a real state, and a different claim from recording a guessed role.
+            dict(personName="Odalys Ferrer", how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 accessLevel="", canGrantAccess=False, ownsAccount=False,
+                 note="Posts to at least one of the accounts. How they get in, and what else they "
+                      "can do once in, is not confirmed."),
+        ],
+        # No credential rows, because nobody has established what the credentials
+        # are. Inventing one would answer the exact question this row exists to
+        # keep open.
+        credentials=[],
+        questions=[
+            "For each account, find out whether people sign in with their own login or a shared password.",
+            dict(question="Confirm who can currently post to each account.", assignedTo="Odalys Ferrer"),
+        ],
+    ),
+    dict(
+        name="GitHub organisation", category=Cat.INFRASTRUCTURE,
+        accessModel=Access.INDIVIDUAL,
+        payer=Payer.FREE,
+        blurb=(
+            "Where the chapter's code lives, including this site. Public repositories plus the "
+            "deploy history, which is what makes Echo rebuildable by somebody who was not there "
+            "when it was built."
+        ),
+        annualCost=None,
+        costNote="Free plan. There is no bill for a public organisation of this size.",
+        howToGetAccess=(
+            "Ask for an invite and say which repository you want to work on. You sign in with your "
+            "own GitHub account, so there is nothing shared to be handed out and nothing to change "
+            "when you leave."
+        ),
+        siteUrl="https://github.com/Austin-DSA",
+        accessRequestUrl="",
+        steward="jordan.castillo",
+        stewardName="",
+        delegationTier=Tier.YELLOW,
+        requestable=True,
+        revocationNote=(
+            "Removing somebody from the organisation is a single action and costs nobody else "
+            "anything. What it does not undo is anything they already merged, which is the reason "
+            "this is Yellow rather than Green."
+        ),
+        continuityNote=(
+            "More than one person holds owner rights, so the organisation survives any single "
+            "account being lost. Anything that currently lives on one person's personal account "
+            "should be moved in here, because that is the part this does not cover."
+        ),
+        holders=[
+            dict(personName="Jordan Castillo", user="jordan.castillo",
+                 how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
+                 note="Organisation owner. Can invite and remove members."),
+            dict(personName="Sam Nguyen", user="sam.nguyen",
+                 how=HolderHow.INDIVIDUAL_LOGIN, confirmed=True,
+                 accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
+                 note="Second organisation owner, so ownership is not one account deep."),
+            dict(personName="Kelly O'Sullivan", user="kelly.osullivan",
+                 how=HolderHow.INDIVIDUAL_LOGIN, confirmed=False,
+                 accessLevel="Repo maintainer", canGrantAccess=False, ownsAccount=False,
+                 note="Maintainer on one repository. Not yet checked against the live organisation."),
+        ],
+        credentials=[
+            dict(label="Per-person GitHub account", kind=CredKind.INDIVIDUAL_LOGIN,
+                 vaultCollection="", status=CredStatus.LIVE,
+                 note="Everybody uses their own account. The chapter holds no password for this."),
+            dict(label="Deploy key", kind=CredKind.SERVICE_ACCOUNT_KEY,
+                 vaultCollection="github", status=CredStatus.LIVE,
+                 addedAt=datetime.date(2025, 11, 1), lastRotated=datetime.date(2026, 5, 30),
+                 note="Used by the deploy scripts to check the code out on the server."),
+            dict(label="Legacy deploy key", kind=CredKind.SERVICE_ACCOUNT_KEY,
+                 vaultCollection="github", status=CredStatus.RETIRE_CANDIDATE,
+                 addedAt=datetime.date(2023, 5, 20),
+                 note="Predates the key above and nothing is known to use it. Flagged rather than "
+                      "removed until somebody traces it."),
+        ],
+        questions=[
+            dict(question="Trace what the legacy deploy key is used by, then remove it.",
+                 assignedTo="Sam Nguyen"),
+        ],
+    ),
 ]
 
 DEPENDENCY_EDGES = [
@@ -1044,6 +1528,18 @@ DEPENDENCY_EDGES = [
 CHAPTER_WIDE_QUESTIONS = [
     "Confirm the payer and the annual amount for every row with an unconfirmed cost, in time for the next budget cycle.",
     "Agree how often this list gets reviewed, so it stays true rather than drifting.",
+    dict(question="Decide who reviews access requests for each tool once requests can be made in "
+                  "Echo itself, rather than leaving it to whoever happens to answer in Slack.",
+         assignedTo="IT Sub-Committee"),
+    # The workbench is only half a workbench if nothing in it is ever finished.
+    # One closed question with its answer attached shows what resolving actually
+    # produces - a decision somebody can be pointed at later, not a disappeared row.
+    dict(question="Agree a single place where shared passwords live, so no tool has two "
+                  "authoritative copies of the same secret.",
+         assignedTo="Jordan Castillo", resolvedAt=ct(2026, 7, 28, 18),
+         resolution="Agreed: the chapter password vault is the only authoritative copy, and any "
+                    "tool with a shared login gets a collection there. Anything found outside it "
+                    "gets moved in rather than noted."),
 ]
 
 # Retired: an earlier boot seeded a single placeholder question. Remove it by its
@@ -1053,6 +1549,25 @@ ResourceQuestion.objects.filter(question__startswith="(Demo placeholder)").delet
 chapterResourcesByName = {}
 credentialCount = holderCount = questionsCreated = 0
 for spec in CHAPTER_RESOURCES:
+    # Mirrors ChapterResource.clean(). update_or_create writes through the
+    # manager and never calls full_clean, so without this the seed can put a row
+    # on the box that the edit form would refuse to save - a demo whose data is
+    # illegal in its own app. Raising is right here, unlike the coverage check at
+    # the bottom: this is a contradiction in the spec, it is caught before any
+    # write, and the fix is a one-line edit rather than a judgement call.
+    requestable = spec.get("requestable", False)
+    if requestable and spec.get("steward") is None:
+        raise SystemExit(
+            f"railway-seed.py refused to run: {spec['name']} is requestable with no steward. "
+            "A request button with no reviewer is a dead letter - give it a steward or set "
+            "requestable=False."
+        )
+    if requestable and spec["delegationTier"] not in ChapterResource.REQUESTABLE_TIERS:
+        raise SystemExit(
+            f"railway-seed.py refused to run: {spec['name']} is requestable at a tier that "
+            "forbids it. Classify it Green or Yellow, or leave requests closed."
+        )
+
     resource, _ = ChapterResource.objects.update_or_create(
         name=spec["name"],
         defaults=dict(
@@ -1063,8 +1578,15 @@ for spec in CHAPTER_RESOURCES:
             # these two fails loudly here rather than shipping a card with no
             # route on it - which is the defect this pair was added to fix.
             siteUrl=spec["siteUrl"], accessRequestUrl=spec["accessRequestUrl"],
-            requestable=False,  # the request button is M2 and is not gated yet
-            lastReviewed=CHAPTER_TOOLS_LAST_REVIEWED, reviewedBy=CHAPTER_TOOLS_REVIEWED_BY,
+            # Stewards are declared by USERNAME rather than by passing a User
+            # object, so the spec list stays a plain data literal that can be read
+            # without knowing what is in scope above it. Subscripting `users`
+            # means a typo'd username is a KeyError here, not a silently
+            # steward-less row.
+            steward=users[spec["steward"]] if spec.get("steward") else None,
+            requestable=requestable,
+            lastReviewed=_rowValue(spec, "lastReviewed", CHAPTER_TOOLS_LAST_REVIEWED),
+            reviewedBy=_rowValue(spec, "reviewedBy", CHAPTER_TOOLS_REVIEWED_BY),
             delegationTier=spec["delegationTier"], revocationNote=spec["revocationNote"],
             continuityNote=spec["continuityNote"],
         ),
@@ -1079,7 +1601,14 @@ for spec in CHAPTER_RESOURCES:
     for holder in spec["holders"]:
         ResourceHolder.objects.update_or_create(
             resource=resource, personName=holder["personName"],
+            # Keyed on personName and NOT on user, deliberately: personName is
+            # required on every row and user is set on only a few, so keying on
+            # the optional half would make every text-only holder collide with
+            # every other one on the same resource. personName stays the identity
+            # even when a user is attached, which is also what keeps the
+            # stale-holder sweep below able to name what it removed.
             defaults=dict(how=holder["how"], confirmed=holder["confirmed"], note=holder["note"],
+                          user=users[holder["user"]] if holder.get("user") else None,
                           accessLevel=holder.get("accessLevel", ""),
                           canGrantAccess=holder.get("canGrantAccess", False),
                           ownsAccount=holder.get("ownsAccount", False)),
@@ -1122,12 +1651,10 @@ for spec in CHAPTER_RESOURCES:
     staleHolders.delete()
     staleCredentials.delete()
     for question in spec["questions"]:
-        _, wasCreated = ResourceQuestion.objects.get_or_create(resource=resource, question=question)
-        questionsCreated += 1 if wasCreated else 0
+        questionsCreated += _seedQuestion(resource, question)
 
 for question in CHAPTER_WIDE_QUESTIONS:
-    _, wasCreated = ResourceQuestion.objects.get_or_create(resource=None, question=question)
-    questionsCreated += 1 if wasCreated else 0
+    questionsCreated += _seedQuestion(None, question)
 
 dependencyCount = 0
 for edge in DEPENDENCY_EDGES:
@@ -1138,6 +1665,83 @@ for edge in DEPENDENCY_EDGES:
         defaults=dict(note=edge["note"]),
     )
     dependencyCount += 1
+
+# Coverage check. This register's job on the demo box is to show every state the
+# registry can represent, and the way that quietly rots is somebody editing one
+# row and taking the last example of a state away with it. Nothing catches that
+# otherwise: the seed is not under test, and a missing state looks exactly like a
+# state that renders as nothing.
+#
+# It WARNS rather than raising, which is the opposite of the requestable guard
+# above, and the difference is what a failure would cost. That guard catches
+# illegal data before any write and the box is fine either way. This one runs
+# after the writes, inside the entrypoint - so raising here would fail the boot
+# and 502 the box over a demo row being less complete than intended. A line in
+# the boot log is the proportionate answer.
+#
+# Read from the DB rather than from the spec lists on purpose: the rotation
+# states are computed against today's date, so the only way to know the box
+# actually shows "overdue" is to ask a credential that is on it.
+_gaps = []
+for label, choices, seen in (
+    ("category", ChapterResource.CATEGORY_CHOICES,
+     set(ChapterResource.objects.values_list("category", flat=True))),
+    ("access model", ChapterResource.ACCESS_MODEL_CHOICES,
+     set(ChapterResource.objects.values_list("accessModel", flat=True))),
+    ("payer", ChapterResource.PAYER_CHOICES,
+     set(ChapterResource.objects.values_list("payer", flat=True))),
+    ("delegation tier", ChapterResource.DELEGATION_TIER_CHOICES,
+     set(ChapterResource.objects.values_list("delegationTier", flat=True))),
+    ("credential kind", ResourceCredential.KIND_CHOICES,
+     set(ResourceCredential.objects.values_list("kind", flat=True))),
+    ("credential status", ResourceCredential.STATUS_CHOICES,
+     set(ResourceCredential.objects.values_list("status", flat=True))),
+    ("holder route", ResourceHolder.HOW_CHOICES,
+     set(ResourceHolder.objects.values_list("how", flat=True))),
+    ("dependency kind", ResourceDependency.KIND_CHOICES,
+     set(ResourceDependency.objects.values_list("kind", flat=True))),
+):
+    absent = [name for value, name in choices if value not in seen]
+    if absent:
+        _gaps.append(f"{label} not demonstrated: {', '.join(absent)}")
+
+# The derived states, which no choices tuple covers. Each of these is a distinct
+# thing the pages render differently, and each was unrepresented before
+# 2026-08-13 - so they are the states most likely to go missing again.
+_rotationStates = {c.getRotationStatus() for c in ResourceCredential.objects.all()}
+_missingRotation = sorted(
+    {"not-applicable", "retired", "unknown", "overdue", "never-rotated", "ok"} - _rotationStates
+)
+if _missingRotation:
+    _gaps.append(f"credential rotation state not demonstrated: {', '.join(_missingRotation)}")
+
+_powerSummaries = {h.getPowerSummary() for h in ResourceHolder.objects.all()}
+if len(_powerSummaries) < 4:
+    _gaps.append(f"holder power summary: only {len(_powerSummaries)} of 4 shapes present")
+
+for label, condition in (
+    ("a stale row with an old review date",
+     ChapterResource.objects.filter(lastReviewed__isnull=False).exclude(
+         lastReviewed__gte=datetime.date.today() - datetime.timedelta(
+             days=ChapterResource.STALE_AFTER_DAYS)).exists()),
+    ("a row never reviewed at all", ChapterResource.objects.filter(lastReviewed__isnull=True).exists()),
+    ("a requestable row", ChapterResource.objects.filter(requestable=True).exists()),
+    ("a steward held as an Echo account", ChapterResource.objects.filter(steward__isnull=False).exists()),
+    ("a holder linked to an Echo account", ResourceHolder.objects.filter(user__isnull=False).exists()),
+    ("a holder with no recorded role", ResourceHolder.objects.filter(accessLevel="").exists()),
+    ("a resource with no holders recorded", ChapterResource.objects.filter(holders__isnull=True).exists()),
+    ("an assigned open question", ResourceQuestion.objects.exclude(assignedTo="").exists()),
+    ("a resolved question", ResourceQuestion.objects.filter(resolvedAt__isnull=False).exists()),
+    ("a chapter-wide question", ResourceQuestion.objects.filter(resource__isnull=True).exists()),
+):
+    if not condition:
+        _gaps.append(f"missing: {label}")
+
+if _gaps:
+    report.append("chapter resources - DEMO COVERAGE GAPS (%d):" % len(_gaps))
+    report.extend(f"    {gap}" for gap in _gaps)
+else:
+    report.append("chapter resources: every representable state has a live example")
 
 report.append(f"chapter resources: now {ChapterResource.objects.count()} (all fields populated)")
 report.append(f"chapter resource holders: {holderCount} seeded (now {ResourceHolder.objects.count()})")
