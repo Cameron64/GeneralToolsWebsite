@@ -212,17 +212,27 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, "you need a vault account")
 
-    def test_index_legend_covers_every_access_model_shown_and_nothing_else(self):
-        """The legend is built from the rows actually on screen, so a member
-        never reads a definition for a model the page doesn't use."""
+    def test_index_defines_every_access_model_including_ones_not_on_screen(self):
+        """Deliberately the REVERSE of what this test asserted before the
+        directory was paginated.
+
+        It used to require that a definition appear only for the models present
+        in the rows on screen, which was a sensible economy while the whole
+        register rendered on one page. Paginating made it a bug: the set of
+        models on screen is now an accident of which page you opened, so the
+        same phrase would be defined on page one and undefined on page two.
+
+        The definition moved from a card under the list into a disclosure beside
+        the phrase on each card, and it now carries the complete scale - which is
+        what makes it independent of paging."""
         _makeResource(name="Example Bank", accessModel=ChapterResource.AccessModel.INDIVIDUAL)
         self.loginAs(self.member)
         resp = self.client.get(reverse("chapter-tools"))
         # Sentinels avoid apostrophes on purpose - the template escapes them to
         # &#x27; and a raw "person's" would never match the rendered HTML.
-        self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, in use
-        self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, in use
-        self.assertNotContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, unused
+        self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, on screen
+        self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, on screen
+        self.assertContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, not on screen
 
     def test_index_does_not_lay_the_directory_out_as_a_table(self):
         """The directory renders as cards, not rows.
@@ -582,9 +592,9 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
     # --- 7. REACHED_THROUGH: open, both directions, and does not impersonate SIGN_IN ---
 
     def test_reached_through_reaches_plain_member_on_index_and_detail(self):
-        """The kind exists so a resource nobody can be granted directly can say
-        so. It is open for the same reason SIGN_IN is: it changes what the
-        reader does next."""
+        """The kind exists so a resource most people never get granted directly
+        can say so. It is open for the same reason SIGN_IN is: it changes what
+        the reader does next."""
         ResourceDependency.objects.create(
             resource=self.wiki, dependsOn=self.identityProvider,
             kind=ResourceDependency.Kind.REACHED_THROUGH,
@@ -593,18 +603,35 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
 
         indexResp = self.client.get(reverse("chapter-tools"))
         self.assertContains(indexResp, EDGE_PHRASE.format(name="Example SSO"))
-        self.assertContains(indexResp, "You do not get access to this directly")
+        self.assertContains(indexResp, "Most people reach this through Example SSO")
 
         detailResp = self.client.get(self.wiki.getUrl())
         self.assertContains(detailResp, EDGE_PHRASE.format(name="Example SSO"))
-        self.assertContains(detailResp, "You do not get access to this directly")
+        self.assertContains(detailResp, "Most people reach this through Example SSO")
+
+    def test_reached_through_does_not_claim_direct_access_is_impossible(self):
+        """The headline must not assert there is no direct route, because for
+        some resources there is one for a different audience - a Zoom meeting
+        host gets the shared login, an Action Network organiser gets their own
+        account - and the card prints that route in the very next paragraph.
+
+        Pinned as a test rather than left to the wording, because the absolute
+        phrasing was correct for the first resource this kind was used on and
+        stayed on the page unchallenged when the second and third arrived."""
+        ResourceDependency.objects.create(
+            resource=self.wiki, dependsOn=self.identityProvider,
+            kind=ResourceDependency.Kind.REACHED_THROUGH,
+        )
+        self.loginAs(self.member)
+        for resp in (self.client.get(reverse("chapter-tools")), self.client.get(self.wiki.getUrl())):
+            self.assertNotContains(resp, "You do not get access to this directly")
 
     def test_reached_through_does_not_render_as_a_sign_in_prerequisite(self):
         """The two must not collapse into one another. "You need X first" says
-        get X as well; "you do not get access to this directly" says X is
-        instead of, not as well as. Rendering a reached-through edge with the
-        sign-in wording would send a member to request a login nobody issues -
-        the exact defect this kind was added to fix."""
+        get X as well; "most people reach this through X" says X is the usual
+        route instead of, not as well as. Rendering a reached-through edge with
+        the sign-in wording would send a member to request a login nobody
+        issues - the exact defect this kind was added to fix."""
         ResourceDependency.objects.create(
             resource=self.wiki, dependsOn=self.identityProvider,
             kind=ResourceDependency.Kind.REACHED_THROUGH,
@@ -2005,3 +2032,202 @@ class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
             with self.subTest(field=key):
                 start = content.index(f'data-field="{key}"')
                 self.assertIn('class="explain-row"', content[start:start + 400])
+
+
+class ChapterToolsDirectoryPagingTests(LoginClientMixin, TestCase):
+    """The directory pages, and the access-model definition moved out of the
+    card that used to sit under the whole list.
+
+    These two changes are one change. The old footer legend was built from the
+    access models present in the rows on screen, so paginating the register
+    without moving it would have defined a phrase on the page where a matching
+    row happened to fall and left it undefined on the next one."""
+
+    def setUp(self):
+        self.member = UserFactory.make("paging.member")
+        self.holderViewer = UserFactory.make("paging.holders", perms=("viewResourceHolders",))
+        self.url = reverse("chapter-tools")
+
+    def _makeResources(self, count):
+        # Zero-padded names so lexical order matches creation order. The view
+        # orders by (category, name), so an unpadded 10 would sort before 2 and
+        # the page-boundary assertions below would be testing something other
+        # than what they say.
+        return [
+            _makeResource(name=f"Example Paged Tool {index:03d}")
+            for index in range(count)
+        ]
+
+    def test_the_directory_pages_at_twenty_five(self):
+        self._makeResources(26)
+        self.loginAs(self.member)
+
+        firstPage = self.client.get(self.url)
+        self.assertEqual(len(firstPage.context["rows"]), 25)
+        self.assertEqual(firstPage.context["page"].paginator.num_pages, 2)
+
+        secondPage = self.client.get(self.url, {"page": 2})
+        self.assertEqual(len(secondPage.context["rows"]), 1)
+
+    def test_a_short_register_renders_no_pager_at_all(self):
+        """The partial hides itself below two pages. Asserted because a register
+        that fits on one page is the normal case, and a lone disabled "1" would
+        be furniture."""
+        self._makeResources(3)
+        self.loginAs(self.member)
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["page"].paginator.num_pages, 1)
+        self.assertNotContains(response, 'aria-label="Pagination"')
+
+    def test_every_resource_appears_on_exactly_one_page(self):
+        """The real risk with a Paginator is a row that repeats or vanishes at a
+        page boundary, which happens when the ordering is not total. Reads the
+        pages rather than trusting the order_by."""
+        self._makeResources(26)
+        self.loginAs(self.member)
+
+        seen = []
+        for pageNumber in (1, 2):
+            response = self.client.get(self.url, {"page": pageNumber})
+            seen.extend(row["resource"].pk for row in response.context["rows"])
+
+        self.assertEqual(len(seen), 26)
+        self.assertEqual(len(set(seen)), 26, "a resource appeared on two pages")
+
+    def test_an_out_of_range_page_lands_on_a_real_one(self):
+        """get_page clamps rather than 404ing - a stale bookmark should still
+        show the register."""
+        self._makeResources(26)
+        self.loginAs(self.member)
+        for bogus in ("99", "0", "-1", "nope", ""):
+            with self.subTest(page=bogus):
+                response = self.client.get(self.url, {"page": bogus})
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context["rows"])
+
+    def test_the_footer_legend_card_is_gone(self):
+        """It defined "How access works" as far from the phrase as the page
+        allowed. Pinned as an absence so it cannot come back alongside the
+        inline definition and print the same prose twice."""
+        self._makeResources(2)
+        self.loginAs(self.member)
+        response = self.client.get(self.url)
+        self.assertNotContains(response, "line means")
+        self.assertNotIn("accessModelLegend", response.context)
+
+    def test_the_access_model_definition_opens_from_the_card(self):
+        """One disclosure per card, beside the value it defines."""
+        self._makeResources(2)
+        self.loginAs(self.member)
+        content = self.client.get(self.url).content.decode()
+        self.assertIn("How access works", content)
+        self.assertIn("What this means", content)
+        # The wrapper the CSS targets, so an opened panel gets the full row
+        # rather than the width of the label.
+        self.assertIn('class="explain-row"', content)
+
+    def test_the_access_model_definition_lists_every_model_not_only_those_on_screen(self):
+        """The whole reason the legend had to move. One resource on the page, and
+        the reader is still told what all five models mean - otherwise the
+        definition would depend on which page they happened to open."""
+        _makeResource(name="Example Only Row", accessModel=ChapterResource.AccessModel.INDIVIDUAL)
+        self.loginAs(self.member)
+        content = self.client.get(self.url).content.decode()
+        for _, label in ChapterResource.ACCESS_MODEL_CHOICES:
+            with self.subTest(model=label):
+                self.assertIn(escape(label), content)
+
+    def test_the_holder_badge_note_survived_the_legend_being_removed(self):
+        """The footer card carried a second thing: what "unconfirmed" beside a
+        name means. Deleting the card without rehoming that note would have
+        dropped it silently, so it is asserted rather than assumed."""
+        resource = _makeResource(name="Example Noted Tool")
+        ResourceHolder.objects.create(
+            resource=resource, personName="Example Paging Holder", confirmed=False,
+        )
+        self.loginAs(self.holderViewer)
+        content = self.client.get(self.url).content.decode()
+        self.assertIn("How to read this", content)
+        self.assertIn("nobody has verified", content)
+
+    def test_a_plain_member_gets_no_holder_note_because_they_get_no_roster(self):
+        """The note explains a badge they never see. Same tier as the roster."""
+        resource = _makeResource(name="Example Unseen Tool")
+        ResourceHolder.objects.create(resource=resource, personName="Example Hidden Holder")
+        self.loginAs(self.member)
+        content = self.client.get(self.url).content.decode()
+        self.assertNotIn("How to read this", content)
+        self.assertNotIn("Example Hidden Holder", content)
+
+
+class ChapterToolsWorkbenchConnectionCountTests(LoginClientMixin, TestCase):
+    """The workbench tab count must equal what its panel lists.
+
+    The bug: the count read only the forward edges while the panel rendered
+    both directions, so a resource that needs nothing and has two things
+    running on it displayed "(0)" directly above a list of two."""
+
+    def setUp(self):
+        self.editor = UserFactory.make(
+            "count.editor", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.openEditor = UserFactory.make("count.open.editor", perms=("manageChapterTools",))
+        self.host = _makeResource(name="Example Count Host")
+        self.riderOne = _makeResource(name="Example Count Rider One")
+        self.riderTwo = _makeResource(name="Example Count Rider Two")
+        self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.host.pk})
+
+    def test_the_count_includes_reverse_edges(self):
+        """The exact reported shape: no forward edges, two reverse ones."""
+        for rider in (self.riderOne, self.riderTwo):
+            ResourceDependency.objects.create(
+                resource=rider, dependsOn=self.host, kind=ResourceDependency.Kind.RUNS_ON,
+            )
+        self.loginAs(self.editor)
+        response = self.client.get(self.editUrl)
+        self.assertEqual(response.context["connectionCount"], 2)
+        self.assertContains(response, ">(2)<")
+
+    def test_the_count_matches_the_panel_for_every_mix_of_directions(self):
+        """Read from the rendered context rather than recomputed, so this stays
+        a statement about agreement rather than a second copy of the sum."""
+        ResourceDependency.objects.create(
+            resource=self.host, dependsOn=self.riderOne, kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        ResourceDependency.objects.create(
+            resource=self.riderTwo, dependsOn=self.host, kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        self.loginAs(self.editor)
+        response = self.client.get(f"{self.editUrl}?tab=dependencies")
+        panelTotal = len(response.context["dependencies"]) + len(response.context["dependents"])
+        self.assertEqual(response.context["connectionCount"], panelTotal)
+        self.assertEqual(panelTotal, 2)
+
+    def test_the_count_excludes_restricted_edges_for_a_non_audit_editor(self):
+        """A count larger than the list would announce the existence of RUNS_ON
+        edges to an editor the view deliberately hides them from - leaking the
+        fact through arithmetic instead of through markup."""
+        ResourceDependency.objects.create(
+            resource=self.riderOne, dependsOn=self.host, kind=ResourceDependency.Kind.RUNS_ON,
+        )
+        ResourceDependency.objects.create(
+            resource=self.riderTwo, dependsOn=self.host, kind=ResourceDependency.Kind.REACHED_THROUGH,
+        )
+        self.loginAs(self.openEditor)
+        response = self.client.get(self.editUrl)
+        panelTotal = len(response.context["dependencies"]) + len(response.context["dependents"])
+        self.assertEqual(response.context["connectionCount"], panelTotal)
+        self.assertEqual(response.context["connectionCount"], 1, "a restricted edge was counted")
+
+    def test_the_tab_label_no_longer_names_only_one_direction(self):
+        """"What it needs" could not honestly carry a count of both directions."""
+        self.loginAs(self.editor)
+        response = self.client.get(self.editUrl)
+        self.assertContains(response, "Connections")
+        self.assertNotContains(response, "What it needs")
+
+    def test_the_tab_key_is_still_dependencies(self):
+        """The label changed, the key must not: the child add/edit/delete views
+        redirect back into ?tab=dependencies by name."""
+        self.loginAs(self.editor)
+        self.assertContains(self.client.get(self.editUrl), 'href="?tab=dependencies"')

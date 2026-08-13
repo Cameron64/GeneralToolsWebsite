@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load explain_tags %}
 {% block page_content %}
 <h1 class="page-title">Chapter Tools</h1>
 <p class="page-subtitle">Every system Austin DSA runs: what it is, how to get into it, and who already has it.</p>
@@ -47,9 +48,10 @@ multi-line one renders as visible body text on the page.
   the precondition without linking it is the same failure as naming a resource
   without saying where it lives.
   {% endcomment %}
+  {% comment %} Wording matches detail.html - see the longer note there for why the old absolute "You do not get access to this directly" had to go once this edge kind was used for Zoom and Action Network, which both have a real direct route for a different audience. {% endcomment %}
   {% for dependency in row.reachedThroughDependencies %}
-  <p class="pb-2"><b>You do not get access to this directly.</b>
-    Things reach {{ row.resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+  <p class="pb-2"><b>Most people reach this through {{ dependency.dependsOn.name }}.</b>
+    Things get to {{ row.resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
     <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a></p>
   {% endfor %}
 
@@ -72,7 +74,9 @@ multi-line one renders as visible body text on the page.
   {% endif %}
 
   <dl class="detail-grid">
-    <dt>How access works</dt><dd>{{ row.resource.get_accessModel_display }}</dd>
+    {% comment %} The definition opens from beside the phrase it defines, not from a card at the foot of the list. It sits in the dd rather than the dt for the same reason as on the detail page: the dt column is `max-content`, so a panel opened there would be as narrow as the words "How access works". {% endcomment %}
+    <dt>How access works</dt>
+    <dd><span class="explain-row">{{ row.resource.get_accessModel_display }}{% explain "access-model" label="What this means" %}</span></dd>
     {% comment %}
     "Who has it now" is holder identity - tier 1 (viewResourceHolders or
     audit). Per the plan, a viewer without that permission sees nothing here
@@ -85,16 +89,20 @@ multi-line one renders as visible body text on the page.
     {% endcomment %}
     {% if hasHolders %}
     <dt>Who has it now</dt>
+    {% comment %} The hint follows the names rather than leading them, so the answer is what the eye lands on and the definition is there for whoever wants it. It carries the note that used to be the second half of the footer legend card - what "unconfirmed" means, and that an empty list is an open job rather than proof nobody has access - from the same glossary entry the detail page uses. {% endcomment %}
     <dd>
-      {% if row.holderRows %}
-      <span class="flex flex-wrap gap-2">
-        {% for holder in row.holderRows %}
-        <span class="badge {% if holder.confirmed %}badge-active{% else %}badge-unresolved{% endif %}">{{ holder.name }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
-        {% endfor %}
+      <span class="explain-row">
+        {% if row.holderRows %}
+        <span class="flex flex-wrap gap-2">
+          {% for holder in row.holderRows %}
+          <span class="badge {% if holder.confirmed %}badge-active{% else %}badge-unresolved{% endif %}">{{ holder.name }}{% if not holder.confirmed %} (unconfirmed){% endif %}</span>
+          {% endfor %}
+        </span>
+        {% else %}
+        <span class="text-secondary">Nobody recorded yet</span>
+        {% endif %}
+        {% explain "holders" label="How to read this" %}
       </span>
-      {% else %}
-      <span class="text-secondary">Nobody recorded yet</span>
-      {% endif %}
     </dd>
     {% endif %}
     <dt>Category</dt><dd>{{ row.resource.get_category_display }}</dd>
@@ -107,22 +115,24 @@ multi-line one renders as visible body text on the page.
 </div>
 {% endfor %}
 
-{% if accessModelLegend %}
-<div class="page-card">
-  <h2 class="section-title">What the &ldquo;How access works&rdquo; line means</h2>
-  <dl class="detail-grid">
-    {% for entry in accessModelLegend %}
-    <dt>{{ entry.label }}</dt><dd>{{ entry.explanation }}</dd>
-    {% endfor %}
-  </dl>
-  {% if hasHolders %}
-  <p class="text-sm text-secondary pt-2">
-    &ldquo;Unconfirmed&rdquo; next to a person's name means we have not yet checked that they still
-    have access, not that they don't. It is a job for the IT Sub-Committee, not a warning.
-  </p>
-  {% endif %}
-</div>
-{% endif %}
+{% comment %}
+The footer legend card that used to sit here is gone. It defined "How access
+works" and the "unconfirmed" badge in a card under every row on the page, which
+put both definitions as far from the words they define as the page allowed - and
+pagination would have made it wrong as well as distant, because the legend was
+built from the access models present in the current page's rows.
+
+Both now open in place from beside the phrase, through the same `explain`
+disclosure the detail page and the edit form already use. Nothing is lost from
+the page and nothing is duplicated: the words come from the glossary, and its
+access-model rungs come from the model.
+
+This pager partial lives under resolutions/ but takes only `page`, so it is
+generic in everything but its folder. Included in place rather than moved to
+common/ on purpose - the resolutions templates are in an open PR, and relocating
+a file they include would create a conflict for no gain here.
+{% endcomment %}
+{% include "tools/resolutions/_pagination.html" with page=page %}
 
 {% if hasAudit %}
 <p class="pt-4 text-sm"><a href="{% url 'chapter-tools-questions' %}">Open questions for the IT sub-committee &rarr;</a></p>

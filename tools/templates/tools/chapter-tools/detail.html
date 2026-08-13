@@ -71,10 +71,27 @@
   actually has. Filing it behind a second tab would hide the one thing this
   reader most needs to see.
   {% endcomment %}
+  {% comment %}
+    "Most people reach this through", not the old "You do not get access to
+    this directly."
+
+    The absolute claim was true of the one resource this edge kind was invented
+    for - nobody is ever given a login to the chapter calendar - and became
+    false as soon as the kind was used for Zoom and Action Network, where a
+    meeting host and an organiser both have a real direct route documented in
+    the very next paragraph. The card would have contradicted itself: an
+    instruction for getting the shared password, directly under a sentence
+    saying access cannot be got directly.
+
+    Nothing is lost where the strong claim was earned. The calendar's own "How
+    to get access" says there is nothing to request and nobody to request it
+    from, which states it more precisely than a headline could. The note on each
+    edge names which audience the front door is for.
+  {% endcomment %}
   {% for dependency in reachedThroughDependencies %}
   <div class="alert alert-info mb-4 pt-2">
-    <b>You do not get access to this directly.</b>
-    Things reach {{ resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
+    <b>Most people reach this through {{ dependency.dependsOn.name }}.</b>
+    Things get to {{ resource.name }} through <a href="{{ dependency.dependsOn.getUrl }}">{{ dependency.dependsOn.name }}</a>{% if dependency.note %} ({{ dependency.note }}){% endif %}.
     <a href="{{ dependency.dependsOn.getUrl }}">How to get {{ dependency.dependsOn.name }} &rarr;</a>
   </div>
   {% endfor %}

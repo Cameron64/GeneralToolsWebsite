@@ -59,7 +59,8 @@
 <nav class="tab-nav" aria-label="Sections of this chapter tool">
   <a class="tab" href="?tab=details" {% if tab == 'details' %}aria-current="page"{% endif %}>Details</a>
   <a class="tab" href="?tab=holders" {% if tab == 'holders' %}aria-current="page"{% endif %}>Who has it <span class="tab-count">({{ holders|length }})</span></a>
-  <a class="tab" href="?tab=dependencies" {% if tab == 'dependencies' %}aria-current="page"{% endif %}>What it needs <span class="tab-count">({{ dependencies|length }})</span></a>
+  {% comment %} "Connections", not "What it needs" - the panel holds both directions, so a label naming only one of them could not honestly carry a count of both. The tab names the topic and the two headings inside it name the directions, which is also how the detail page splits it. The tab KEY stays `dependencies` because the child add/edit/delete views redirect back into it by name. {% endcomment %}
+  <a class="tab" href="?tab=dependencies" {% if tab == 'dependencies' %}aria-current="page"{% endif %}>Connections <span class="tab-count">({{ connectionCount }})</span></a>
   {% if hasAudit %}
   <a class="tab" href="?tab=credentials" {% if tab == 'credentials' %}aria-current="page"{% endif %}>Credentials <span class="tab-count">({{ credentials|length }})</span></a>
   {% endif %}

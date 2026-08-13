@@ -1725,6 +1725,27 @@ class ChapterResource(models.Model):
     def getAccessModelExplanation(self) -> str:
         return self.ACCESS_MODEL_EXPLANATIONS.get(self.accessModel, "")
 
+    @classmethod
+    def getAccessModelLegend(cls) -> list:
+        """Every access model, in order, for the help popover - the same shape
+        getDelegationTierLegend returns and read by the same ladder template.
+
+        Always complete, deliberately. The directory used to build a legend of
+        only the models actually on screen, which was defensible while the whole
+        register fitted on one page and became a bug the moment it was
+        paginated: the same term would be defined on page one and undefined on
+        page two, purely because of where the row happened to fall. A reader
+        being told what a phrase means wants the set it belongs to, not the
+        subset that shares their pagination."""
+        return [
+            {
+                "value": value,
+                "label": label,
+                "explanation": cls.ACCESS_MODEL_EXPLANATIONS.get(value, ""),
+            }
+            for value, label in cls.ACCESS_MODEL_CHOICES
+        ]
+
     def getDelegationTierExplanation(self) -> str:
         return self.DELEGATION_TIER_EXPLANATIONS.get(self.delegationTier, "")
 

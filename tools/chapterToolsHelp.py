@@ -73,6 +73,24 @@ GLOSSARY = {
             "worth requesting is Echo."
         ),
     },
+    # Replaces the legend that used to sit in a card at the FOOT of the
+    # directory. Same words, read from the same dict on the model - but a
+    # definition parked under a list of thirteen cards is not where anybody
+    # meets the phrase it defines, so this now opens from beside the phrase
+    # itself on every card. The rungs are not restated here for the same reason
+    # the tier ladder does not restate its own: getEntry pulls them from
+    # ChapterResource, so this module cannot drift from the field it explains.
+    "access-model": {
+        "title": "What “How access works” means",
+        "body": (
+            "How you get in, which is a different question from whether you are "
+            "allowed in. It tells you what to expect of the process: whether you "
+            "end up with a login in your own name, whether you need a vault "
+            "account before anybody can hand you anything, and whether taking "
+            "your access away later costs other people work."
+        ),
+        "ladder": "access-model",
+    },
     "delegation-tier": {
         "title": "What the delegation tiers mean",
         "body": (
@@ -145,4 +163,6 @@ def getEntry(slug: str) -> dict | None:
     ladder = resolved.pop("ladder", None)
     if ladder == "delegation-tier":
         resolved["items"] = ChapterResource.getDelegationTierLegend()
+    elif ladder == "access-model":
+        resolved["items"] = ChapterResource.getAccessModelLegend()
     return resolved

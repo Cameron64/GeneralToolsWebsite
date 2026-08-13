@@ -23,6 +23,7 @@ import dataclasses
 import logging
 
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -34,6 +35,17 @@ from .models import (ChapterResource, ResourceCredential, ResourceDependency, Re
                      ResourceQuestion, ToolAuditReadLog, User)
 
 logger = logging.getLogger(__name__)
+
+# The directory pages at 25. The register is expected to grow well past that -
+# it currently omits more of the chapter's systems than it holds - and the cards
+# each carry two paragraphs of prose, so an unpaginated list is a page that gets
+# slower and less readable with every row somebody adds.
+#
+# Only the directory is paginated. The privileged-access page deliberately is
+# not: its whole job is to be read across the entire register at once, and a
+# gap-first sort that only sorted the current page would put the worst findings
+# on whichever page they fell on.
+RESOURCES_PER_PAGE = 25
 
 
 def _hasAudit(user) -> bool:
@@ -153,9 +165,21 @@ def chapter_tools_index(request):
     if hasHolders:
         prefetches.append("holders")
 
+    # Paginated, and the page is taken BEFORE the rows are built so a request
+    # only ever composes the 25 cards it is going to render. Ordering is
+    # explicit and total (category, then name) because a Paginator over an
+    # unordered queryset gives no guarantee a row appears on exactly one page.
+    #
+    # Note what pagination broke, which is why the access-model legend is gone
+    # from this view: it used to be computed from the models present in
+    # `resources`, so a paginated register would define a phrase on the page
+    # where it happened to occur and leave it undefined on the next one. The
+    # definition now opens from beside the phrase on every card and lists the
+    # complete set - see ChapterResource.getAccessModelLegend.
     resources = ChapterResource.objects.prefetch_related(*prefetches).order_by("category", "name")
+    page = Paginator(resources, RESOURCES_PER_PAGE).get_page(request.GET.get("page"))
     rows = []
-    for resource in resources:
+    for resource in page.object_list:
         row = {
             "resource": resource,
             "signInDependencies": [
@@ -178,20 +202,9 @@ def chapter_tools_index(request):
             ]
         rows.append(row)
 
-    # Legend of only the access models actually on screen. Glossing every row
-    # inline would repeat four lines of prose five times; defining each term
-    # once under the table keeps the table scannable and still leaves no
-    # unexplained phrase on the page.
-    modelsInUse = {resource.accessModel for resource in resources}
-    accessModelLegend = [
-        {"label": label, "explanation": ChapterResource.ACCESS_MODEL_EXPLANATIONS.get(value, "")}
-        for value, label in ChapterResource.ACCESS_MODEL_CHOICES
-        if value in modelsInUse
-    ]
-
     return render(request, "tools/chapter-tools/index.html", {
         "rows": rows,
-        "accessModelLegend": accessModelLegend,
+        "page": page,
         "hasAudit": hasAudit,
         "hasHolders": hasHolders,
         "canManage": request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS),
@@ -772,6 +785,19 @@ def chapter_tool_edit(request, pk):
         "dependencies": list(dependencyQuery),
         "dependents": list(dependentQuery),
     }
+    # The tab count sums BOTH directions, because the panel behind it renders
+    # both. It used to count only the forward edges while the panel also listed
+    # "What needs this", so Cloudflare - which needs nothing and has two things
+    # running on it - read "What it needs (0)" above a list of two. A count that
+    # disagrees with the list underneath it teaches a reader to stop trusting
+    # every other count on the strip.
+    #
+    # Same rule as the detail page's `connections` count: sum exactly what the
+    # panel will render, never the whole relation. For a non-audit editor both
+    # querysets above are already filtered to OPEN_KINDS, so this number stays
+    # equal to what they can actually see rather than hinting at RUNS_ON edges
+    # by being larger than the list.
+    context["connectionCount"] = len(context["dependencies"]) + len(context["dependents"])
     if includeRestricted:
         context["credentials"] = list(resource.credentials.all())
     return render(request, "tools/chapter-tools/edit.html", context)
