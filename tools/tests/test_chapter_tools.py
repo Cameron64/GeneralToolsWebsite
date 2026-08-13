@@ -151,14 +151,21 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         # test_detail_holder_sentinel_shown_to_organizer for the paired
         # presence assertion of the identical literal.
         self.assertNotContains(resp, HOLDER_SENTINEL)
-        # The tier-0 fallback replaces the roster, not silence.
-        self.assertContains(resp, "Access to this is stewarded by the IT Sub-Committee.")
+        # A plain member qualifies for exactly one tab (access) on this
+        # resource - no holders permission, no audit, and no dependency edges
+        # to earn a connections tab either - so the single-tab rule applies
+        # and no strip renders. The fallback line that used to sit here
+        # ("Access to this is stewarded...") is gone: a reader without the
+        # tab never sees the heading it was explaining, so there is nothing
+        # left to explain.
+        self.assertNotContains(resp, "tab-nav")
 
     def test_detail_holder_sentinel_shown_to_organizer(self):
         """Pairs with test_detail_open_section_visible_to_any_member's
-        absence assertion - identical literal, opposite viewer."""
+        absence assertion - identical literal, opposite viewer. Requested on
+        the holders tab, which is the only panel the roster renders in now."""
         self.loginAs(self.organizer)
-        resp = self.client.get(self.resource.getUrl())
+        resp = self.client.get(f"{self.resource.getUrl()}?tab=holders")
         self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_hides_restricted_section_from_plain_member(self):
@@ -182,16 +189,19 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
 
     def test_detail_shows_restricted_section_to_auditor(self):
         self.loginAs(self.auditor)
-        resp = self.client.get(self.resource.getUrl())
-        self.assertContains(resp, "Committee detail")
-        self.assertContains(resp, "Rotate the shared vault login.")
-        self.assertContains(resp, "ExampleCredentialSentinel")
+        # Committee detail and credentials are two different tabs now -
+        # requested separately rather than off one bare-URL render.
+        committeeResp = self.client.get(f"{self.resource.getUrl()}?tab=committee")
+        self.assertContains(committeeResp, "Committee detail")
+        self.assertContains(committeeResp, "Rotate the shared vault login.")
+        credentialsResp = self.client.get(f"{self.resource.getUrl()}?tab=credentials")
+        self.assertContains(credentialsResp, "ExampleCredentialSentinel")
 
     def test_detail_shows_holder_sentinel_to_auditor(self):
-        """Audit implies holders (_hasHolders's `or`) - the auditor sees the
-        roster too, not just the restricted committee-detail section."""
+        """Audit implies holders (_hasHolders's `or`) - the auditor gets a
+        holders tab too, not just the restricted committee-detail ones."""
         self.loginAs(self.auditor)
-        resp = self.client.get(self.resource.getUrl())
+        resp = self.client.get(f"{self.resource.getUrl()}?tab=holders")
         self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_explains_the_access_model_in_plain_language(self):
@@ -423,7 +433,8 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.RUNS_ON,
         )
         self.loginAs(self.auditor)
-        resp = self.client.get(self.wiki.getUrl())
+        # RUNS_ON renders inside the connections tab now, not the default one.
+        resp = self.client.get(f"{self.wiki.getUrl()}?tab=connections")
         self.assertContains(resp, "ExampleHostingSentinel")
 
     # --- 2. RUNS_ON never reaches a plain member on the INDEX page ---
@@ -481,7 +492,10 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.SIGN_IN,
         )
         self.loginAs(self.member)
-        resp = self.client.get(self.identityProvider.getUrl())
+        # The dependents (reverse) lists live on the connections tab, not the
+        # default access one - this member earns the tab by having an open
+        # dependent edge to show, even without any permission grant.
+        resp = self.client.get(f"{self.identityProvider.getUrl()}?tab=connections")
         self.assertContains(resp, "What signs in through this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -502,7 +516,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.RUNS_ON,
         )
         self.loginAs(self.auditor)
-        resp = self.client.get(self.hostingSentinel.getUrl())
+        resp = self.client.get(f"{self.hostingSentinel.getUrl()}?tab=connections")
         self.assertContains(resp, "What runs on this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -608,7 +622,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.REACHED_THROUGH,
         )
         self.loginAs(self.member)
-        resp = self.client.get(self.identityProvider.getUrl())
+        resp = self.client.get(f"{self.identityProvider.getUrl()}?tab=connections")
         self.assertContains(resp, "What people reach through this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -1720,6 +1734,143 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
         # renders it as &#x27; - comparing the raw string finds nothing and looks
         # exactly like the line being absent.
         self.assertIn(f'class="record-aside">{escape(summary)}', content)
+
+
+class ChapterToolDetailTabTests(LoginClientMixin, TestCase):
+    """The detail page's sections are tabs too - the read side of the same
+    move ChapterToolsWorkbenchTabTests covers for the edit workbench. A
+    different tab set (DETAIL_TABS) and a different gate (viewResourceHolders
+    / viewChapterToolAudit, tiered independently, rather than the workbench's
+    single manageChapterTools-plus-audit-subtier), so this is its own class
+    rather than a copy-paste extension of that one."""
+
+    def setUp(self):
+        self.member = UserFactory.make("member")
+        self.holderViewer = UserFactory.make("holderViewer", perms=("viewResourceHolders",))
+        self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
+        self.resource = _makeResource()
+        self.holder = ResourceHolder.objects.create(
+            resource=self.resource, personName="Example Detail Roster Holder",
+        )
+        ResourceCredential.objects.create(
+            resource=self.resource, label="ExampleDetailCredentialSentinel",
+            kind=ResourceCredential.Kind.VAULT_SHARED_LOGIN,
+        )
+        self.url = self.resource.getUrl()
+
+    def test_the_default_tab_is_access_with_no_tab_param(self):
+        # Auditor rather than the plain member here, so the strip actually
+        # renders and there is an aria-current to check - a single-tab reader
+        # has no strip at all (see the next test).
+        self.loginAs(self.auditor)
+        response = self.client.get(self.url)
+        self.assertContains(response, 'href="?tab=access" aria-current="page"')
+
+    def test_a_reader_with_only_the_access_tab_gets_no_tab_nav(self):
+        """A plain member holds neither viewResourceHolders nor
+        viewChapterToolAudit, and this resource has no dependency edges to
+        earn a connections tab on their own - the single-tab rule applies and
+        no strip renders, not a strip with one link in it."""
+        self.loginAs(self.member)
+        response = self.client.get(self.url)
+        self.assertNotContains(response, "tab-nav")
+
+    def test_an_audit_holder_gets_all_five_tabs(self):
+        self.loginAs(self.auditor)
+        response = self.client.get(f"{self.url}?tab=credentials")
+        for key in ("access", "holders", "connections", "credentials", "committee"):
+            self.assertContains(response, f'href="?tab={key}"')
+        self.assertContains(response, 'href="?tab=credentials" aria-current="page"')
+
+    def test_the_strip_renders_open_tabs_before_restricted_ones(self):
+        """Order is a promise this page makes, so it gets an assertion rather
+        than living only in a comment: a reader meets the sections everybody
+        can see before the two that were logged to reach.
+
+        Written as a literal sequence, not derived from DETAIL_TABS, for the
+        same reason the test above lists the five keys by hand. A test that
+        read its expected order out of the tuple the view orders by would pass
+        no matter what that tuple said."""
+        self.loginAs(self.auditor)
+        content = self.client.get(self.url).content.decode()
+        positions = [
+            content.index(f'href="?tab={key}"')
+            for key in ("access", "holders", "connections", "credentials", "committee")
+        ]
+        self.assertEqual(
+            positions, sorted(positions),
+            "the tab strip is not rendering in open-then-restricted order",
+        )
+
+    def test_roster_markup_appears_only_on_the_holders_tab(self):
+        self.loginAs(self.auditor)
+        default = self.client.get(self.url)
+        self.assertNotContains(default, "Example Detail Roster Holder")
+        holdersTab = self.client.get(f"{self.url}?tab=holders")
+        self.assertContains(holdersTab, "Example Detail Roster Holder")
+
+    def test_credential_markup_appears_only_on_the_credentials_tab(self):
+        self.loginAs(self.auditor)
+        default = self.client.get(self.url)
+        self.assertNotContains(default, "ExampleDetailCredentialSentinel")
+        credentialsTab = self.client.get(f"{self.url}?tab=credentials")
+        self.assertContains(credentialsTab, "ExampleDetailCredentialSentinel")
+
+    def test_a_non_audit_reader_forcing_tab_credentials_lands_on_access(self):
+        """holderViewer, not member: this reader needs a strip that renders
+        (access + holders) so there is an aria-current to check landing back
+        on access, rather than the single-tab case where no strip exists at
+        all to land anywhere on."""
+        self.loginAs(self.holderViewer)
+        response = self.client.get(f"{self.url}?tab=credentials")
+        self.assertContains(response, 'href="?tab=access" aria-current="page"')
+        self.assertNotContains(response, "ExampleDetailCredentialSentinel")
+        self.assertNotContains(response, "Credentials")
+
+    def test_a_non_holder_reader_forcing_tab_holders_lands_on_access(self):
+        self.loginAs(self.member)
+        response = self.client.get(f"{self.url}?tab=holders")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Example Detail Roster Holder")
+
+    def test_an_unknown_tab_falls_back_to_access(self):
+        self.loginAs(self.auditor)
+        response = self.client.get(f"{self.url}?tab=nonsense")
+        self.assertContains(response, 'href="?tab=access" aria-current="page"')
+
+    def test_restricted_read_log_row_is_written_once_regardless_of_tab(self):
+        """_logRestrictedRead fires on page load for an audit holder, not per
+        panel - the tab strip and the log are two different pieces of state,
+        and coupling them would let a bookmark to a specific tab read the
+        page with no row written."""
+        self.loginAs(self.auditor)
+        for tab in ("access", "holders", "connections", "credentials", "committee"):
+            with self.subTest(tab=tab):
+                ToolAuditReadLog.objects.all().delete()
+                self.client.get(f"{self.url}?tab={tab}")
+                self.assertEqual(ToolAuditReadLog.objects.count(), 1)
+
+    def test_the_tab_counts_render(self):
+        other = _makeResource(name="Example Detail Dependency")
+        ResourceDependency.objects.create(
+            resource=other, dependsOn=self.resource,
+            kind=ResourceDependency.Kind.SIGN_IN,
+        )
+        self.loginAs(self.auditor)
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Who has it <span class="tab-count">(1)</span>')
+        self.assertContains(response, 'Credentials <span class="tab-count">(1)</span>')
+        self.assertContains(response, 'What connects to it <span class="tab-count">(1)</span>')
+
+    def test_the_tab_styles_are_actually_compiled(self):
+        """Same rule as the workbench's version of this test: a class in a
+        template does nothing until output.css is rebuilt, and a stale
+        output.css fails silently."""
+        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
+        css = cssPath.read_text(encoding="utf-8")
+        for className in (".tab-nav", ".tab", ".tab-count"):
+            self.assertIn(className, css, f"{className} is used in a template but not compiled")
+        self.assertIn('.tab[aria-current="page"]', css)
 
 
 class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):

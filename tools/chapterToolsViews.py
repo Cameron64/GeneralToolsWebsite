@@ -205,7 +205,14 @@ def chapter_tool_detail(request, pk):
     - see _hasHolders); the restricted section (delegation tier,
     revocation/continuity notes, credentials, review detail, open questions)
     only for viewChapterToolAudit holders - and only that render writes a
-    read-log row."""
+    read-log row.
+
+    The sections are tabs - see DETAIL_TABS and _activeDetailTab below. The
+    read-log write stays exactly where it was before tabs existed: once per
+    render for an audit holder, independent of ?tab=. _logRestrictedRead
+    answers "who opened this resource's restricted layer", which happens on
+    page load; making it fire only for one panel would let an audit holder
+    read the page on another tab with no row written."""
     resource = get_object_or_404(ChapterResource, pk=pk)
     hasAudit = _hasAudit(request.user)
     hasHolders = _hasHolders(request.user)
@@ -264,6 +271,51 @@ def chapter_tool_detail(request, pk):
         context["runsOnDependents"] = _edges(
             resource.dependents, ResourceDependency.Kind.RUNS_ON, "resource",
         )
+
+    # Which tabs this reader gets, in strip order (open first, restricted
+    # last). Computed here rather than with template arithmetic, same reason
+    # the workbench's EDIT_TABS split lives in the view: a template that
+    # re-derived "does this reader have holders" from what happens to be in
+    # context would drift from the permission the moment somebody added a
+    # context key for an unrelated reason.
+    #
+    # `connections` is the one tier that is not a flat permission check - a
+    # plain member earns it by having something to see (an open dependent
+    # edge), not by holding a grant. Audit holders get it unconditionally
+    # because RUNS_ON edges are restricted and would otherwise be invisible
+    # even when they exist.
+    # This block decides only WHICH tabs a reader gets and what each one
+    # counts. The order and the labels come from DETAIL_TABS, so there is one
+    # place to read the strip off and no way for the two to disagree - an
+    # earlier draft repeated the keys and the order here as well, which meant
+    # renaming a tab was a two-file edit with nothing to catch the half done.
+    #
+    # `None` is a real value in here, not a missing one: it means the tab
+    # exists and deliberately shows no count, which is different from a count
+    # of zero. `access` and `committee` have no countable set behind them.
+    hasOpenDependents = bool(context["signInDependents"]) or bool(context["reachedThroughDependents"])
+    counts = {"access": None}
+    if hasHolders:
+        counts["holders"] = len(context["holderRows"])
+    if hasAudit or hasOpenDependents:
+        # Sums exactly what the panel will render, which is why an audit
+        # holder's number is bigger than a plain member's on the same
+        # resource: RUNS_ON is restricted, so those two directions are not in
+        # a plain member's context at all and must not be counted for them.
+        counts["connections"] = len(context["signInDependents"]) + len(context["reachedThroughDependents"])
+        if hasAudit:
+            counts["connections"] += len(context["runsOnDependencies"]) + len(context["runsOnDependents"])
+    if hasAudit:
+        counts["credentials"] = len(context["credentials"])
+        counts["committee"] = None
+
+    tabs = [
+        {"key": key, "label": label, "count": counts[key]}
+        for key, label in DETAIL_TABS
+        if key in counts
+    ]
+    context["tabs"] = tabs
+    context["tab"] = _activeDetailTab(request, [t["key"] for t in tabs])
 
     return render(request, "tools/chapter-tools/detail.html", context)
 
@@ -603,6 +655,58 @@ def _activeTab(request, hasAudit: bool) -> str:
     if requested == "credentials" and not hasAudit:
         return "details"
     return requested if requested in EDIT_TABS else "details"
+
+
+# The detail page's sections, as tab keys - a DIFFERENT set from EDIT_TABS
+# and gated on a different pair of permissions. The workbench above gates one
+# thing, manageChapterTools, with an audit sub-tier for the restricted
+# fields; this page gates *reading*, tiered across viewResourceHolders and
+# viewChapterToolAudit independently of who may write. Reusing _activeTab
+# here would couple two pages whose permission tiers do not line up, so this
+# gets its own tuple and its own fallback function rather than a shared one
+# with an extra branch.
+#
+# Order is open first, restricted last, and this tuple is what puts them in
+# that order: chapter_tool_detail decides only which keys a reader gets, then
+# filters this list to build the strip. So a tab is renamed or reordered here
+# and nowhere else. EDIT_TABS holds bare keys because the workbench spells its
+# labels out in the template; these carry theirs because the detail strip is a
+# loop, and a label in a template loop would have to come from somewhere.
+#
+# `access` is deliberately first AND the fallback in _activeDetailTab. It is
+# the one section with no permission behind it, so it is the only key that is
+# always safe to land on.
+DETAIL_TABS = (
+    ("access", "How to get it"),
+    ("holders", "Who has it"),
+    ("connections", "What connects to it"),
+    ("credentials", "Credentials"),
+    ("committee", "Committee detail"),
+)
+
+
+def _activeDetailTab(request, visibleTabs: list) -> str:
+    """Which section the detail page should render, from ?tab=.
+
+    Same reasoning as _activeTab: a tab is a view preference, not a route, so
+    an unrecognised string or a hand-typed URL for a tier this reader lacks
+    falls back to `access` rather than 404ing or 403ing. `access` is also the
+    one tab every reader always has, which is what makes it a safe universal
+    fallback rather than just the first item in the list.
+
+    Guarded against `visibleTabs` - the list chapter_tool_detail already
+    worked out - rather than re-deriving hasHolders/hasAudit/hasOpenDependents
+    a second time here. Two copies of that logic is how the strip and the
+    panel would eventually disagree about who gets which tab.
+
+    This is the strip-and-panel agreement only, not an access control: the
+    view never puts holder rows, credentials, or committee fields into the
+    context without the matching permission (see chapter_tool_detail above),
+    so a forced ?tab=credentials without viewChapterToolAudit renders the
+    access panel - there is nothing restricted in the response either way,
+    tab guard or not."""
+    requested = request.GET.get("tab", "")
+    return requested if requested in visibleTabs else "access"
 
 
 def _backToSection(pk: int, childKind: str) -> str:
