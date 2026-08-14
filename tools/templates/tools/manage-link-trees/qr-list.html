@@ -7,38 +7,47 @@
   <p class="pb-4">
     <a href="{% url 'manage-qr-code-new' %}" class="btn btn-primary no-underline">{% include "tools/common/icon.html" with name="plus" %}&nbsp;New QR code</a>
   </p>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Label</th>
-        <th>Code</th>
-        <th>Campaign</th>
-        <th>Target</th>
-        <th>Active</th>
-        <th>Image</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in qrRows %}
-      <tr>
-        <td class="min-w-40"><b>{{ row.qr.label }}</b></td>
-        <td data-label="Code" class="wrap-anywhere"><a href="{{ row.scanUrl }}">/qr/{{ row.qr.code }}/</a></td>
-        <td data-label="Campaign">{{ row.qr.campaign|default:"-" }}</td>
-        <td data-label="Target" class="wrap-anywhere">{% if row.targetUrl %}<a href="{{ row.targetUrl }}">{{ row.targetUrl }}</a>{% else %}<span class="text-secondary">Not resolved yet</span>{% endif %}</td>
-        <td data-label="Active">{% if row.qr.isActive %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}</td>
-        <td data-label="Image">
-          <span class="flex flex-wrap md:flex-nowrap gap-2">
-            <a href="{% url 'qr-image' row.qr.code %}?fmt=svg&download=1" class="btn btn-secondary btn-small no-underline">SVG</a>
-            <a href="{% url 'qr-image' row.qr.code %}?fmt=png&download=1" class="btn btn-secondary btn-small no-underline">PNG</a>
-            <a href="{% url 'qr-image' row.qr.code %}?fmt=svg" class="btn btn-secondary btn-small no-underline">Preview</a>
-            <a href="{% url 'manage-qr-code-edit' row.qr.code %}" class="btn btn-secondary btn-small no-underline">Edit</a>
-          </span>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="6" class="text-secondary">No QR codes yet - create the first one above.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+  {% if qrRows %}
+  <div class="qr-grid">
+    {% for row in qrRows %}
+    <div class="qr-card">
+      <div class="qr-card-header">
+        <b class="qr-card-label">{{ row.qr.label }}</b>
+        {% if row.qr.isActive %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-inactive">Inactive</span>{% endif %}
+      </div>
+      <dl class="detail-grid qr-card-body">
+        <dt>Code</dt>
+        <dd class="wrap-anywhere"><a href="{{ row.scanUrl }}">/qr/{{ row.qr.code }}/</a></dd>
+        <dt>Campaign</dt>
+        <dd>{{ row.qr.campaign|default:"-" }}</dd>
+        <dt>Target</dt>
+        <dd class="wrap-anywhere">{% if row.targetUrl %}<a href="{{ row.targetUrl }}">{{ row.targetUrl }}</a>{% else %}<span class="text-secondary">Not resolved yet</span>{% endif %}</dd>
+      </dl>
+      <div class="qr-card-actions">
+        <a href="{% url 'qr-image' row.qr.code %}?fmt=svg&download=1" class="btn btn-secondary btn-small no-underline">SVG</a>
+        <a href="{% url 'qr-image' row.qr.code %}?fmt=png&download=1" class="btn btn-secondary btn-small no-underline">PNG</a>
+        <a href="{% url 'qr-image' row.qr.code %}?fmt=svg" class="btn btn-secondary btn-small no-underline">Preview</a>
+        <a href="{% url 'manage-qr-code-edit' row.qr.code %}" class="btn btn-secondary btn-small no-underline">Edit</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if page.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="QR code pages">
+    {% if page.has_previous %}
+    <a href="?page={{ page.previous_page_number }}" class="btn btn-secondary btn-small no-underline">Previous</a>
+    {% endif %}
+    <span class="pagination-status">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}
+    <a href="?page={{ page.next_page_number }}" class="btn btn-secondary btn-small no-underline">Next</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <p class="text-secondary">No QR codes yet - create the first one above.</p>
+  {% endif %}
 </div>
 {% endblock page_content %}

@@ -4,7 +4,7 @@
 {% block page_content %}
 <div class="page-card max-w-2xl">
   <h1 class="page-title">{% if qr %}Edit QR code{% else %}Add QR code{% endif %}</h1>
-  <p class="page-subtitle">Point the code at exactly one target: a link tree, a single item, or a raw URL.</p>
+  <p class="page-subtitle">Answer where the code should send people, and we will only ask for what that answer needs.</p>
 
   {% if qr %}
   <div class="detail-grid pb-4">
@@ -18,14 +18,71 @@
   </div>
   {% endif %}
 
-  <form action="" method="post">
+  {% comment %}
+  Rendered field by field rather than through the usual loop over the form,
+  because the target question needs the three target fields grouped into panels
+  that the answer shows and hides.
+  {% endcomment %}
+  <form id="qrCodeForm" action="" method="post">
     {% csrf_token %}
     {% if form.non_field_errors %}
     <div class="alert alert-error">{{ form.non_field_errors }}</div>
     {% endif %}
-    {% for field in form %}
-    {% include "tools/common/formRow.html" with field=field %}
-    {% endfor %}
+
+    {% include "tools/common/formRow.html" with field=form.label %}
+
+    <fieldset class="form-row" data-field="targetKind">
+      <legend>{{ form.targetKind.label }}</legend>
+      <div class="choice-group">
+        {% for radio in form.targetKind %}
+        <label class="choice-option" for="{{ radio.id_for_label }}">
+          {{ radio.tag }}<span>{{ radio.choice_label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% if form.targetKind.errors %}<div class="form-errors">{{ form.targetKind.errors }}</div>{% endif %}
+      <div class="form-help">A link tree is a page of links this site hosts. Anything else is a web address.</div>
+    </fieldset>
+
+    <div data-target-panel="url">
+      {% include "tools/common/formRow.html" with field=form.rawUrl %}
+    </div>
+    {% comment %}
+    One tree branch, two questions: which tree, then how much of it. The "how
+    much" dropdown is the real item field - its blank option means the whole
+    page, which is what used to be a separate third radio choice. Its options
+    carry data-tree (see LinkTreeItemSelect) so the script can narrow them to
+    the chosen tree; one chapter tree holds thirty-odd links and LinkTreeItem
+    renders as a bare label, so an unfiltered list said nothing about which tree
+    a link came from.
+
+    Starts visible, same as the target panels above - a member editing an
+    existing item-targeted code, or filling this in without JS, needs to reach
+    every item from the start. applyTreeFilter() narrows it (and hides it
+    entirely with no tree chosen yet) the instant the script runs.
+    {% endcomment %}
+    <div data-target-panel="tree">
+      {% if form.fields.tree.queryset %}
+      {% include "tools/common/formRow.html" with field=form.tree %}
+      <div data-item-picker>
+        {% include "tools/common/formRow.html" with field=form.item %}
+      </div>
+      {% else %}
+      <div class="alert alert-warning">There are no link trees yet. Build one first, or point this code at a web address.</div>
+      {% endif %}
+    </div>
+
+    {% include "tools/common/formRow.html" with field=form.code %}
+    <div class="form-help -mt-1" data-code-preview>
+      People who scan this code will land on <code data-code-preview-url{% if qr %} data-saved-code="{{ qr.code }}"{% endif %}>/qr/</code>
+      {% if qr %}<strong class="text-danger" data-code-preview-warning hidden>Changing this breaks codes already printed.</strong>{% endif %}
+    </div>
+
+    {% include "tools/common/formRow.html" with field=form.campaign %}
+    <datalist id="campaignTagOptions">
+      {% for tag in campaignTags %}<option value="{{ tag }}"></option>{% endfor %}
+    </datalist>
+    {% include "tools/common/formRow.html" with field=form.isActive %}
 
     <div class="save-bar">
       <button type="submit" class="btn btn-primary">Save QR code</button>
@@ -35,23 +92,123 @@
 </div>
 
 <script>
-  // Picking one target clears the other two (a UX nicety; QRCodeForm.clean() is
-  // the real exactly-one-target guard).
   (function () {
-    const tree = document.querySelector('[name="tree"]');
-    const item = document.querySelector('[name="item"]');
-    const rawUrl = document.querySelector('[name="rawUrl"]');
-    const targets = [tree, item, rawUrl].filter(Boolean);
+    // By id, not document.querySelector("form") - base.html renders its own
+    // forms in the header, and the first one on the page is not this one.
+    const form = document.getElementById("qrCodeForm");
+    if (!form) { return; }
 
-    function clearOthers(chosen) {
-      targets.forEach((field) => {
-        if (field !== chosen) { field.value = ""; }
+    // --- Target panels ----------------------------------------------------
+    // The panels start visible in the markup so a member with JS off still gets
+    // a usable form; the first thing this script does is hide the ones the
+    // current answer does not need. QRCodeForm._cleanTarget() is the real guard.
+    const panels = {};
+    form.querySelectorAll("[data-target-panel]").forEach((panel) => {
+      panels[panel.getAttribute("data-target-panel")] = panel;
+    });
+    const kindRadios = form.querySelectorAll('[name="targetKind"]');
+
+    function showPanelFor(kind) {
+      Object.entries(panels).forEach(([name, panel]) => {
+        panel.hidden = name !== kind;
       });
     }
 
-    if (tree) { tree.addEventListener("change", () => { if (tree.value) { clearOthers(tree); } }); }
-    if (item) { item.addEventListener("change", () => { if (item.value) { clearOthers(item); } }); }
-    if (rawUrl) { rawUrl.addEventListener("input", () => { if (rawUrl.value) { clearOthers(rawUrl); } }); }
+    function currentKind() {
+      const chosen = Array.from(kindRadios).find((radio) => radio.checked);
+      return chosen ? chosen.value : null;
+    }
+
+    kindRadios.forEach((radio) => {
+      radio.addEventListener("change", () => { showPanelFor(currentKind()); });
+    });
+    showPanelFor(currentKind());
+
+    // --- Tree branch: which tree, then how much of it ---------------------
+    // The tree select drives the item select. QRCodeForm._cleanTarget() decides
+    // which of the two actually becomes the target: a chosen item wins, a blank
+    // item means the whole tree page.
+    const treeField = form.querySelector('[name="tree"]');
+    const itemField = form.querySelector('[name="item"]');
+    const itemPicker = form.querySelector("[data-item-picker]");
+
+    function applyTreeFilter() {
+      if (!treeField || !itemField || !itemPicker) { return; }
+      const treeId = treeField.value;
+      // Asking "how much of it?" before a tree is picked has no meaning.
+      itemPicker.hidden = !treeId;
+
+      Array.from(itemField.options).forEach((option) => {
+        // The blank "whole page" option has no data-tree and always stays.
+        const optionTree = option.getAttribute("data-tree");
+        option.hidden = Boolean(optionTree) && optionTree !== treeId;
+      });
+
+      // A link left over from another tree would submit invisibly. Falling back
+      // to blank means the whole page, which is the safe reading.
+      const chosen = itemField.selectedOptions[0];
+      if (chosen && chosen.hidden) { itemField.value = ""; }
+    }
+
+    if (treeField) {
+      treeField.addEventListener("change", applyTreeFilter);
+      applyTreeFilter();
+    }
+
+    // --- Short code: filled in from the name, overridable -----------------
+    // Mirrors django.utils.text.slugify closely enough to fill the box; the
+    // server recomputes it either way, so this is a preview, not the value.
+    const codeField = form.querySelector('[name="code"]');
+    const labelField = form.querySelector('[name="label"]');
+    const preview = form.querySelector("[data-code-preview-url]");
+    const warning = form.querySelector("[data-code-preview-warning]");
+    const savedCode = preview ? preview.getAttribute("data-saved-code") : null;
+
+    // Stop mirroring the name the moment the member types their own code, and
+    // treat an already-saved code as theirs from the start so editing the name
+    // on an existing code never silently repoints a printed QR.
+    let codeIsOwnedByUser = Boolean(codeField && codeField.value);
+
+    function slugify(value) {
+      return value
+        .normalize("NFKD")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .toLowerCase()
+        .replace(/[-\s]+/g, "-")
+        .slice(0, 40)
+        .replace(/^[-_]+|[-_]+$/g, "");
+    }
+
+    function renderPreview() {
+      if (!preview) { return; }
+      // Falls back to the name because a blank code box means the server will
+      // derive one from the name - the preview has to say what will happen.
+      const slug =
+        slugify(codeField ? codeField.value : "") ||
+        slugify(labelField ? labelField.value : "");
+      preview.textContent = slug ? "/qr/" + slug + "/" : "/qr/";
+      if (warning) { warning.hidden = !savedCode || slug === savedCode; }
+    }
+
+    if (labelField) {
+      labelField.addEventListener("input", () => {
+        if (codeIsOwnedByUser || !codeField) { return; }
+        codeField.value = slugify(labelField.value);
+        renderPreview();
+      });
+    }
+
+    if (codeField) {
+      codeField.addEventListener("input", () => {
+        // Emptying the box hands the code back to the name field - but only for
+        // the NEXT keystroke there. Refilling it here would fight the backspace.
+        codeIsOwnedByUser = codeField.value.trim() !== "";
+        renderPreview();
+      });
+    }
+
+    renderPreview();
   })();
 </script>
 {% endblock page_content %}

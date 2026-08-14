@@ -25,6 +25,7 @@ import segno
 
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -400,14 +401,16 @@ def manage_link_tree_item_reorder(request, treeId):
     return redirect("manage-link-tree-edit", treeId=treeId)
 
 
+QR_CODES_PER_PAGE = 12
+
+
 @login_required
 @permission_required(permissions.MANAGE_LINK_TREE)
 def manage_qr_code_list(request):
-    qrRows = [
-        {"qr": qr, "scanUrl": qr.scanUrl(), "targetUrl": qr.targetUrl()}
-        for qr in QRCode.objects.select_related("tree", "item").order_by("label")
-    ]
-    return render(request, "tools/manage-link-trees/qr-list.html", {"qrRows": qrRows})
+    allQr = QRCode.objects.select_related("tree", "item").order_by("label")
+    page = Paginator(allQr, QR_CODES_PER_PAGE).get_page(request.GET.get("page"))
+    qrRows = [{"qr": qr, "scanUrl": qr.scanUrl(), "targetUrl": qr.targetUrl()} for qr in page]
+    return render(request, "tools/manage-link-trees/qr-list.html", {"qrRows": qrRows, "page": page})
 
 
 @login_required
@@ -416,7 +419,9 @@ def manage_qr_code_edit(request, code=None):
     if code is None:
         qr = None
     else:
-        qr = get_object_or_404(QRCode, code=code)
+        # select_related("item") so building the form's initial tree from
+        # qr.item.tree_id costs no extra query.
+        qr = get_object_or_404(QRCode.objects.select_related("item"), code=code)
 
     if request.method == "POST":
         form = QRCodeForm(request.POST, qr=qr)
@@ -439,13 +444,28 @@ def manage_qr_code_edit(request, code=None):
             return redirect("manage-qr-code-list")
     else:
         if qr is None:
+            # No targetKind default on purpose: the unanswered radio group IS the
+            # up-front "where does this point?" question, and leaving it unset
+            # keeps all three target fields hidden until it is answered.
             form = QRCodeForm(initial={"isActive": True})
         else:
+            # An item target lives in the tree branch too, so preselect the tree
+            # that owns it - the form asks "which tree?" before "how much of it?".
+            if qr.item_id is not None:
+                targetKind = QRCodeForm.TARGET_TREE
+                treeId = qr.item.tree_id
+            elif qr.tree_id is not None:
+                targetKind = QRCodeForm.TARGET_TREE
+                treeId = qr.tree_id
+            else:
+                targetKind = QRCodeForm.TARGET_URL
+                treeId = None
             form = QRCodeForm(qr=qr, initial={
                 "code": qr.code,
                 "label": qr.label,
                 "campaign": qr.campaign,
-                "tree": qr.tree_id,
+                "targetKind": targetKind,
+                "tree": treeId,
                 "item": qr.item_id,
                 "rawUrl": qr.rawUrl,
                 "isActive": qr.isActive,
@@ -454,4 +474,12 @@ def manage_qr_code_edit(request, code=None):
     return render(request, "tools/manage-link-trees/qr.html", {
         "qr": qr,
         "form": form,
+        # Feeds the campaign field's <datalist>. Suggestion only - campaign stays
+        # free text, so a brand new tag needs no setup step first.
+        "campaignTags": (
+            QRCode.objects.exclude(campaign="")
+            .values_list("campaign", flat=True)
+            .distinct()
+            .order_by("campaign")
+        ),
     })

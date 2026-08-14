@@ -8,7 +8,9 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db.models import Count, Q
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
 
@@ -856,44 +858,128 @@ class LinkTreeItemForm(forms.Form):
         return cleaned
 
 
+class LinkTreeItemSelect(forms.Select):
+    """Item dropdown that tags every option with the tree it belongs to.
+
+    LinkTreeItem.__str__ is just the link label, so an unfiltered list of every
+    item across every tree is a wall of bare labels with no way to tell which
+    tree each one came from. The data-tree attribute lets the QR form narrow the
+    list to one tree first. Without JS every option still renders, so the field
+    keeps working - it is just longer.
+    """
+
+    def create_option(self, name, value, *args, **kwargs):
+        option = super().create_option(name, value, *args, **kwargs)
+        item = getattr(value, "instance", None)
+        if item is not None:
+            option["attrs"]["data-tree"] = str(item.tree_id)
+        return option
+
+
 class QRCodeForm(forms.Form):
     """Create/edit a QR code. Field names mirror the model columns directly, so
     no Keys class is needed. Exactly-one-target is re-implemented here on the
-    cleaned data (the model's clean() never runs via the UI save path)."""
+    cleaned data (the model's clean() never runs via the UI save path).
 
-    code = forms.SlugField(
-        label="Code",
-        help_text="Short token in the QR URL, e.g. 'spring-tabling' -> /qr/spring-tabling/.",
-        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
-    )
+    The field order below is the on-screen order and is deliberate: ask what the
+    code is for, then ask up front WHERE it points, then show only the one target
+    field that answer needs. Before that question existed, every member saw three
+    target fields, filled one, and left two blank wondering if that was wrong.
+
+    Two other member-facing traps are handled here rather than in the template:
+
+    - `code` is a plain CharField, not a SlugField. A SlugField rejected 'Summer
+      Mutual Aid' with Django's "Enter a valid 'slug'..." message, which reads as
+      "everything I type is wrong" to anyone who has never heard the word slug.
+      We slugify whatever is typed instead, and fall back to the label so nobody
+      has to invent a code at all.
+    - `rawUrl` is a plain CharField, not a URLField. A URLField renders
+      <input type="url">, and the browser's own validation refuses a
+      scheme-less 'austindsa.org' before the request is ever sent - no server
+      error, no explanation, just a tooltip. We accept it and add https:// here.
+    """
+
+    # Two branches, not three. "A link tree page" and "one link inside a link
+    # tree" were the same question asked twice - both start with "which tree?" -
+    # so they are one branch that then asks how much of that tree to point at.
+    # An empty `item` inside the tree branch means the whole page.
+    TARGET_URL = "url"
+    TARGET_TREE = "tree"
+    TARGET_CHOICES = [
+        (TARGET_URL, "A web address"),
+        (TARGET_TREE, "A link tree on this site"),
+    ]
+
     label = forms.CharField(
-        label="Label",
-        help_text="Human label, e.g. 'Spring 2026 tabling flyer'.",
-        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+        label="What is this code for?",
+        help_text="A name only staff see, so you can find this code again later.",
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full",
+            "placeholder": "Spring tabling flyer",
+        }),
     )
-    campaign = forms.CharField(
-        label="Campaign",
+    # required=False so posts that predate this field (the tests, and any script
+    # hitting the view directly) still get the old exactly-one-target rule in
+    # clean() rather than a hard failure on a field they don't know about.
+    targetKind = forms.ChoiceField(
+        label="Where should the code send people?",
+        choices=TARGET_CHOICES,
         required=False,
-        help_text="Optional medium/source tag to break down scans, e.g. 'flyer' or 'table-tent'.",
-        widget=forms.TextInput(attrs={"class": "form-field w-full"}),
+        widget=forms.RadioSelect(attrs={"class": "choice-radio"}),
+    )
+    rawUrl = forms.CharField(
+        label="Web address",
+        required=False,
+        max_length=2000,
+        help_text="You can leave off https:// - we add it for you.",
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full",
+            "inputmode": "url",
+            "spellcheck": "false",
+            "autocapitalize": "none",
+            "placeholder": "austindsa.org/join",
+        }),
     )
     tree = forms.ModelChoiceField(
-        label="Target: link tree",
+        label="Which link tree?",
         required=False,
         queryset=LinkTree.objects.order_by("title"),
+        empty_label="Choose a link tree...",
         widget=forms.Select(attrs={"class": "form-field w-full"}),
     )
     item = forms.ModelChoiceField(
-        label="Target: link tree item",
+        label="How much of it?",
         required=False,
         queryset=LinkTreeItem.objects.select_related("tree").order_by("tree__title", "order"),
-        widget=forms.Select(attrs={"class": "form-field w-full"}),
+        # Blank is a real answer here, not a prompt to choose: it means the whole
+        # link tree page. That is what folds the old third branch into this one.
+        empty_label="The whole page, with every link on it",
+        widget=LinkTreeItemSelect(attrs={"class": "form-field w-full"}),
     )
-    rawUrl = forms.URLField(
-        label="Target: raw URL",
+    code = forms.CharField(
+        label="Short code for the scan address",
         required=False,
-        help_text="Target an arbitrary URL instead of a tree/item.",
-        widget=forms.URLInput(attrs={"class": "form-field w-full"}),
+        max_length=60,
+        help_text="Filled in from the name above. Change it if you want something shorter.",
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full",
+            "spellcheck": "false",
+            "autocapitalize": "none",
+            "placeholder": "spring-tabling",
+        }),
+    )
+    campaign = forms.CharField(
+        label="Campaign tag (optional)",
+        required=False,
+        help_text="Groups scan counts together, e.g. 'flyer' or 'table-tent'.",
+        widget=forms.TextInput(attrs={
+            "class": "form-field w-full",
+            "placeholder": "flyer",
+            # Suggests tags already in use without limiting them to it - the
+            # value stays free text, so a new campaign needs no setup step.
+            "list": "campaignTagOptions",
+            "autocomplete": "off",
+        }),
     )
     isActive = forms.BooleanField(
         label="Active",
@@ -905,25 +991,105 @@ class QRCodeForm(forms.Form):
         super().__init__(*args, **kwargs)
         self._qr = qr
 
+    def clean_rawUrl(self):
+        raw = (self.cleaned_data.get("rawUrl") or "").strip()
+        if not raw:
+            return ""
+        if "://" not in raw:
+            raw = "https://" + raw.lstrip("/")
+        try:
+            URLValidator(schemes=["http", "https"])(raw)
+        except ValidationError:
+            raise ValidationError(
+                "That does not look like a web address. Try something like austindsa.org/join."
+            )
+        return raw
+
     def clean_code(self):
-        code = self.cleaned_data["code"].strip()
+        # Reduce whatever was typed to the URL-safe token instead of rejecting it.
+        # Empty is allowed here; clean() fills it from the label.
+        return slugify(self.cleaned_data.get("code") or "")[:40].strip("-")
+
+    def clean(self):
+        cleaned = super().clean()
+        self._cleanCode(cleaned)
+        self._cleanTarget(cleaned)
+        return cleaned
+
+    def _cleanCode(self, cleaned):
+        code = cleaned.get("code") or ""
+        if not code:
+            code = slugify(cleaned.get("label") or "")[:40].strip("-")
+        cleaned["code"] = code
+
+        if not code:
+            # Reachable when the label is missing or is all punctuation. A missing
+            # label already reports itself, so don't stack a second complaint on it.
+            if not self.has_error("label"):
+                self.add_error("code", "Enter a short code using letters, numbers and dashes.")
+            return
+
         existing = QRCode.objects.filter(code=code)
         if self._qr is not None:
             existing = existing.exclude(pk=self._qr.pk)
         if existing.exists():
-            raise ValidationError("A QR code with that code already exists.")
-        return code
-
-    def clean(self):
-        cleaned = super().clean()
-        targets = [
-            bool(cleaned.get("tree")),
-            bool(cleaned.get("item")),
-            bool(cleaned.get("rawUrl")),
-        ]
-        chosen = sum(1 for target in targets if target)
-        if chosen != 1:
-            raise ValidationError(
-                "A QR code must point at exactly one target: a link tree, a link tree item, or a raw URL."
+            self.add_error(
+                "code",
+                f"A QR code with the short code '{code}' already exists. Pick a different one.",
             )
-        return cleaned
+
+    def _cleanTarget(self, cleaned):
+        kind = cleaned.get("targetKind")
+        if not kind:
+            # No up-front answer (old-style post): fall back to inferring the
+            # target from whichever field was filled in.
+            targets = [
+                bool(cleaned.get("tree")),
+                bool(cleaned.get("item")),
+                bool(cleaned.get("rawUrl")),
+            ]
+            if sum(1 for target in targets if target) != 1:
+                self.add_error(None, ValidationError(
+                    "Tell us where this code should send people. It must point at "
+                    "exactly one target: a link tree, a link tree item, or a raw URL."
+                ))
+            return
+
+        if kind == self.TARGET_URL:
+            # The tree branch is irrelevant now - drop it rather than making the
+            # member go back and clear a field by hand.
+            cleaned["tree"] = None
+            cleaned["item"] = None
+            # has_error means rawUrl already said what was wrong with it (e.g. an
+            # unparseable address) - don't also say it is missing.
+            if not cleaned.get("rawUrl") and not self.has_error("rawUrl"):
+                self.add_error("rawUrl", "Enter the web address this code should open.")
+            return
+
+        cleaned["rawUrl"] = ""
+        tree = cleaned.get("tree")
+        item = cleaned.get("item")
+
+        if not tree and not self.has_error("tree"):
+            self.add_error("tree", "Choose the link tree this code should open.")
+            return
+        if not tree:
+            return
+
+        if item is None:
+            # Whole page. The model wants exactly one target, so tree stays set.
+            return
+
+        # Only reachable by bypassing the tree filter in the browser, but the
+        # mismatch would silently point the code into a different tree.
+        if item.tree_id != tree.pk:
+            self.add_error(
+                "item",
+                f"'{item}' is not in {tree.title}. Pick a link from that tree, "
+                "or choose the whole page.",
+            )
+            return
+
+        # One link. Narrowing from the tree to a single item replaces the tree as
+        # the target - QRCode allows exactly one, and item already implies tree.
+        cleaned["tree"] = None

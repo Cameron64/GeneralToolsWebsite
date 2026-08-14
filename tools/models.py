@@ -760,7 +760,7 @@ class QRCode(models.Model):
         help_text="Short token in the QR URL, e.g. 'spring-tabling' → /qr/spring-tabling/.",
     )
     label = models.CharField(
-        max_length=200, help_text="Human label, e.g. 'Spring 2026 tabling flyer'.",
+        max_length=200, help_text="Human label, e.g. 'Spring tabling flyer'.",
     )
     campaign = models.CharField(
         max_length=100, blank=True,
