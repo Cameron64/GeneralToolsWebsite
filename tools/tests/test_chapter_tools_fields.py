@@ -29,7 +29,7 @@ from django.utils import timezone as djangoTimezone
 from tools import forms
 from tools.models import ChapterResource, ResourceCredential, ResourceHolder
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
-from tools.tests.test_chapter_tools import _makeResource, _restrictedPayload
+from tools.tests.test_chapter_tools import _makeResource, _sectionPayload
 
 CREDENTIAL_SENTINEL = "ExampleCredentialSentinel"
 
@@ -257,11 +257,16 @@ class ClearableDateTests(LoginClientMixin, TestCase):
         )
         self.loginAs(self.editor)
 
+    @staticmethod
+    def _committeeUrl(resource):
+        return reverse("chapter-tool-facet-edit",
+                        kwargs={"pk": resource.pk, "facetSlug": "committee-only"})
+
     def test_a_review_date_can_be_cleared(self):
         resource = _makeResource(lastReviewed="2026-01-05", reviewedBy="Example Reviewer")
         response = self.client.post(
-            reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
-            _restrictedPayload(name=resource.name, lastReviewed=""),
+            self._committeeUrl(resource),
+            _sectionPayload("committee-only", lastReviewed=""),
         )
         self.assertEqual(response.status_code, 302)
         resource.refresh_from_db()
@@ -272,24 +277,23 @@ class ClearableDateTests(LoginClientMixin, TestCase):
 
     def test_the_form_renders_a_clear_control_beside_the_date(self):
         resource = _makeResource(lastReviewed="2026-01-05")
-        body = self.client.get(
-            reverse("chapter-tool-edit", kwargs={"pk": resource.pk})
-        ).content.decode()
+        body = self.client.get(self._committeeUrl(resource)).content.decode()
         row = body[body.find('data-field="lastReviewed"'):body.find('data-field="reviewedBy"')]
         self.assertIn("data-clearable-date", row)
         self.assertIn("data-clearable-date-clear", row)
 
     def test_the_clear_button_ships_hidden_so_a_scriptless_page_has_no_dead_control(self):
         resource = _makeResource(lastReviewed="2026-01-05")
-        body = self.client.get(
-            reverse("chapter-tool-edit", kwargs={"pk": resource.pk})
-        ).content.decode()
+        body = self.client.get(self._committeeUrl(resource)).content.decode()
         button = body[body.find("data-clearable-date-clear"):]
         self.assertIn("hidden", button[:40])
 
     def test_the_page_loads_the_script_that_reveals_it(self):
+        """Proves _formAssets.html is included on the section page - the old
+        assertion was against the workbench, which no longer renders this
+        widget at all."""
         resource = _makeResource()
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": resource.pk}))
+        response = self.client.get(self._committeeUrl(resource))
         self.assertContains(response, "js/clearableDate.js?v=")
 
     def test_the_credential_dates_are_clearable_too(self):

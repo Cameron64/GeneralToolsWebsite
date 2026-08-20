@@ -33,7 +33,8 @@ multi-line one renders as visible body text on the page.
 <div class="page-card">
   <div class="record-head">
     <h2 class="page-title"><a href="{{ row.resource.getUrl }}">{{ row.resource.name }}</a></h2>
-    {% if canManage %}<a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Edit</a>{% endif %}
+    {% comment %} "Manage", not "Edit" - this opens the workbench (child rows: holders, dependencies, credentials, delete), not the resource's own fields any more. Those are edited from the hub (the resource's own detail page) instead. {% endcomment %}
+    {% if canManage %}<a href="{% url 'chapter-tool-edit' pk=row.resource.id %}" class="btn btn-secondary btn-small">Manage</a>{% endif %}
   </div>
   {% if hasAudit and row.resource.isStale %}<p class="pb-2"><span class="badge badge-unresolved">Stale review</span></p>{% endif %}
   {% if row.resource.blurb %}<p class="text-sm text-secondary pb-2">{{ row.resource.blurb }}</p>{% endif %}

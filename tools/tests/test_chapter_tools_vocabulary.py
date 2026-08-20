@@ -25,9 +25,7 @@ from tools.chapterToolsHelp import GLOSSARY, getEntry
 from tools.forms import ResourceHolderForm
 from tools.models import ChapterResource, ResourceCredential, ResourceHolder
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
-from tools.tests.test_chapter_tools import (
-    _makeResource, _resourcePayload, _restrictedPayload,
-)
+from tools.tests.test_chapter_tools import _makeResource, _sectionPayload
 
 
 class DelegationTierRuleTests(TestCase):
@@ -88,24 +86,33 @@ class DelegationTierFormRuleTests(LoginClientMixin, TestCase):
 
     def test_the_form_rejects_a_red_requestable_tool(self):
         """Re-implemented in the form because the view never calls full_clean(),
-        the same reason the steward rule is re-implemented there."""
+        the same reason the steward rule is re-implemented there. Posted on the
+        committee-only section, which owns both fields in this rule (steward
+        has to already be set on the resource - the committee-only form does
+        not own that field, so it cannot be posted alongside these two)."""
         steward = UserFactory.make("steward")
+        resource = _makeResource(name="Example Vault", steward=steward)
         response = self.client.post(
-            reverse("chapter-tool-new"),
-            _restrictedPayload(
-                name="Example Vault", requestable="on", steward=str(steward.pk),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "committee-only"}),
+            _sectionPayload(
+                "committee-only", requestable="on",
                 delegationTier=str(ChapterResource.DelegationTier.RED),
             ),
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "cannot be opened for member requests")
-        self.assertFalse(ChapterResource.objects.filter(name="Example Vault").exists())
+        resource.refresh_from_db()
+        self.assertFalse(resource.requestable)
 
     def test_an_open_layer_editor_is_not_blocked_by_a_tier_they_cannot_see(self):
-        """Both fields in the tier rule are restricted, so an open-layer editor
-        can neither create a violation nor fix one. Raising it at them would make
-        a legacy row permanently unsaveable by the only person in front of it,
-        and the message would name a tier they are not allowed to see."""
+        """Both fields in this rule live only on the committee-only facet, so
+        posting a DIFFERENT facet's section can neither create the violation
+        nor fix it - Rule B is gated on field OWNERSHIP of `requestable`, never
+        on the resource's stored value, which is what posting what-it-costs
+        here proves directly. Raising it at this editor would make a legacy
+        row permanently unsaveable by the only person in front of it, and the
+        message would name a tier they are not allowed to see."""
         steward = UserFactory.make("steward")
         resource = _makeResource(
             name="Example Vault", requestable=True, steward=steward,
@@ -114,16 +121,36 @@ class DelegationTierFormRuleTests(LoginClientMixin, TestCase):
         openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
         self.loginAs(openEditor)
         response = self.client.post(
-            reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
-            _resourcePayload(
-                name="Example Vault", steward=str(steward.pk),
-                blurb="Edited by the open layer.",
-            ),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "what-it-costs"}),
+            _sectionPayload("what-it-costs", costNote="Edited by the open layer."),
+        )
+        self.assertEqual(response.status_code, 302)
+        resource.refresh_from_db()
+        self.assertEqual(resource.costNote, "Edited by the open layer.")
+        # Left untouched - neither repaired nor blanked.
+        self.assertEqual(resource.delegationTier, ChapterResource.DelegationTier.RED)
+        self.assertTrue(resource.requestable)
+
+    def test_an_open_layer_editor_editing_what_it_is_is_also_not_blocked(self):
+        """Sibling of the above on a second open facet, so the ownership gate
+        is shown to be general - not something that happens to work for
+        what-it-costs alone."""
+        steward = UserFactory.make("steward")
+        resource = _makeResource(
+            name="Example Vault", requestable=True, steward=steward,
+            delegationTier=ChapterResource.DelegationTier.RED,
+        )
+        openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
+        self.loginAs(openEditor)
+        response = self.client.post(
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "what-it-is"}),
+            _sectionPayload("what-it-is", name="Example Vault", blurb="Edited by the open layer."),
         )
         self.assertEqual(response.status_code, 302)
         resource.refresh_from_db()
         self.assertEqual(resource.blurb, "Edited by the open layer.")
-        # Left untouched - neither repaired nor blanked.
         self.assertEqual(resource.delegationTier, ChapterResource.DelegationTier.RED)
         self.assertTrue(resource.requestable)
 

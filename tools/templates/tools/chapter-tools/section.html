@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load navigation_tags %}
+{% load explain_tags %}
+{% block breadcrumbs %}{% breadcrumbs parentCrumbs=breadcrumbParentCrumbs currentLabel=facet.legend %}{% endblock breadcrumbs %}
+{% block page_content %}
+
+{% comment %}
+  One facet's fields, on its own page. Replaces the workbench's Details tab -
+  there is no fieldset/legend here because there is only ever one section on
+  this page, and the facet's name is already the h1 (see forms.py's Facet and
+  FACETS, and chapterToolsViews.chapter_tool_facet_edit).
+
+  Saving here touches only this facet's own fields - the view never reads the
+  rest of the resource into the form, so there is nothing else on the record
+  for this submission to overwrite.
+{% endcomment %}
+
+<div class="page-card max-w-2xl">
+  <h1 class="page-title">{{ facet.legend }}</h1>
+  <p class="page-subtitle">{{ resource.name }}. Only this section is saved - the rest of the record is not touched.</p>
+
+  <form action="" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-error">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for isPair, fields in form.rows %}
+    <div {% if isPair %}class="form-pair"{% endif %}>
+      {% for field in fields %}
+      {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="flex flex-wrap items-center gap-3 pt-4">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+      <a href="{{ backUrl }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% comment %} This form may carry a member typeahead (steward) or a clearable date (last reviewed), depending on which facet it is - both need their scripts. Deferred, so position in the body does not matter. {% endcomment %}
+{% include "tools/common/_formAssets.html" %}
+{% endblock page_content %}

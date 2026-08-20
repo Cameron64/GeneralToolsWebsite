@@ -22,7 +22,7 @@ from tools import forms
 from tools.chapterToolsHelp import getEntry
 from tools.models import ChapterResource, ResourceHolder
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
-from tools.tests.test_chapter_tools import _makeResource, _restrictedPayload
+from tools.tests.test_chapter_tools import _makeResource, _sectionPayload
 
 
 def _positionOf(response, needle):
@@ -130,9 +130,13 @@ class DefinitionsSitWithTheirFieldTests(LoginClientMixin, TestCase):
         )
         self.openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
 
+    def _sectionUrl(self, facetSlug):
+        return reverse("chapter-tool-facet-edit",
+                        kwargs={"pk": self.resource.pk, "facetSlug": facetSlug})
+
     def test_the_steward_definition_sits_between_its_own_field_and_the_next(self):
         self.loginAs(self.auditEditor)
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        response = self.client.get(self._sectionUrl("whos-answerable"))
         stewardRow = _positionOf(response, 'data-field="steward"')
         definition = _positionOf(response, "The one person answerable for this tool")
         nextRow = _positionOf(response, 'data-field="stewardName"')
@@ -141,25 +145,31 @@ class DefinitionsSitWithTheirFieldTests(LoginClientMixin, TestCase):
 
     def test_no_definition_is_left_below_the_submit_button(self):
         """The regression this change exists to prevent: a definition that ends
-        up after the button is read after the field is already filled in."""
+        up after the button is read after the field is already filled in. A
+        facet section page has nothing else below the button at all now (no
+        holders card to stop at - that lived on the old flat workbench)."""
         self.loginAs(self.auditEditor)
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        response = self.client.get(self._sectionUrl("whos-answerable"))
         button = _positionOf(response, "Save changes")
         body = response.content.decode()
-        # Everything after the submit button, up to the holders card.
-        tail = body[button:body.find("Who has it now")]
-        self.assertNotIn("<details", tail)
+        self.assertNotIn("<details", body[button:])
 
     def test_the_tier_definition_is_absent_for_an_open_layer_editor(self):
-        """This replaces an explicit hasAudit branch in the template. The
-        restricted FIELDS are already removed from a non-audit editor's form, so
-        their definitions cannot render - and that is now the only rule, rather
-        than a second list in the template that could disagree with the first."""
+        """This replaces an explicit hasAudit branch in the template. The whole
+        committee-only section 404s for an editor without viewChapterToolAudit
+        - the restricted definitions cannot render because the page itself does
+        not exist for them - while the open who's-answerable definition (on a
+        different facet, a different page) still does. The hub itself must
+        agree: those disclosures live only inside the committee-only CARD,
+        which this editor's hub never builds either."""
         self.loginAs(self.openEditor)
-        response = self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        self.assertEqual(self.client.get(self._sectionUrl("committee-only")).status_code, 404)
+        response = self.client.get(self._sectionUrl("whos-answerable"))
         self.assertContains(response, "The one person answerable for this tool")
-        self.assertNotContains(response, "Hand this out freely")
-        self.assertNotContains(response, "What members can request through Echo")
+
+        hubResponse = self.client.get(self.resource.getUrl())
+        self.assertNotContains(hubResponse, "Hand this out freely")
+        self.assertNotContains(hubResponse, "What members can request through Echo")
 
     def test_the_holder_form_defines_access_level_beside_the_field(self):
         self.loginAs(self.auditEditor)
@@ -253,7 +263,10 @@ class StewardPickerTests(LoginClientMixin, TestCase):
         ))
 
     def _editPage(self):
-        return self.client.get(reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}))
+        return self.client.get(reverse(
+            "chapter-tool-facet-edit",
+            kwargs={"pk": self.resource.pk, "facetSlug": "whos-answerable"},
+        ))
 
     def test_the_steward_field_is_not_a_select_of_every_member(self):
         """The reason this changed: one <option> per member is a control whose
@@ -298,11 +311,9 @@ class StewardPickerTests(LoginClientMixin, TestCase):
         """The widget swap must not change what the form accepts - the submitted
         value is still a pk, which is what ModelChoiceField already expects."""
         response = self.client.post(
-            reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}),
-            # The restricted payload, not the open one: this editor holds the
-            # audit permission, so their form carries all six restricted fields
-            # and a short payload fails for reasons unrelated to the picker.
-            _restrictedPayload(name="Example Wiki", steward=str(self.steward.pk)),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": self.resource.pk, "facetSlug": "whos-answerable"}),
+            _sectionPayload("whos-answerable", steward=str(self.steward.pk)),
         )
         self.assertEqual(response.status_code, 302)
         self.resource.refresh_from_db()
@@ -310,8 +321,9 @@ class StewardPickerTests(LoginClientMixin, TestCase):
 
     def test_an_unknown_pk_is_still_refused(self):
         response = self.client.post(
-            reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk}),
-            _restrictedPayload(name="Example Wiki", steward="999999"),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": self.resource.pk, "facetSlug": "whos-answerable"}),
+            _sectionPayload("whos-answerable", steward="999999"),
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "valid choice")
@@ -396,6 +408,12 @@ class DetailPageDefinitionsTests(LoginClientMixin, TestCase):
         self.assertLess(ladder, alertEnd)
 
     def test_the_review_definition_sits_with_the_review_date(self):
+        # "Reviewed by" is a blank CharField fact and the hub skips blank
+        # facts entirely (the plan's own rule) - lastReviewed is the one
+        # exception (it shows "Never" instead of vanishing), so reviewedBy
+        # needs a real value to be on the page at all for this ordering check.
+        self.resource.reviewedBy = "Example Reviewer"
+        self.resource.save()
         response = self.client.get(self.resource.getUrl())
         label = _positionOf(response, "Last reviewed")
         definition = _positionOf(response, "A review is a check, not an edit")

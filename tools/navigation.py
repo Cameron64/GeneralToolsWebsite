@@ -207,6 +207,7 @@ ROUTE_NAME_TO_DOMAIN_SLUG = {
     "manage-group-delete": "access",
     "chapter-tool-detail": "access",
     "chapter-tool-edit": "access",
+    "chapter-tool-facet-edit": "access",
     "chapter-tool-delete": "access",
     "chapter-tool-child-new": "access",
     "chapter-tool-child-edit": "access",
