@@ -1,3 +1,4 @@
+import dataclasses
 import typing
 import pytz
 import logging
@@ -1214,20 +1215,25 @@ class ClearableDateInput(forms.DateInput):
 
 
 class ChapterResourceForm(forms.Form):
-    """Create/edit one ChapterResource.
+    """Create/edit one ChapterResource, sliced to one facet's fields (or
+    CREATE_ROWS) by the `rows` constructor argument - never all eighteen
+    fields on one page, because the workbench's giant Details form was
+    deleted in favor of the resource's detail page becoming a hub of
+    per-facet cards, each with its own focused edit page (see the
+    chapter-tools-facet-hub plan).
 
-    The restricted half of the model is gated at the FIELD level, not just in
-    the template. RESTRICTED_KEYS are removed from the form entirely unless the
-    editor holds viewChapterToolAudit, because a bound form renders current
-    values - so leaving them in place for a manageChapterTools-only editor would
-    publish delegation tiers and continuity notes to somebody the read views
-    deliberately hide them from (chapterToolsViews.chapter_tool_detail builds
-    those into context only under hasAudit).
+    The restricted facet (Committee only, FACETS[-1] below) is gated at the
+    FIELD level, not just in the view: a caller without viewChapterToolAudit
+    never passes its keys in `rows`, so those fields do not exist on the
+    instance at all. That matters because a bound form renders current
+    values - so leaving them in place for a manageChapterTools-only editor
+    would publish delegation tiers and continuity notes to somebody the read
+    views deliberately hide them from (chapterToolsViews.chapter_tool_detail
+    builds those into context only under hasAudit).
 
-    The restricted set is exactly what detail.html renders inside its
-    {% if hasAudit %} block, and the two must stay in step: a field that becomes
-    visible there without becoming restricted here is a leak, and the reverse is
-    a field nobody can ever edit."""
+    FACETS is exactly what detail.html renders as cards, and the two must
+    stay in step: a field that becomes visible there without being named in a
+    facet's rows is a leak, and the reverse is a field nobody can ever edit."""
 
     class Keys:
         NAME = "name"
@@ -1249,6 +1255,9 @@ class ChapterResourceForm(forms.Form):
         REVOCATION_NOTE = "revocationNote"
         CONTINUITY_NOTE = "continuityNote"
 
+    # The keys FACETS' "Committee only" facet (FACETS[-1]) owns - kept as its
+    # own name because it documents "the restricted set" independent of the
+    # dataclass tuple, and a test holds the two to each other.
     RESTRICTED_KEYS = (
         Keys.REQUESTABLE,
         Keys.LAST_REVIEWED,
@@ -1256,58 +1265,6 @@ class ChapterResourceForm(forms.Form):
         Keys.DELEGATION_TIER,
         Keys.REVOCATION_NOTE,
         Keys.CONTINUITY_NOTE,
-    )
-
-    # How the eighteen fields are grouped on the page, as
-    # (legend, (row, row, ...)) where a row is a tuple of field keys. A row of
-    # one renders full width; a row of two renders side by side above `md`.
-    #
-    # Eighteen fields in one flat column was a wall with no landmarks in it. The
-    # groups are the seams somebody actually thinks in, and they are the same
-    # ones detail.html reads back ("How to get access", "Reference", "Committee
-    # detail") so the page you edit and the page you read agree.
-    #
-    # This lives on the FORM, not in the template, because the template renders
-    # groups rather than iterating the form: a field added to the class and
-    # forgotten here would silently never render, and a field nobody can see is
-    # a field nobody can fill in. groupedFields() raises instead.
-    #
-    # Two-field rows are genuine PAIRS only - a field and its alternative
-    # (steward account vs. name-only), or a claim and who made it (last
-    # reviewed / reviewed by). Fields that merely fit are not a pair; pairing
-    # unrelated ones makes the tab order jump sideways for no reason.
-    #
-    # The last group is exactly RESTRICTED_KEYS, which is why a non-audit editor
-    # loses the whole group rather than being shown an empty heading. A test
-    # holds those two lists to each other.
-    FIELD_GROUPS = (
-        ("What it is", (
-            (Keys.NAME,),
-            (Keys.BLURB,),
-            (Keys.CATEGORY,),
-        )),
-        ("Getting in", (
-            (Keys.ACCESS_MODEL,),
-            (Keys.HOW_TO_GET_ACCESS,),
-            (Keys.ACCESS_REQUEST_URL, Keys.SITE_URL),
-        )),
-        ("Who's answerable", (
-            (Keys.STEWARD, Keys.STEWARD_NAME),
-        )),
-        ("What it costs", (
-            (Keys.PAYER, Keys.ANNUAL_COST),
-            (Keys.COST_NOTE,),
-        )),
-        # Tier sits directly above `requestable` because it is one of that
-        # checkbox's three preconditions - on the old flat form the rule and the
-        # tick box were four rows apart.
-        ("Committee only", (
-            (Keys.DELEGATION_TIER,),
-            (Keys.REQUESTABLE,),
-            (Keys.LAST_REVIEWED, Keys.REVIEWED_BY),
-            (Keys.REVOCATION_NOTE,),
-            (Keys.CONTINUITY_NOTE,),
-        )),
     )
 
     # Field -> chapterToolsHelp slug, read by the explainSlugFor filter so the
@@ -1471,50 +1428,36 @@ class ChapterResourceForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": "3", "class": "form-field w-full"}),
     )
 
-    def __init__(self, *args, resource=None, includeRestricted=False, **kwargs):
+    def __init__(self, *args, resource=None, rows=(), **kwargs):
         super().__init__(*args, **kwargs)
         self._resource = resource
-        self._includeRestricted = includeRestricted
-        # Assigned here rather than at class definition time: a queryset
-        # evaluated in the class body is captured once per process, so a member
-        # who registers after startup would be missing from the picker.
-        self.fields[self.Keys.STEWARD].queryset = _activeUsers()
-        if not includeRestricted:
-            for key in self.RESTRICTED_KEYS:
+        self._rows = rows
+        # `rows` is the row-spec for exactly ONE facet (or CREATE_ROWS) - every
+        # field not named in it is deleted below, so this form only ever holds
+        # one section's worth of fields. Reusing the RESTRICTED_KEYS deletion
+        # mechanism, just driven by whatever keys the caller asked for instead
+        # of a single includeRestricted flag.
+        keepKeys = {key for row in rows for key in row}
+        for key in list(self.fields):
+            if key not in keepKeys:
                 del self.fields[key]
+        # Assigned here rather than at class definition time (a queryset
+        # evaluated in the class body is captured once per process, so a member
+        # who registers after startup would be missing from the picker), AND
+        # guarded: four of the five facets have no `steward` field at all, so
+        # this would 500 every non-steward section without the guard.
+        if self.Keys.STEWARD in self.fields:
+            self.fields[self.Keys.STEWARD].queryset = _activeUsers()
+        _assertEveryFieldIsInExactlyOneFacet()
 
-    def groupedFields(self):
-        """The bound fields in FIELD_GROUPS order, as (legend, rows) pairs where
-        each row is (isPair, [bound fields]).
+    def rows(self):
+        """The bound fields in THIS instance's row-spec order, as (isPair,
+        [bound fields]) pairs - one row per tuple in the `rows` constructor arg.
 
-        Keys already removed by __init__'s restricted-field deletion are skipped,
-        and a group left with nothing in it is dropped rather than rendered as an
-        empty heading - which is what makes the "Committee only" group disappear
-        wholesale for an editor without viewChapterToolAudit.
-
-        Raises if a field is in the form but in no group. edit.html renders THIS,
-        not the form, so without the check a new field would be silently
-        unreachable - it would validate, it would save its default, and nobody
-        could ever type into it. Loud at render time beats invisible."""
-        grouped = []
-        placed = set()
-        for legend, rows in self.FIELD_GROUPS:
-            boundRows = []
-            for row in rows:
-                placed.update(row)
-                fields = [self[key] for key in row if key in self.fields]
-                if fields:
-                    boundRows.append((len(fields) > 1, fields))
-            if boundRows:
-                grouped.append((legend, boundRows))
-        ungrouped = [key for key in self.fields if key not in placed]
-        if ungrouped:
-            raise ImproperlyConfigured(
-                f"{type(self).__name__}.FIELD_GROUPS is missing "
-                f"{', '.join(sorted(ungrouped))} - add each to a group or it will "
-                "never render."
-            )
-        return grouped
+        __init__ already reduced self.fields to exactly the keys named across
+        every row, so there is nothing left to group by legend the way
+        groupedFields() used to - one form now ever holds one facet's fields."""
+        return [(len(row) > 1, [self[key] for key in row]) for row in self._rows]
 
     def clean_name(self):
         name = self.cleaned_data[self.Keys.NAME].strip()
@@ -1525,42 +1468,64 @@ class ChapterResourceForm(forms.Form):
             raise ValidationError("A chapter tool with that name already exists.")
         return name
 
+    def _value(self, key):
+        """Submitted when this section owns the field, stored otherwise.
+
+        Both halves of the requestable/steward rule below have to read a
+        value even when their form does not own the field that would have
+        carried it - a section editing `steward` needs to know the CURRENT
+        `requestable`, and vice versa. Falling back to the stored resource
+        is what lets a section that owns neither field save unmolested (see
+        Rule A below)."""
+        if key in self.fields:
+            return self.cleaned_data.get(key)
+        return getattr(self._resource, key, None) if self._resource is not None else None
+
     def clean(self):
         cleaned = super().clean()
         # ChapterResource.clean()'s rule, re-implemented because the view never
-        # calls full_clean(). Read the CURRENT value when the field was dropped
-        # for a non-audit editor: they cannot turn `requestable` on, but they
-        # can clear the steward of a row that is already requestable, which
-        # breaks the same invariant from the other direction.
-        if self._includeRestricted:
-            requestable = cleaned.get(self.Keys.REQUESTABLE, False)
-        else:
-            requestable = self._resource is not None and self._resource.requestable
-        if requestable and cleaned.get(self.Keys.STEWARD) is None:
-            message = (
-                "A resource members can request needs a steward with an Echo account - "
-                "a request button with no resolvable reviewer would be a dead letter."
-            )
-            if self._includeRestricted:
-                self.add_error(self.Keys.STEWARD, message)
-            else:
-                # The checkbox that caused this is not on their form, so a
-                # field error on `steward` alone would read as arbitrary.
-                self.add_error(self.Keys.STEWARD, message)
-                self.add_error(None, (
-                    "This resource is currently marked requestable by members, so it cannot "
-                    "be left without a steward."
-                ))
+        # calls full_clean(). Rule A - requestable needs a steward - fires only
+        # when THIS section owns `requestable` or `steward`; a section owning
+        # neither (what-it-is, what-it-costs) can neither create the violation
+        # nor repair it, so it must stay saveable even against an already-broken
+        # row (test_chapter_tools_vocabulary.py's open-layer coverage of this).
+        if self.Keys.REQUESTABLE in self.fields or self.Keys.STEWARD in self.fields:
+            requestable = self._value(self.Keys.REQUESTABLE)
+            steward = self._value(self.Keys.STEWARD)
+            if requestable and steward is None:
+                if self.Keys.STEWARD in self.fields:
+                    # Who's-answerable: owns steward, not requestable. The
+                    # checkbox that caused this is not on their form, so a field
+                    # error on steward alone would read as arbitrary - the
+                    # non-field sentence names what actually happened.
+                    self.add_error(self.Keys.STEWARD, (
+                        "A resource members can request needs a steward with an Echo account - "
+                        "a request button with no resolvable reviewer would be a dead letter."
+                    ))
+                    self.add_error(None, (
+                        "This resource is currently marked requestable by members, so it cannot "
+                        "be left without a steward."
+                    ))
+                else:
+                    # Committee only: owns requestable, not steward. add_error
+                    # on an unknown field would raise, so the error has to
+                    # attach to requestable itself, worded for the field that is
+                    # actually on this page.
+                    self.add_error(self.Keys.REQUESTABLE, (
+                        "This tool has no steward with an Echo account, so a request button "
+                        "here would be a dead letter. Record a steward under "
+                        "‘Who’s answerable’ first."
+                    ))
 
         # The tier rule, also re-implemented from ChapterResource.clean() for the
-        # same reason. Enforced only for an audit editor, and deliberately so:
-        # both fields in this rule are restricted, so a non-audit editor can
-        # neither create the violation nor fix one. Raising it at them would make
-        # a row with legacy data permanently unsaveable by the only person in
-        # front of it, and the error would name a tier they are not allowed to
-        # see.
-        if self._includeRestricted:
-            tier = cleaned.get(self.Keys.DELEGATION_TIER)
+        # same reason. Gated on field OWNERSHIP of `requestable`, never on
+        # _value - both fields in this rule live only in the Committee only
+        # facet, so any other section can neither create the violation nor fix
+        # one. Reading _value here would make a cost edit to a legacy
+        # Red+requestable row permanently unsaveable by the only person in
+        # front of it (test_chapter_tools_vocabulary.py:104-128).
+        if self.Keys.REQUESTABLE in self.fields:
+            tier = self._value(self.Keys.DELEGATION_TIER)
             if (
                 cleaned.get(self.Keys.REQUESTABLE, False)
                 and tier is not None
@@ -1573,6 +1538,165 @@ class ChapterResourceForm(forms.Form):
                     "closed and keep handing this out deliberately."
                 ))
         return cleaned
+
+
+def _assertEveryFieldIsInExactlyOneFacet():
+    """Guard raised from ChapterResourceForm.__init__, not at import time - an
+    import-time raise takes out manage.py migrate and cannot be exercised by a
+    test. Checks FACETS itself, independent of any one instance's `rows`: the
+    union of every facet's keys must equal the form's base_fields exactly, with
+    no key claimed twice. A field declared on the form but named in no facet
+    would never render anywhere and would silently save its default forever; a
+    field claimed by two facets would render twice and whichever facet saves
+    last would win.
+
+    Replaces groupedFields()'s ImproperlyConfigured raise (formerly relocated
+    the same way from the old FIELD_GROUPS mechanism)."""
+    declared = set(ChapterResourceForm.base_fields)
+    facetKeys = [key for facet in FACETS for key in facet.keys]
+    duplicated = {key for key in facetKeys if facetKeys.count(key) > 1}
+    if duplicated:
+        raise ImproperlyConfigured(
+            f"FACETS lists {', '.join(sorted(duplicated))} in more than one facet."
+        )
+    missing = declared - set(facetKeys)
+    if missing:
+        raise ImproperlyConfigured(
+            f"FACETS is missing {', '.join(sorted(missing))} - add each to a facet "
+            "or it will never render."
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class Facet:
+    """One card on the resource hub (tools/chapter-tools/detail.html) and one
+    focused edit page behind it (chapter_tool_facet_edit). Replaces
+    ChapterResourceForm.FIELD_GROUPS - a facet is a FIELD_GROUPS entry plus
+    everything the hub needs to render a card for it without a parallel lookup
+    table: its URL segment, whether it is confirmed, and what to say when it
+    is not."""
+    slug: str            # URL segment (tools/urls.py's <slug:facetSlug>); never rendered to the user
+    legend: str           # the sentence-case section name - also the section page's <h1>
+    rows: tuple           # the row spec: a tuple of row tuples of field keys, same shape as FIELD_GROUPS used
+    requiresAudit: bool   # whole facet is committee-only (viewChapterToolAudit)
+    prompt: str           # plain-language ask, shown when unconfirmed - "" for the audit facet, which has no prompt
+    confirmLabel: str     # the primary button's words when unconfirmed - "" for the audit facet
+    isConfirmed: typing.Callable[["ChapterResource"], bool]  # the derivation rule, read against the stored resource
+
+    @property
+    def keys(self):
+        return tuple(key for row in self.rows for key in row)
+
+
+# The confirmed-derivation table (chapter-tools-facet-hub plan §3): values
+# only, no model field and no migration - "confirmed" is read off whichever
+# stored field is the honest signal for that facet, never off a flag somebody
+# has to remember to also set.
+FACETS = (
+    Facet(
+        slug="what-it-is",
+        legend="What it is",
+        rows=(
+            (ChapterResourceForm.Keys.NAME,),
+            (ChapterResourceForm.Keys.BLURB,),
+            (ChapterResourceForm.Keys.CATEGORY,),
+        ),
+        requiresAudit=False,
+        prompt="Nobody has written down what this is for. One or two sentences is enough.",
+        confirmLabel="Confirm what this is",
+        # category always has a creator-chosen value (models.py's default) and
+        # name is required at create, so blurb is the only honest signal left.
+        isConfirmed=lambda resource: bool(resource.blurb.strip()),
+    ),
+    Facet(
+        slug="getting-in",
+        legend="Getting in",
+        rows=(
+            (ChapterResourceForm.Keys.ACCESS_MODEL,),
+            (ChapterResourceForm.Keys.HOW_TO_GET_ACCESS,),
+            (ChapterResourceForm.Keys.ACCESS_REQUEST_URL, ChapterResourceForm.Keys.SITE_URL),
+        ),
+        requiresAudit=False,
+        # The same words ACCESS_MODEL_CHOICES' own UNCONFIRMED explanation
+        # already uses, so this sentence has one home rather than a second
+        # copy that could drift from it.
+        prompt=ChapterResource.ACCESS_MODEL_EXPLANATIONS[ChapterResource.AccessModel.UNCONFIRMED],
+        confirmLabel="Confirm how access works",
+        # Deliberately NOT also requiring howToGetAccess - see the plan.
+        isConfirmed=lambda resource: resource.accessModel != ChapterResource.AccessModel.UNCONFIRMED,
+    ),
+    Facet(
+        slug="whos-answerable",
+        legend="Who's answerable",
+        rows=(
+            (ChapterResourceForm.Keys.STEWARD, ChapterResourceForm.Keys.STEWARD_NAME),
+        ),
+        requiresAudit=False,
+        prompt="Nobody is recorded as answerable for this tool. If you know who keeps it running, say so.",
+        confirmLabel="Confirm the steward",
+        # A name-only steward is a real answer (models.py's stewardName help
+        # text) - requiring the Echo-account half would make this permanently
+        # unconfirmable for the many stewards who do not have one.
+        isConfirmed=lambda resource: (
+            resource.steward_id is not None or bool(resource.stewardName.strip())
+        ),
+    ),
+    Facet(
+        slug="what-it-costs",
+        legend="What it costs",
+        rows=(
+            (ChapterResourceForm.Keys.PAYER, ChapterResourceForm.Keys.ANNUAL_COST),
+            (ChapterResourceForm.Keys.COST_NOTE,),
+        ),
+        requiresAudit=False,
+        prompt="Who pays for this, and what does it cost a year?",
+        confirmLabel="Confirm the cost",
+        # annualCost is deliberately excluded: FREE and NATIONAL tools
+        # legitimately have none, so requiring it would make a true "no cost"
+        # answer look unconfirmed forever.
+        isConfirmed=lambda resource: resource.payer != ChapterResource.Payer.UNCONFIRMED,
+    ),
+    Facet(
+        slug="committee-only",
+        legend="Committee only",
+        # Tier sits directly above `requestable` because it is one of that
+        # checkbox's three preconditions - on the old flat form the rule and
+        # the tick box were four rows apart.
+        rows=(
+            (ChapterResourceForm.Keys.DELEGATION_TIER,),
+            (ChapterResourceForm.Keys.REQUESTABLE,),
+            (ChapterResourceForm.Keys.LAST_REVIEWED, ChapterResourceForm.Keys.REVIEWED_BY),
+            (ChapterResourceForm.Keys.REVOCATION_NOTE,),
+            (ChapterResourceForm.Keys.CONTINUITY_NOTE,),
+        ),
+        requiresAudit=True,
+        # No prompt/confirmLabel: this card renders a Privileged badge instead
+        # of Confirmed/Unconfirmed and always shows Edit, never a Confirm
+        # button - see the hub card construction rule in chapterToolsViews.py.
+        prompt="",
+        confirmLabel="",
+        isConfirmed=lambda resource: (
+            resource.delegationTier != ChapterResource.DelegationTier.UNCLASSIFIED
+        ),
+    ),
+)
+
+# The create form's row spec - just another rows= argument to
+# ChapterResourceForm, not a parallel form class. siteUrl appears here AND
+# lives in the "getting-in" facet afterward (paired with accessRequestUrl,
+# per FIELD_GROUPS/FACETS - field definitions are not forked for the mock's
+# different grouping). Every other field starts unconfirmed and gets filled
+# in from its own facet once the resource exists.
+CREATE_ROWS = (
+    (ChapterResourceForm.Keys.NAME,),
+    (ChapterResourceForm.Keys.BLURB,),
+    (ChapterResourceForm.Keys.CATEGORY,),
+    (ChapterResourceForm.Keys.SITE_URL,),
+)
+
+# Derived, not hand-maintained - a facet renamed or added only has to happen
+# in FACETS once.
+_FACET_BY_SLUG = {facet.slug: facet for facet in FACETS}
 
 
 class ResourceHolderForm(forms.Form):

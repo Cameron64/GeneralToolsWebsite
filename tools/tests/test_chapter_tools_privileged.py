@@ -309,9 +309,7 @@ class HolderRosterLayoutTests(LoginClientMixin, TestCase):
         _holder(self.resource, HOLDER_SENTINEL, role="Delegated user", canGrant=True)
 
     def test_the_power_summary_gets_its_own_line(self):
-        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
-        # on the access panel and this section does not render at all.
-        response = self.client.get(f"{self.resource.getUrl()}?tab=holders")
+        response = self.client.get(self.resource.getUrl())
         self.assertContains(response, 'class="record-aside">Can change other people')
 
     def test_it_is_no_longer_labelled(self):
@@ -319,14 +317,12 @@ class HolderRosterLayoutTests(LoginClientMixin, TestCase):
         what that role amounts to, so a label would be a third heading for one
         fact."""
         self.assertNotContains(
-            self.client.get(f"{self.resource.getUrl()}?tab=holders"), "What that means here")
+            self.client.get(self.resource.getUrl()), "What that means here")
 
     def test_the_role_the_service_uses_still_renders_beside_it(self):
         """The two are different answers and both belong on this page: the badge
         is the service's word, the aside is the chapter's reading of it."""
-        # ?tab= is explicit: the detail page is tabbed, so a bare fetch lands
-        # on the access panel and this section does not render at all.
-        response = self.client.get(f"{self.resource.getUrl()}?tab=holders")
+        response = self.client.get(self.resource.getUrl())
         self.assertContains(response, "Delegated user")
 
 

@@ -3,90 +3,35 @@
 {% load explain_tags %}
 {% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
 {% block page_content %}
-
-{% comment %}
-  One resource, in tabs - the same move the edit workbench made, and for the
-  same reason. This used to be nine stacked sections and a committee member
-  who only wanted the restricted layer scrolled past everything a plain
-  member reads first to reach it.
-
-  The tab set is DETAIL_TABS in chapterToolsViews.py, not EDIT_TABS: this
-  page gates reading, tiered across viewResourceHolders and
-  viewChapterToolAudit, which is a different ladder from the workbench's
-  single manageChapterTools-plus-audit-subtier. `tabs` arrives pre-filtered
-  from the view as a list of {key, label, count} - the template loops it and
-  never re-derives who gets which tab, so the permission rule lives in
-  exactly one place.
-
-  Links with aria-current, not role="tab"/role="tabpanel" - see
-  components/_tabs.css for why a real page load must not announce itself as
-  an in-place panel swap.
-
-  When a reader qualifies for only the access tab, no <nav> renders at all -
-  see the `tabs|length > 1` guard below. A one-item strip would be a control
-  that does nothing, and worse, it would advertise a partition the reader
-  cannot see the other side of.
-{% endcomment %}
-
 <div class="page-card max-w-3xl">
   <div class="record-head">
     <h1 class="page-title">{{ resource.name }}</h1>
     {% if canManage %}<a href="{% url 'chapter-tool-edit' pk=resource.id %}" class="btn btn-secondary btn-small">Edit this tool</a>{% endif %}
   </div>
   {% if resource.blurb %}<p class="page-subtitle">{{ resource.blurb }}</p>{% endif %}
+  {% if savedSlug %}<div class="alert alert-success mb-4">Saved.</div>{% endif %}
 
-  {% if hasAudit %}
-  {% comment %}
-    Rendered here, above the strip, and not inside the committee tab it used
-    to sit in. _logRestrictedRead fires once per render for every audit
-    holder regardless of which tab they land on - it is a statement about the
-    page load, not about one panel. Putting it inside committee would tell a
-    reader on the access tab that nothing was logged, which would be false.
-  {% endcomment %}
-  <div class="alert alert-info mb-4">You're viewing the restricted layer - this read was logged.</div>
-  {% endif %}
-
-  {% if tabs|length > 1 %}
-  <nav class="tab-nav" aria-label="Sections of this chapter tool">
-    {% for t in tabs %}
-    <a class="tab" href="?tab={{ t.key }}" {% if tab == t.key %}aria-current="page"{% endif %}>{{ t.label }}{% if t.count is not None %} <span class="tab-count">({{ t.count }})</span>{% endif %}</a>
-    {% endfor %}
-  </nav>
-  {% endif %}
-
-  {% if tab == 'access' %}
   <h2 class="section-title">How to get access</h2>
   <p>{{ resource.howToGetAccess|default:"Not recorded yet. Ask the IT Sub-Committee and this page will be filled in." }}</p>
 
   {% comment %}
   Placed above the sign-in line and styled as a callout because it does not
   add a step, it replaces the question. A reader who has just read "how to get
-  access" needs to be told, before anything else, that there is no access to
-  get here and that their actual task is somewhere else.
+  access" needs to be told, before anything else, that this is not where that
+  access is granted.
 
-  This stays on the access tab rather than moving to connections along with
-  the rest of the dependency edges. Only the DEPENDENTS (the reverse view -
-  "what reaches through this") are a connections-tab fact; this is the
-  forward view, and it answers the one question a reader on this page
-  actually has. Filing it behind a second tab would hide the one thing this
-  reader most needs to see.
-  {% endcomment %}
-  {% comment %}
-    "Most people reach this through", not the old "You do not get access to
-    this directly."
-
-    The absolute claim was true of the one resource this edge kind was invented
-    for - nobody is ever given a login to the chapter calendar - and became
-    false as soon as the kind was used for Zoom and Action Network, where a
-    meeting host and an organiser both have a real direct route documented in
-    the very next paragraph. The card would have contradicted itself: an
-    instruction for getting the shared password, directly under a sentence
-    saying access cannot be got directly.
-
-    Nothing is lost where the strong claim was earned. The calendar's own "How
-    to get access" says there is nothing to request and nobody to request it
-    from, which states it more precisely than a headline could. The note on each
-    edge names which audience the front door is for.
+  "Most people reach this through X", not the old "You do not get access to
+  this directly." The absolute claim was true of the one resource this edge
+  kind was invented for - nobody is ever given a login to the chapter
+  calendar - and became false as soon as the kind was used for Zoom and
+  Action Network, where a meeting host and an organiser both have a real
+  direct route documented in the very next paragraph. The card would have
+  contradicted itself: an instruction for getting the shared password,
+  directly under a sentence saying access cannot be got directly. Nothing is
+  lost where the strong claim was earned - the calendar's own "How to get
+  access" already says there is nothing to request and nobody to request it
+  from, which states it more precisely than a headline could; the note on
+  each edge names which audience the front door is for.
   {% endcomment %}
   {% for dependency in reachedThroughDependencies %}
   <div class="alert alert-info mb-4 pt-2">
@@ -118,38 +63,89 @@
     <b>{{ resource.get_accessModel_display }}.</b> {{ resource.getAccessModelExplanation }}
   </div>
 
-  <h2 class="section-title">Reference</h2>
-  <dl class="detail-grid">
-    <dt>Category</dt><dd>{{ resource.get_category_display }}</dd>
-    <dt>Who pays</dt><dd>{{ resource.get_payer_display }}{% if resource.costNote %} &middot; {{ resource.costNote }}{% endif %}</dd>
-    {% if resource.annualCost %}<dt>Annual cost</dt><dd>${{ resource.annualCost }}</dd>{% endif %}
-  </dl>
+  {% comment %}
+  One card per facet - what it is, getting in, who's answerable, what it costs,
+  and (audit-only) committee only. Replaces the old Reference dl AND the
+  Committee detail dl below: facetCards/unconfirmedCount are built in the view
+  (chapterToolsViews._buildFacetCards), already filtered to what this viewer
+  may see - the who's-answerable card only exists here at all for a hasHolders
+  viewer (the steward leak guard: getStewardDisplayName is holder-tier), and
+  the committee-only card only for hasAudit.
+
+  Edit / Confirm buttons render only under canManage - a plain member sees the
+  badge and, on an unconfirmed section, the prompt - never a button.
+  {% endcomment %}
+  <div class="record-list">
+    {% for card in facetCards %}
+    {% if card.facet.slug == "committee-only" %}
+    {% comment %} Where the audit-only content begins - the read that unlocked this card was logged (chapterToolsViews._logRestrictedRead), and this is the one notice that says so on the hub. {% endcomment %}
+    <div class="alert alert-info">You're viewing the restricted layer - this read was logged.</div>
+    {% endif %}
+    <div class="record-item" id="{{ card.facet.slug }}">
+      <div class="record-head">
+        <span class="record-title">{{ card.facet.legend }}</span>
+        <span>
+          {% if card.facet.requiresAudit %}
+          <span class="badge badge-denied">Privileged</span>
+          {% elif card.confirmed %}
+          <span class="badge badge-active">Confirmed</span>
+          {% else %}
+          <span class="badge badge-unresolved">Unconfirmed</span>
+          {% endif %}
+          {% comment %} An unconfirmed, non-audit card gets a Confirm button below instead - not an Edit button here, so a card with nothing recorded on it never reads as already-edited. {% endcomment %}
+          {% if canManage and card.showEditButton %}
+          <a class="btn btn-secondary btn-small"
+             href="{% url 'chapter-tool-facet-edit' pk=resource.id facetSlug=card.facet.slug %}">Edit</a>
+          {% endif %}
+        </span>
+      </div>
+
+      {% if card.facet.slug == "committee-only" %}
+      {% comment %} The tier callout, not a plain dt/dd row - a colour name explains nothing, and its ladder disclosure has its own test that it opens from inside this same block. {% endcomment %}
+      <div class="alert alert-info mb-4 pt-2">
+        <b>Delegation tier: {{ resource.get_delegationTier_display }}.</b>
+        {{ resource.getDelegationTierExplanation }}
+        {% explain "delegation-tier" label="What the other tiers mean" %}
+      </div>
+      {% endif %}
+
+      {% if card.facts %}
+      <dl class="detail-grid">
+        {% for fact in card.facts %}
+        <dt>{{ fact.label }}</dt>
+        <dd>
+          {% if fact.key == "steward" %}<span class="explain-row">{{ fact.value }}{% explain "steward" %}</span>
+          {% elif fact.key == "requestable" %}<span class="explain-row">{{ fact.value }}{% explain "requestable" label="What decides this" %}</span>
+          {% elif fact.key == "lastReviewed" %}<span class="explain-row">{{ fact.value }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}{% explain "review" %}</span>
+          {% else %}{{ fact.value }}{% endif %}
+        </dd>
+        {% endfor %}
+      </dl>
+      {% endif %}
+
+      {% if not card.facet.requiresAudit and not card.confirmed %}
+      <p class="record-aside">{{ card.facet.prompt }}</p>
+      {% if canManage %}
+      <div class="record-actions">
+        <a class="btn btn-primary btn-small"
+           href="{% url 'chapter-tool-facet-edit' pk=resource.id facetSlug=card.facet.slug %}">{{ card.facet.confirmLabel }}</a>
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% if unconfirmedCount %}
+  <p class="text-sm text-secondary pt-2">{{ unconfirmedCount }} section{{ unconfirmedCount|pluralize }} still need{{ unconfirmedCount|pluralize:"s," }} confirming.</p>
   {% endif %}
 
-  {% if tab == 'holders' %}
   {% comment %} One definition per heading, deliberately: two disclosures on one flex line both grow, so they end up separated by a gap and each opens to half the width. {% endcomment %}
   <div class="explain-row explain-row-heading">
     <h2 class="section-title">Who has it now</h2>
-    {% if holderRows %}{% explain "holders" label="What this list is not" %}{% endif %}
+    {% if hasHolders and holderRows %}{% explain "holders" label="What this list is not" %}{% endif %}
   </div>
-  {% comment %}
-    hasHolders guards this whole panel a second time, the same defence in
-    depth as edit.html's hasAudit guard around its Details tab: this tab only
-    ever appears in `tabs` for a reader hasHolders already let through, and a
-    template guard that repeated the check cannot leak anything the view
-    itself withheld. There used to be a fallback branch below explaining the
-    roster to a reader who could see the heading but not the table - it is
-    gone on purpose. A reader without viewResourceHolders/viewChapterToolAudit
-    never gets this tab at all now, so there is no absence left on this page
-    for one to explain, and the access tab already answers their real
-    question.
-  {% endcomment %}
   {% if hasHolders %}
-  {% comment %} The definition sits with the word it defines, not in a block at the foot of the page. Inside the dd rather than the dt: the dt column is `max-content`, so a panel opened there would be as narrow as the word "Steward". {% endcomment %}
-  <dl class="detail-grid">
-    <dt>Steward</dt>
-    <dd><span class="explain-row">{{ resource.getStewardDisplayName|default:"-" }}{% explain "steward" %}</span></dd>
-  </dl>
+  {% comment %} No standalone Steward dl here any more - it moved into the Who's-answerable facet card above, which is the one place that fact and its definition live now. {% endcomment %}
   {% if holderRows %}
   <div class="explain-row explain-row-heading">
     <h3 class="menu-section-title">The roster</h3>
@@ -190,17 +186,16 @@
   {% else %}
   <p class="text-secondary">Nobody recorded yet. That is an open job for the IT Sub-Committee, not a sign that nobody has access.</p>
   {% endif %}
-  {% endif %}
+  {% else %}
+  {% comment %}
+  Holder identity is tier 1 (viewResourceHolders or audit). A plain member's
+  job here never needed the roster - it needed the door, which the "How to
+  get access" section above already answers - so this is one line of
+  role-language, not the table.
+  {% endcomment %}
+  <p class="text-secondary">Access to this is stewarded by the IT Sub-Committee. Use the &ldquo;How to get access&rdquo; line above.</p>
   {% endif %}
 
-  {% if tab == 'connections' %}
-  {% comment %}
-    Only the DEPENDENTS live here - the reverse view of an edge, "what reaches
-    through/signs in through this". The forward view (this resource's own
-    sign-in/reached-through prerequisites) stays on the access tab; see the
-    comment there for why splitting those two directions across tabs would
-    hide the answer a reader on access actually needs.
-  {% endcomment %}
   {% if signInDependents %}
   <h2 class="section-title">What signs in through this</h2>
   <ul>
@@ -222,15 +217,14 @@
   </ul>
   {% endif %}
 
-  {% comment %}
-    RUNS_ON is restricted - stays wrapped in hasAudit even inside a tab a
-    non-audit reader can already be looking at (they can reach connections
-    with an open SIGN_IN/REACHED_THROUGH dependent and nothing else). Same
-    build-only-if-permitted rule as the view: hasAudit also guards whether
-    runsOnDependencies/runsOnDependents even exist in context, so this is
-    defence in depth, not the only gate.
-  {% endcomment %}
   {% if hasAudit %}
+  {% comment %}
+  No "Committee detail" heading here any more - the Committee-only card up top
+  (in facetCards) already carries the delegation-tier callout and the rest of
+  this facet's facts (Last reviewed, Reviewed by, Requestable, Revocation
+  note, Continuity note). This block is now only the parts that are NOT a
+  facet: the RUNS_ON edges, credentials, and open questions.
+  {% endcomment %}
   <h2 class="section-title">What this runs on</h2>
   {% if runsOnDependencies %}
   <ul>
@@ -252,10 +246,7 @@
   {% else %}
   <p class="text-secondary">Nothing recorded yet. If this is infrastructure, that is a gap rather than an answer.</p>
   {% endif %}
-  {% endif %}
-  {% endif %}
 
-  {% if tab == 'credentials' %}
   <div class="explain-row explain-row-heading">
     <h2 class="section-title">Credentials</h2>
     {% if credentials %}{% explain "credential-age" label="How age is counted" %}{% endif %}
@@ -295,26 +286,6 @@
   {% else %}
   <p class="text-secondary">No credential objects recorded.</p>
   {% endif %}
-  {% endif %}
-
-  {% if tab == 'committee' %}
-  {% comment %} The tier is rendered with its meaning attached, not as a bare colour name: "Red" on its own told a reader nothing about what they may or may not do. The ladder for the OTHER three rungs opens from inside the same callout, so the tier and its scale are one thing on the page rather than a fact here and a footnote further down. {% endcomment %}
-  <div class="alert alert-info mb-4 pt-2">
-    <b>Delegation tier: {{ resource.get_delegationTier_display }}.</b>
-    {{ resource.getDelegationTierExplanation }}
-    {% explain "delegation-tier" label="What the other tiers mean" %}
-  </div>
-
-  {% comment %} Each definition inside its own dd, beside the value it explains. The dd is the `1fr` column, so an opened panel has the width to be read; the dt column is `max-content` and would squeeze it to the width of its label. {% endcomment %}
-  <dl class="detail-grid">
-    <dt>Last reviewed</dt>
-    <dd><span class="explain-row">{{ resource.lastReviewed|default:"Never" }}{% if resource.isStale %} <span class="badge badge-unresolved">Stale</span>{% endif %}{% explain "review" %}</span></dd>
-    <dt>Reviewed by</dt><dd>{{ resource.reviewedBy|default:"-" }}</dd>
-    <dt>Requestable</dt>
-    <dd><span class="explain-row">{% if resource.requestable %}Yes{% else %}No{% endif %}{% explain "requestable" label="What decides this" %}</span></dd>
-    <dt>Revocation note</dt><dd>{{ resource.revocationNote|default:"-" }}</dd>
-    <dt>Continuity note</dt><dd>{{ resource.continuityNote|default:"-" }}</dd>
-  </dl>
 
   <h2 class="section-title">Open questions</h2>
   {% if questions %}

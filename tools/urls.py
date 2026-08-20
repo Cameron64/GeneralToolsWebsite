@@ -44,6 +44,12 @@ urlpatterns = [
          name="chapter-tool-member-search"),
     path("chapter-tools/<int:pk>", chapterToolsViews.chapter_tool_detail, name="chapter-tool-detail"),
     path("chapter-tools/<int:pk>/edit", chapterToolsViews.chapter_tool_edit, name="chapter-tool-edit"),
+    # "section/", not "facet/" - a URL is UI, and this also avoids ambiguity
+    # with the <slug:childKind> child routes below (childKind is never called
+    # "facet" either, but the two vocabularies sitting side by side in the URL
+    # space would invite confusing them).
+    path("chapter-tools/<int:pk>/section/<slug:facetSlug>",
+         chapterToolsViews.chapter_tool_facet_edit, name="chapter-tool-facet-edit"),
     path("chapter-tools/<int:pk>/delete", chapterToolsViews.chapter_tool_delete, name="chapter-tool-delete"),
     # One route triple for all three child kinds (holders / credentials /
     # dependencies) rather than nine near-identical ones - childKind is validated

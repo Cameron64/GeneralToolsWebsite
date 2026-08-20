@@ -1,52 +1,47 @@
 {% extends "base.html" %}
 {% load navigation_tags %}
 {% load explain_tags %}
-{% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% if isCreate %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel="Add a Chapter Tool" %}{% else %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endif %}{% endblock breadcrumbs %}
+{% block breadcrumbs %}{% url 'chapter-tools' as parentToolUrl %}{% breadcrumbs parentLabel="Chapter Tools" parentUrl=parentToolUrl currentLabel=resource.name %}{% endblock breadcrumbs %}
 {% block page_content %}
 
 {% comment %}
-  The CRUD workbench: the resource's own fields, then its child rows.
+  The CRUD workbench: this resource's CHILD rows only now - holders,
+  dependencies, credentials, delete. The resource's OWN fields (name, blurb,
+  access, cost, steward, committee-only) moved to the hub's per-facet section
+  pages: this resource's detail page is the hub, and "Edit"/"Confirm" on each
+  card there opens chapter_tool_facet_edit. This page has no Details tab and
+  never builds or posts a ChapterResourceForm.
 
   ONE page rather than one per child kind. Nine separate pages would be nine
   round trips on a phone, and the whole reason this page exists is that the
   registry was previously editable only through /admin/.
 
-  The sections are TABS rather than the five stacked cards this replaced. The
-  stack was not merely long: every child row is added on its own page which
-  redirects back here, so adding a second holder meant landing at the top of the
-  page and scrolling down past a list that had just grown by one - once per row.
-  The active tab lives in ?tab= exactly so the child views can redirect into it
-  (see _backToSection in chapterToolsViews.py), which is what removes that
-  scroll. Tabs held in CSS or JS state could not do it; the tab has to survive a
-  round trip. Links, not role="tab" - see components/_tabs.css for why.
+  The sections are TABS rather than stacked cards. Stacked, every child row is
+  added on its own page which redirects back here, so adding a second holder
+  meant landing at the top of the page and scrolling down past a list that had
+  just grown by one - once per row. The active tab lives in ?tab= exactly so
+  the child views can redirect into it (see _backToSection in
+  chapterToolsViews.py), which is what removes that scroll. Tabs held in CSS or
+  JS state could not do it; the tab has to survive a round trip. Links, not
+  role="tab" - see components/_tabs.css for why.
 
   Single column at every width, and the child rows are .record-item cards rather
   than a table - see components/_chapter-tools.css for why a table cannot work
   here.
 
   hasAudit gates the restricted layer. The template guard is the SECOND line of
-  defence, not the first: the view already omits the restricted form fields, the
-  credential rows, and the RUNS_ON edges from the context, so a guard removed
-  here still cannot render them. _activeTab applies the same rule to the tab
-  strip, so a hand-typed ?tab=credentials lands on details instead.
+  defence, not the first: the view already omits the credential rows and the
+  RUNS_ON edges from the context, so a guard removed here still cannot render
+  them. _activeTab applies the same rule to the tab strip, so a hand-typed
+  ?tab=credentials lands on holders instead.
 
   Comment BLOCK tag, not the short hash-brace form - that form is single-line
   only in Django and a multi-line one renders as literal page text.
 {% endcomment %}
 
-{% if isCreate %}
-<h1 class="page-title">Add a chapter tool</h1>
-<p class="page-subtitle">Record what this system is and how a member gets into it. You can add holders and dependencies once it's saved.</p>
-{% else %}
 <h1 class="page-title">{{ resource.name }}</h1>
-<p class="page-subtitle">Editing this chapter tool. <a href="{{ resource.getUrl }}">View it as a member sees it &rarr;</a></p>
-{% endif %}
+<p class="page-subtitle">The rows for this chapter tool. <a href="{{ resource.getUrl }}">Edit its fields on the hub &rarr;</a></p>
 
-{% if saved %}
-<div class="alert alert-success mb-4">Saved.</div>
-{% endif %}
-
-{% if not isCreate %}
 {% comment %}
   A nav of links, not a role="tablist". Each one is a page load that the server
   answers with one section, so announcing it as a tab switch would promise a
@@ -57,9 +52,8 @@
   seeing rather than something to hide.
 {% endcomment %}
 <nav class="tab-nav" aria-label="Sections of this chapter tool">
-  <a class="tab" href="?tab=details" {% if tab == 'details' %}aria-current="page"{% endif %}>Details</a>
   <a class="tab" href="?tab=holders" {% if tab == 'holders' %}aria-current="page"{% endif %}>Who has it <span class="tab-count">({{ holders|length }})</span></a>
-  {% comment %} "Connections", not "What it needs" - the panel holds both directions, so a label naming only one of them could not honestly carry a count of both. The tab names the topic and the two headings inside it name the directions, which is also how the detail page splits it. The tab KEY stays `dependencies` because the child add/edit/delete views redirect back into it by name. {% endcomment %}
+  {% comment %} "Connections", not "What it needs" - the panel holds both directions, so a label naming only one of them could not honestly carry a count of both. The tab KEY stays `dependencies` because the child add/edit/delete views redirect back into it by name. {% endcomment %}
   <a class="tab" href="?tab=dependencies" {% if tab == 'dependencies' %}aria-current="page"{% endif %}>Connections <span class="tab-count">({{ connectionCount }})</span></a>
   {% if hasAudit %}
   <a class="tab" href="?tab=credentials" {% if tab == 'credentials' %}aria-current="page"{% endif %}>Credentials <span class="tab-count">({{ credentials|length }})</span></a>
@@ -72,74 +66,6 @@
   {% endcomment %}
   <a class="tab" href="?tab=delete" {% if tab == 'delete' %}aria-current="page"{% endif %}>Delete</a>
 </nav>
-{% endif %}
-
-{% if isCreate or tab == 'details' %}
-<div class="page-card max-w-2xl">
-  {% comment %}
-    No "Details" heading on this card. The tab strip directly above already says
-    Details and marks it current, and the fieldset legends below name their own
-    groups - a third copy of the word sat between them and turned the top of the
-    card into two stacked headings saying nothing new. The group legends are the
-    headings inside this card now.
-  {% endcomment %}
-  {% if not hasAudit %}
-  <div class="alert alert-info mb-4">
-    You're editing the open layer. The committee-only fields (delegation tier, review dates,
-    revocation and continuity notes) are not shown here and are left untouched when you save.
-  </div>
-  {% endif %}
-  <form action="" method="post">
-    {% csrf_token %}
-    {% if form.non_field_errors %}
-    <div class="alert alert-error">{{ form.non_field_errors }}</div>
-    {% endif %}
-    {% comment %}
-      Grouped into fieldsets rather than iterating the form flat: eighteen fields
-      in one column had no landmarks in it. The groups, their order, and which
-      two sit abreast are declared in ChapterResourceForm.FIELD_GROUPS - NOT
-      here. Putting the list in the template would mean a field added to the form
-      and forgotten in the list renders nowhere at all, silently; groupedFields()
-      raises instead. So there is nothing to keep in step by hand.
-
-      Still ONE form and one save button. The halves cannot be split into
-      separate submissions even though they look separable: `requestable`
-      validates against `steward` (open layer) AND `delegationTier` (restricted),
-      so a form holding only one of them cannot check its own rule.
-
-      explainSlugFor hangs each definition off its own field's label, from the
-      form's EXPLAIN_SLUGS map. This replaced a block of four definitions below
-      the submit button: a definition read after the field has been filled in
-      cannot change what was typed into it.
-
-      The hasAudit branch that used to guard three of them is gone and is not
-      missing - the restricted fields are absent from a non-audit editor's form
-      entirely, so their definitions cannot render either, and the group they
-      live in drops out with them. One less place for the two lists to disagree.
-    {% endcomment %}
-    {% for legend, rows in form.groupedFields %}
-    <fieldset class="form-group">
-      <legend class="form-group-legend">{{ legend }}</legend>
-      {% for isPair, fields in rows %}
-      <div {% if isPair %}class="form-pair"{% endif %}>
-        {% for field in fields %}
-        {% include "tools/common/formRow.html" with field=field explainSlug=field|explainSlugFor %}
-        {% endfor %}
-      </div>
-      {% endfor %}
-    </fieldset>
-    {% endfor %}
-
-    <div class="flex flex-wrap items-center gap-3 pt-4">
-      <button type="submit" class="btn btn-primary">{% if isCreate %}Create chapter tool{% else %}Save changes{% endif %}</button>
-      <a href="{% if isCreate %}{% url 'chapter-tools' %}{% else %}{{ resource.getUrl }}{% endif %}" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
-</div>
-
-{% endif %}
-
-{% if not isCreate %}
 
 {% if tab == 'holders' %}
 {% comment %}
@@ -304,9 +230,10 @@
 
 {% if tab == 'delete' %}
 {% comment %}
-  Its own section rather than a card under the details form. It is the only
-  destructive control on the workbench, and at the foot of the details tab it sat
-  permanently below the form people open most - so the thing you should have to go
+  Its own section rather than a card under a details form (there is no details
+  form on this page any more). It is the only destructive control on the
+  workbench, and it used to sit at the foot of the old Details tab - permanently
+  below the form people opened most - so the thing you should have to go
   looking for was the thing hardest to avoid scrolling past.
 
   Not gated separately: chapter_tool_delete requires the same
@@ -324,8 +251,4 @@
 </div>
 {% endif %}
 
-{% endif %}
-
-{% comment %} This form has a member typeahead (steward) and a clearable date (last reviewed), both of which need their scripts. Deferred, so position in the body does not matter. {% endcomment %}
-{% include "tools/common/_formAssets.html" %}
 {% endblock page_content %}

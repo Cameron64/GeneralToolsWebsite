@@ -3,6 +3,15 @@ page, and the restricted questions workbench. See tools/models.py for the
 two-visibility-layer design and tools/navigation.py for how these routes are
 registered under the existing "access" domain.
 
+The detail page (chapter_tool_detail) is the FACET HUB as of the
+chapter-tools-facet-hub change: it renders one card per facet (forms.FACETS -
+What it is / Getting in / Who's answerable / What it costs / Committee only),
+each with its own focused edit page (chapter_tool_facet_edit). The workbench
+(chapter_tool_edit) is CHILD ROWS ONLY now - holders, dependencies,
+credentials, delete - the resource's own eighteen fields no longer have a
+combined form anywhere; chapter_tool_create and chapter_tool_facet_edit are
+the only two views that ever build a ChapterResourceForm.
+
 CRUD for ChapterResource and its child rows (ResourceHolder,
 ResourceCredential, ResourceDependency) lives here too, gated on
 manageChapterTools - see the CRUD block at the bottom of this module. It used
@@ -10,10 +19,11 @@ to be admin-only; tools/admin.py remains registered as the fallback for the
 fields no in-app form exposes (ResourceGrant, ToolAuditReadLog).
 
 The one rule to keep in mind when editing that block: manageChapterTools is
-NOT the audit permission. An editor without viewChapterToolAudit gets a form
-with the restricted fields removed, no credentials, and no RUNS_ON edges -
-because a bound form renders current values, so leaving a restricted field on
-the page would leak exactly what chapter_tool_detail is careful to withhold.
+NOT the audit permission. An editor without viewChapterToolAudit gets a 404 for
+the committee-only facet (chapter_tool_facet_edit) and for the credentials
+child kind, and no RUNS_ON edges - because a bound form renders current
+values, so leaving a restricted field reachable would leak exactly what
+chapter_tool_detail is careful to withhold from the same editor's own hub view.
 
 ResourceQuestion has its own add/assign/resolve workbench (below), which
 predates the CRUD block: it was the 08-20 meeting agenda item (split the open
@@ -218,28 +228,28 @@ def chapter_tool_detail(request, pk):
     - see _hasHolders); the restricted section (delegation tier,
     revocation/continuity notes, credentials, review detail, open questions)
     only for viewChapterToolAudit holders - and only that render writes a
-    read-log row.
-
-    The sections are tabs - see DETAIL_TABS and _activeDetailTab below. The
-    read-log write stays exactly where it was before tabs existed: once per
-    render for an audit holder, independent of ?tab=. _logRestrictedRead
-    answers "who opened this resource's restricted layer", which happens on
-    page load; making it fire only for one panel would let an audit holder
-    read the page on another tab with no row written."""
+    read-log row."""
     resource = get_object_or_404(ChapterResource, pk=pk)
     hasAudit = _hasAudit(request.user)
     hasHolders = _hasHolders(request.user)
+    canManage = request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS)
 
     # Open kinds stay open in BOTH directions - each is the same public fact
     # read backwards, and the reverse is often the more useful half:
     # "3 tools sign in through Slack" on Slack's page, and "2 things reach the
     # calendar through Echo" on Echo's, which is what tells a reader that Echo
     # is the front door for more than one system.
+    facetCards, unconfirmedCount = _buildFacetCards(
+        resource, hasAudit=hasAudit, hasHolders=hasHolders, canManage=canManage,
+    )
     context = {
         "resource": resource,
         "hasAudit": hasAudit,
         "hasHolders": hasHolders,
-        "canManage": request.user.has_perm(permissions.MANAGE_CHAPTER_TOOLS),
+        "canManage": canManage,
+        "facetCards": facetCards,
+        "unconfirmedCount": unconfirmedCount,
+        "savedSlug": request.GET.get("saved", ""),
         "signInDependencies": _edges(resource.dependencies, ResourceDependency.Kind.SIGN_IN, "dependsOn"),
         "signInDependents": _edges(resource.dependents, ResourceDependency.Kind.SIGN_IN, "resource"),
         "reachedThroughDependencies": _edges(
@@ -284,51 +294,6 @@ def chapter_tool_detail(request, pk):
         context["runsOnDependents"] = _edges(
             resource.dependents, ResourceDependency.Kind.RUNS_ON, "resource",
         )
-
-    # Which tabs this reader gets, in strip order (open first, restricted
-    # last). Computed here rather than with template arithmetic, same reason
-    # the workbench's EDIT_TABS split lives in the view: a template that
-    # re-derived "does this reader have holders" from what happens to be in
-    # context would drift from the permission the moment somebody added a
-    # context key for an unrelated reason.
-    #
-    # `connections` is the one tier that is not a flat permission check - a
-    # plain member earns it by having something to see (an open dependent
-    # edge), not by holding a grant. Audit holders get it unconditionally
-    # because RUNS_ON edges are restricted and would otherwise be invisible
-    # even when they exist.
-    # This block decides only WHICH tabs a reader gets and what each one
-    # counts. The order and the labels come from DETAIL_TABS, so there is one
-    # place to read the strip off and no way for the two to disagree - an
-    # earlier draft repeated the keys and the order here as well, which meant
-    # renaming a tab was a two-file edit with nothing to catch the half done.
-    #
-    # `None` is a real value in here, not a missing one: it means the tab
-    # exists and deliberately shows no count, which is different from a count
-    # of zero. `access` and `committee` have no countable set behind them.
-    hasOpenDependents = bool(context["signInDependents"]) or bool(context["reachedThroughDependents"])
-    counts = {"access": None}
-    if hasHolders:
-        counts["holders"] = len(context["holderRows"])
-    if hasAudit or hasOpenDependents:
-        # Sums exactly what the panel will render, which is why an audit
-        # holder's number is bigger than a plain member's on the same
-        # resource: RUNS_ON is restricted, so those two directions are not in
-        # a plain member's context at all and must not be counted for them.
-        counts["connections"] = len(context["signInDependents"]) + len(context["reachedThroughDependents"])
-        if hasAudit:
-            counts["connections"] += len(context["runsOnDependencies"]) + len(context["runsOnDependents"])
-    if hasAudit:
-        counts["credentials"] = len(context["credentials"])
-        counts["committee"] = None
-
-    tabs = [
-        {"key": key, "label": label, "count": counts[key]}
-        for key, label in DETAIL_TABS
-        if key in counts
-    ]
-    context["tabs"] = tabs
-    context["tab"] = _activeDetailTab(request, [t["key"] for t in tabs])
 
     return render(request, "tools/chapter-tools/detail.html", context)
 
@@ -599,24 +564,23 @@ def _applyCleanedData(instance, form) -> None:
         setattr(instance, key, value)
 
 
-def _buildResourceForm(request, resource, includeRestricted):
+def _buildResourceForm(request, resource, rows):
     data = request.POST if request.method == "POST" else None
     initial = None
     if resource is not None and request.method != "POST":
-        initial = {key: getattr(resource, key) for key in _formKeys(forms.ChapterResourceForm)}
-    return forms.ChapterResourceForm(
-        data, resource=resource, includeRestricted=includeRestricted, initial=initial,
-    )
+        keys = [key for row in rows for key in row]
+        initial = {key: getattr(resource, key) for key in keys}
+    return forms.ChapterResourceForm(data, resource=resource, rows=rows, initial=initial)
 
 
 @login_required
 @permission_required(permissions.MANAGE_CHAPTER_TOOLS)
 def chapter_tool_create(request):
-    """Create a resource, then land on its workbench so the child rows (holders,
-    dependencies) can be filled in immediately - a resource with no holders and
-    no access story is the half-finished state this registry keeps ending up in."""
-    includeRestricted = _canEditRestricted(request.user)
-    form = _buildResourceForm(request, None, includeRestricted)
+    """Create a resource with its four required fields (CREATE_ROWS), then land
+    on its hub - the detail page. Every other facet renders there as an
+    unconfirmed card with a prompt, so whoever actually knows the answer can
+    fill it in from the hub instead of a half-finished workbench form."""
+    form = _buildResourceForm(request, None, forms.CREATE_ROWS)
     if request.method == "POST" and form.is_valid():
         resource = ChapterResource()
         _applyCleanedData(resource, form)
@@ -625,13 +589,167 @@ def chapter_tool_create(request):
             "ChapterTools: %s created resource '%s'",
             request.user.getUserNameString(), resource.name,
         )
-        return redirect("chapter-tool-edit", pk=resource.pk)
+        return redirect(resource.getUrl())
 
-    return render(request, "tools/chapter-tools/edit.html", {
+    return render(request, "tools/chapter-tools/create.html", {"form": form})
+
+
+# Resource fields rendered as page CHROME above the facet cards (name/title,
+# blurb, the how-to-get-access line, the access-model callout, and the
+# request-access/site buttons) - never repeated inside a card, or the hub
+# would say the same fact twice on one page. ACCESS_MODEL/SITE_URL/
+# ACCESS_REQUEST_URL joined NAME/BLURB/HOW_TO_GET_ACCESS here after the first
+# cut duplicated all three: detail.html's kept-verbatim lead (lines ~38-51)
+# already renders the access-model callout and the Request access / site
+# buttons from these same fields, so the Getting-in card was repeating them.
+HUB_CHROME_KEYS = (
+    forms.ChapterResourceForm.Keys.NAME,
+    forms.ChapterResourceForm.Keys.BLURB,
+    forms.ChapterResourceForm.Keys.HOW_TO_GET_ACCESS,
+    forms.ChapterResourceForm.Keys.ACCESS_MODEL,
+    forms.ChapterResourceForm.Keys.SITE_URL,
+    forms.ChapterResourceForm.Keys.ACCESS_REQUEST_URL,
+)
+
+# Excluded from the generic dt/dd fact list, for two different reasons:
+# - DELEGATION_TIER gets bespoke markup inside its own card instead - the
+#   delegation-tier callout (with its ladder disclosure) is kept intact rather
+#   than flattened into a row, per
+#   test_the_tier_ladder_opens_from_inside_the_tier_callout.
+# - STEWARD_NAME is folded into the STEWARD fact instead of getting its own
+#   row: getStewardDisplayName() already prefers the Echo account and falls
+#   back to stewardName, so when only stewardName is set (most stewards at
+#   launch have no account) the STEWARD fact's value IS stewardName - a
+#   second row showing the identical value under a second label would read
+#   as a duplicate, not a second fact.
+_BESPOKE_CARD_KEYS = (
+    forms.ChapterResourceForm.Keys.DELEGATION_TIER,
+    forms.ChapterResourceForm.Keys.STEWARD_NAME,
+)
+
+
+def _factValue(resource, key):
+    """One field's value, read the way a reader wants to see it rather than
+    the raw Python value: a choice field through its get_<key>_display(),
+    steward through the HOLDER-tier display name (never getStewardName, which
+    carries an email - see ChapterResource.getStewardDisplayName), a boolean
+    as Yes/No, and lastReviewed as itself or "Never" rather than blank.
+
+    Returns "" for anything blank/None so the caller can drop the row - a card
+    with an empty dd for every unanswered field would bury the one prompt that
+    actually says something is missing."""
+    Keys = forms.ChapterResourceForm.Keys
+    if key == Keys.STEWARD:
+        return resource.getStewardDisplayName()
+    if key == Keys.LAST_REVIEWED:
+        return resource.lastReviewed if resource.lastReviewed is not None else "Never"
+    displayGetter = getattr(resource, f"get_{key}_display", None)
+    if displayGetter is not None:
+        return displayGetter()
+    value = getattr(resource, key)
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    return value if value is not None else ""
+
+
+def _buildFacetCards(resource, *, hasAudit, hasHolders, canManage):
+    """The hub's card list, and the unconfirmed count over only the cards
+    actually returned - a facet the viewer cannot see must not count against
+    them (the plan's "excludes any facet the viewer cannot see").
+
+    Built here, not in the template, following the same build-only-if-
+    permitted rule the read views already use for runsOnDependencies /
+    holderRows: the who's-answerable card reads getStewardDisplayName(),
+    which is deliberately holder-tier (REVIEW.md F3), so that card is normally
+    holder-tier too.
+
+    EXCEPT for a manageChapterTools editor without holder/audit visibility:
+    before this hub existed, that editor could already see and edit the
+    steward on the flat workbench form (steward was never in
+    RESTRICTED_KEYS), so gating the CARD on hasHolders alone would remove a
+    UI path they used to have while section/whos-answerable still answers 200
+    for them underneath - a hub that can no longer even link to a page it
+    still serves. `canManage` reopens the card for that editor without
+    widening who gets it as a plain reader (a member with neither permission
+    nor manageChapterTools still never sees it)."""
+    cards = []
+    for facet in forms.FACETS:
+        if facet.requiresAudit and not hasAudit:
+            continue
+        if facet.slug == "whos-answerable" and not (hasHolders or canManage):
+            continue
+        facts = []
+        for key in facet.keys:
+            if key in HUB_CHROME_KEYS or key in _BESPOKE_CARD_KEYS:
+                continue
+            value = _factValue(resource, key)
+            if value in ("", None):
+                continue
+            # base_fields holds the FORM's declared (unbound) field
+            # instances - reading .label off it is the same string
+            # ChapterResourceForm(rows=facet.rows) would render, without
+            # instantiating a form (and, for whos-answerable, evaluating
+            # _activeUsers() - an extra member queryset) per card per render.
+            facts.append({
+                "key": key,
+                "label": forms.ChapterResourceForm.base_fields[key].label,
+                "value": value,
+            })
+        confirmed = facet.isConfirmed(resource)
+        cards.append({
+            "facet": facet,
+            "confirmed": confirmed,
+            "facts": facts,
+            # Precomputed rather than left as `facet.requiresAudit or
+            # confirmed` in the template - Django's {% if %} has no grouping
+            # parentheses, and this exact combination is what decides the
+            # head shows Edit instead of nothing.
+            "showEditButton": facet.requiresAudit or confirmed,
+        })
+    unconfirmedCount = sum(
+        1 for card in cards if not card["facet"].requiresAudit and not card["confirmed"]
+    )
+    return cards, unconfirmedCount
+
+
+@login_required
+@permission_required(permissions.MANAGE_CHAPTER_TOOLS)
+def chapter_tool_facet_edit(request, pk, facetSlug):
+    """Edit one facet's fields on one resource - the section page behind a hub
+    card. The form is sliced to exactly this facet's keys (ChapterResourceForm
+    rows=facet.rows), so saving here touches only those fields - the rest of
+    the record is never read into the form and cannot be overwritten by it.
+
+    404, not 403, for an unknown slug or for the committee-only facet
+    requested by an editor without viewChapterToolAudit - same rule
+    _resolveChild follows for the restricted child kinds: a 403 would itself
+    confirm the section exists."""
+    facet = forms._FACET_BY_SLUG.get(facetSlug)
+    if facet is None or (facet.requiresAudit and not _canEditRestricted(request.user)):
+        raise Http404("No such facet.")
+
+    resource = get_object_or_404(ChapterResource, pk=pk)
+    form = _buildResourceForm(request, resource, facet.rows)
+    if request.method == "POST" and form.is_valid():
+        _applyCleanedData(resource, form)
+        resource.save()
+        logger.info(
+            "ChapterTools: %s edited the %s section of '%s'",
+            request.user.getUserNameString(), facet.slug, resource.name,
+        )
+        return redirect(f"{resource.getUrl()}?saved={facet.slug}#{facet.slug}")
+
+    return render(request, "tools/chapter-tools/section.html", {
         "form": form,
-        "resource": None,
-        "hasAudit": includeRestricted,
-        "isCreate": True,
+        "resource": resource,
+        "facet": facet,
+        # Hub + anchor. Cancel and Save land identically - same pattern as
+        # child.html's backUrl (_backToSection).
+        "backUrl": f"{resource.getUrl()}#{facet.slug}",
+        "breadcrumbParentCrumbs": [
+            {"label": "Chapter Tools", "url": reverse("chapter-tools")},
+            {"label": resource.name, "url": resource.getUrl()},
+        ],
     })
 
 
@@ -641,85 +759,40 @@ def chapter_tool_create(request):
 # between two near-identical vocabularies is a thing that drifts; sharing one
 # spelling means it cannot.
 #
+# No "details" tab any more - the resource's own fields moved to the hub's
+# per-facet section pages (chapter_tool_facet_edit); this page is child rows
+# only now.
+#
 # `delete` is a section of this page and not a child kind - it holds one button,
 # which links out to the typed-name confirmation at chapter_tool_delete. It gets
-# a tab rather than a card under the details form so that the only destructive
-# control on the workbench is somewhere you have to go, instead of the permanent
-# bottom of the section people edit most. It needs no permission of its own:
+# its own tab so that the only destructive control on the workbench is
+# somewhere you have to go, rather than the permanent bottom of whichever
+# section people edit most. It needs no permission of its own:
 # chapter_tool_delete requires exactly the MANAGE_CHAPTER_TOOLS this whole view
 # already requires, so an editor who can reach the tab can use it.
-EDIT_TABS = ("details", *CHILD_SPECS, "delete")
+EDIT_TABS = (*CHILD_SPECS, "delete")
 
 
 def _activeTab(request, hasAudit: bool) -> str:
     """Which section the workbench should render, from ?tab=.
 
-    Anything unrecognised falls back to details rather than 404ing: the tab is a
-    view preference, and a stale bookmark or a hand-typed URL should land you on
-    the page you asked for, not on an error.
+    Default (and fallback for anything unrecognised) is `holders`, not
+    `details` - there is no details tab any more, and holders is the child
+    kind the registry's biggest recorded gap lives on, so it is the one worth
+    landing on first. Anything unrecognised falls back rather than 404ing: the
+    tab is a view preference, and a stale bookmark or a hand-typed URL should
+    land you on a real page, not an error.
 
     `credentials` also falls back for an editor without the audit permission, so
     the tab strip and the panel agree. This is the tab STRIP's guard only - it
     decides which tab is highlighted, not what may be read. The panel is guarded
     separately and the view never puts credentials in the context at all without
-    the permission, so a forced ?tab=credentials renders an empty details page
+    the permission, so a forced ?tab=credentials renders the holders panel
     rather than anything restricted."""
     requested = request.GET.get("tab", "")
     if requested == "credentials" and not hasAudit:
-        return "details"
-    return requested if requested in EDIT_TABS else "details"
-
-
-# The detail page's sections, as tab keys - a DIFFERENT set from EDIT_TABS
-# and gated on a different pair of permissions. The workbench above gates one
-# thing, manageChapterTools, with an audit sub-tier for the restricted
-# fields; this page gates *reading*, tiered across viewResourceHolders and
-# viewChapterToolAudit independently of who may write. Reusing _activeTab
-# here would couple two pages whose permission tiers do not line up, so this
-# gets its own tuple and its own fallback function rather than a shared one
-# with an extra branch.
-#
-# Order is open first, restricted last, and this tuple is what puts them in
-# that order: chapter_tool_detail decides only which keys a reader gets, then
-# filters this list to build the strip. So a tab is renamed or reordered here
-# and nowhere else. EDIT_TABS holds bare keys because the workbench spells its
-# labels out in the template; these carry theirs because the detail strip is a
-# loop, and a label in a template loop would have to come from somewhere.
-#
-# `access` is deliberately first AND the fallback in _activeDetailTab. It is
-# the one section with no permission behind it, so it is the only key that is
-# always safe to land on.
-DETAIL_TABS = (
-    ("access", "How to get it"),
-    ("holders", "Who has it"),
-    ("connections", "What connects to it"),
-    ("credentials", "Credentials"),
-    ("committee", "Committee detail"),
-)
-
-
-def _activeDetailTab(request, visibleTabs: list) -> str:
-    """Which section the detail page should render, from ?tab=.
-
-    Same reasoning as _activeTab: a tab is a view preference, not a route, so
-    an unrecognised string or a hand-typed URL for a tier this reader lacks
-    falls back to `access` rather than 404ing or 403ing. `access` is also the
-    one tab every reader always has, which is what makes it a safe universal
-    fallback rather than just the first item in the list.
-
-    Guarded against `visibleTabs` - the list chapter_tool_detail already
-    worked out - rather than re-deriving hasHolders/hasAudit/hasOpenDependents
-    a second time here. Two copies of that logic is how the strip and the
-    panel would eventually disagree about who gets which tab.
-
-    This is the strip-and-panel agreement only, not an access control: the
-    view never puts holder rows, credentials, or committee fields into the
-    context without the matching permission (see chapter_tool_detail above),
-    so a forced ?tab=credentials without viewChapterToolAudit renders the
-    access panel - there is nothing restricted in the response either way,
-    tab guard or not."""
-    requested = request.GET.get("tab", "")
-    return requested if requested in visibleTabs else "access"
+        return "holders"
+    return requested if requested in EDIT_TABS else "holders"
 
 
 def _backToSection(pk: int, childKind: str) -> str:
@@ -736,32 +809,22 @@ def _backToSection(pk: int, childKind: str) -> str:
 @login_required
 @permission_required(permissions.MANAGE_CHAPTER_TOOLS)
 def chapter_tool_edit(request, pk):
-    """The workbench: this resource's own fields, plus its child rows.
+    """The workbench: this resource's CHILD rows only now - holders,
+    dependencies, credentials, delete. The resource's own fields moved to the
+    hub's per-facet section pages (chapter_tool_facet_edit), so this view no
+    longer builds, binds, or posts a ChapterResourceForm at all.
 
     One page rather than one per child kind, because the alternative is a
     round trip per row on a phone. The child rows are links out to a single
-    focused form each; only the resource's own fields post from here.
+    focused form each.
 
-    The sections are tabs now rather than a stack of five cards. Stacked, adding
-    a second holder meant landing at the top of the page after the redirect and
-    scrolling back down past a list that had just grown by one, every time. The
-    tab is in the URL precisely so the child views can redirect into it - see
-    _activeTab and EDIT_TABS."""
+    The sections are tabs, addressed by ?tab= so the child views can redirect
+    back into the one they came from (see _activeTab, EDIT_TABS,
+    _backToSection) - adding a second holder must not land the editor back at
+    the top of the page and make them scroll down past a list that just grew
+    by one."""
     resource = get_object_or_404(ChapterResource, pk=pk)
     includeRestricted = _canEditRestricted(request.user)
-    form = _buildResourceForm(request, resource, includeRestricted)
-    if request.method == "POST" and form.is_valid():
-        _applyCleanedData(resource, form)
-        resource.save()
-        logger.info(
-            "ChapterTools: %s edited resource '%s'",
-            request.user.getUserNameString(), resource.name,
-        )
-        # POST-redirect-GET, so a refresh does not resubmit and the rebuilt form
-        # shows the STORED values rather than what was typed - a save that
-        # normalizes (a stripped name, a coerced decimal) would otherwise leave
-        # the un-normalized text on screen to be posted straight back in.
-        return redirect(f"{reverse('chapter-tool-edit', kwargs={'pk': resource.pk})}?saved=1")
 
     # Both directions, because an edge added from the far end is invisible here
     # otherwise and just gets added a second time.
@@ -775,11 +838,8 @@ def chapter_tool_edit(request, pk):
         dependentQuery = dependentQuery.filter(kind__in=ResourceDependency.OPEN_KINDS)
 
     context = {
-        "form": form,
         "resource": resource,
         "hasAudit": includeRestricted,
-        "isCreate": False,
-        "saved": request.GET.get("saved") == "1",
         "tab": _activeTab(request, includeRestricted),
         "holders": list(resource.holders.all()),
         "dependencies": list(dependencyQuery),
@@ -792,11 +852,10 @@ def chapter_tool_edit(request, pk):
     # disagrees with the list underneath it teaches a reader to stop trusting
     # every other count on the strip.
     #
-    # Same rule as the detail page's `connections` count: sum exactly what the
-    # panel will render, never the whole relation. For a non-audit editor both
-    # querysets above are already filtered to OPEN_KINDS, so this number stays
-    # equal to what they can actually see rather than hinting at RUNS_ON edges
-    # by being larger than the list.
+    # Sum exactly what the panel will render, never the whole relation. For a
+    # non-audit editor both querysets above are already filtered to
+    # OPEN_KINDS, so this number stays equal to what they can actually see
+    # rather than hinting at RUNS_ON edges by being larger than the list.
     context["connectionCount"] = len(context["dependencies"]) + len(context["dependents"])
     if includeRestricted:
         context["credentials"] = list(resource.credentials.all())

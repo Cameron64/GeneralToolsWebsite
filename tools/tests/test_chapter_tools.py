@@ -12,7 +12,6 @@ import json
 import tempfile
 from pathlib import Path
 
-from django import forms
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -26,6 +25,7 @@ from tools.models import (
     ChapterResource, ResourceCredential, ResourceDependency, ResourceHolder, ResourceQuestion,
     ToolAuditReadLog,
 )
+from tools import forms as chapterForms
 from tools.forms import ChapterResourceForm, ResourceDependencyForm
 from tools.tests.support import LoginClientMixin, UserFactory, fastHashing
 
@@ -151,27 +151,20 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         # test_detail_holder_sentinel_shown_to_organizer for the paired
         # presence assertion of the identical literal.
         self.assertNotContains(resp, HOLDER_SENTINEL)
-        # A plain member qualifies for exactly one tab (access) on this
-        # resource - no holders permission, no audit, and no dependency edges
-        # to earn a connections tab either - so the single-tab rule applies
-        # and no strip renders. The fallback line that used to sit here
-        # ("Access to this is stewarded...") is gone: a reader without the
-        # tab never sees the heading it was explaining, so there is nothing
-        # left to explain.
-        self.assertNotContains(resp, "tab-nav")
+        # The tier-0 fallback replaces the roster, not silence.
+        self.assertContains(resp, "Access to this is stewarded by the IT Sub-Committee.")
 
     def test_detail_holder_sentinel_shown_to_organizer(self):
         """Pairs with test_detail_open_section_visible_to_any_member's
-        absence assertion - identical literal, opposite viewer. Requested on
-        the holders tab, which is the only panel the roster renders in now."""
+        absence assertion - identical literal, opposite viewer."""
         self.loginAs(self.organizer)
-        resp = self.client.get(f"{self.resource.getUrl()}?tab=holders")
+        resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_hides_restricted_section_from_plain_member(self):
         self.loginAs(self.member)
         resp = self.client.get(self.resource.getUrl())
-        self.assertNotContains(resp, "Committee detail")
+        self.assertNotContains(resp, "Committee only")
         self.assertNotContains(resp, "Rotate the shared vault login.")
         self.assertNotContains(resp, "ExampleCredentialSentinel")
 
@@ -183,25 +176,22 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         test_detail_holder_sentinel_shown_to_organizer)."""
         self.loginAs(self.organizer)
         resp = self.client.get(self.resource.getUrl())
-        self.assertNotContains(resp, "Committee detail")
+        self.assertNotContains(resp, "Committee only")
         self.assertNotContains(resp, "Rotate the shared vault login.")
         self.assertNotContains(resp, "ExampleCredentialSentinel")
 
     def test_detail_shows_restricted_section_to_auditor(self):
         self.loginAs(self.auditor)
-        # Committee detail and credentials are two different tabs now -
-        # requested separately rather than off one bare-URL render.
-        committeeResp = self.client.get(f"{self.resource.getUrl()}?tab=committee")
-        self.assertContains(committeeResp, "Committee detail")
-        self.assertContains(committeeResp, "Rotate the shared vault login.")
-        credentialsResp = self.client.get(f"{self.resource.getUrl()}?tab=credentials")
-        self.assertContains(credentialsResp, "ExampleCredentialSentinel")
+        resp = self.client.get(self.resource.getUrl())
+        self.assertContains(resp, "Committee only")
+        self.assertContains(resp, "Rotate the shared vault login.")
+        self.assertContains(resp, "ExampleCredentialSentinel")
 
     def test_detail_shows_holder_sentinel_to_auditor(self):
-        """Audit implies holders (_hasHolders's `or`) - the auditor gets a
-        holders tab too, not just the restricted committee-detail ones."""
+        """Audit implies holders (_hasHolders's `or`) - the auditor sees the
+        roster too, not just the restricted committee-detail section."""
         self.loginAs(self.auditor)
-        resp = self.client.get(f"{self.resource.getUrl()}?tab=holders")
+        resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, HOLDER_SENTINEL)
 
     def test_detail_explains_the_access_model_in_plain_language(self):
@@ -212,27 +202,17 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, "you need a vault account")
 
-    def test_index_defines_every_access_model_including_ones_not_on_screen(self):
-        """Deliberately the REVERSE of what this test asserted before the
-        directory was paginated.
-
-        It used to require that a definition appear only for the models present
-        in the rows on screen, which was a sensible economy while the whole
-        register rendered on one page. Paginating made it a bug: the set of
-        models on screen is now an accident of which page you opened, so the
-        same phrase would be defined on page one and undefined on page two.
-
-        The definition moved from a card under the list into a disclosure beside
-        the phrase on each card, and it now carries the complete scale - which is
-        what makes it independent of paging."""
+    def test_index_legend_covers_every_access_model_shown_and_nothing_else(self):
+        """The legend is built from the rows actually on screen, so a member
+        never reads a definition for a model the page doesn't use."""
         _makeResource(name="Example Bank", accessModel=ChapterResource.AccessModel.INDIVIDUAL)
         self.loginAs(self.member)
         resp = self.client.get(reverse("chapter-tools"))
         # Sentinels avoid apostrophes on purpose - the template escapes them to
         # &#x27; and a raw "person's" would never match the rendered HTML.
-        self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, on screen
-        self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, on screen
-        self.assertContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, not on screen
+        self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, in use
+        self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, in use
+        self.assertNotContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, unused
 
     def test_index_does_not_lay_the_directory_out_as_a_table(self):
         """The directory renders as cards, not rows.
@@ -443,8 +423,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.RUNS_ON,
         )
         self.loginAs(self.auditor)
-        # RUNS_ON renders inside the connections tab now, not the default one.
-        resp = self.client.get(f"{self.wiki.getUrl()}?tab=connections")
+        resp = self.client.get(self.wiki.getUrl())
         self.assertContains(resp, "ExampleHostingSentinel")
 
     # --- 2. RUNS_ON never reaches a plain member on the INDEX page ---
@@ -502,10 +481,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.SIGN_IN,
         )
         self.loginAs(self.member)
-        # The dependents (reverse) lists live on the connections tab, not the
-        # default access one - this member earns the tab by having an open
-        # dependent edge to show, even without any permission grant.
-        resp = self.client.get(f"{self.identityProvider.getUrl()}?tab=connections")
+        resp = self.client.get(self.identityProvider.getUrl())
         self.assertContains(resp, "What signs in through this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -526,7 +502,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.RUNS_ON,
         )
         self.loginAs(self.auditor)
-        resp = self.client.get(f"{self.hostingSentinel.getUrl()}?tab=connections")
+        resp = self.client.get(self.hostingSentinel.getUrl())
         self.assertContains(resp, "What runs on this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -592,9 +568,9 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
     # --- 7. REACHED_THROUGH: open, both directions, and does not impersonate SIGN_IN ---
 
     def test_reached_through_reaches_plain_member_on_index_and_detail(self):
-        """The kind exists so a resource most people never get granted directly
-        can say so. It is open for the same reason SIGN_IN is: it changes what
-        the reader does next."""
+        """The kind exists so a resource nobody can be granted directly can say
+        so. It is open for the same reason SIGN_IN is: it changes what the
+        reader does next."""
         ResourceDependency.objects.create(
             resource=self.wiki, dependsOn=self.identityProvider,
             kind=ResourceDependency.Kind.REACHED_THROUGH,
@@ -629,9 +605,9 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
     def test_reached_through_does_not_render_as_a_sign_in_prerequisite(self):
         """The two must not collapse into one another. "You need X first" says
         get X as well; "most people reach this through X" says X is the usual
-        route instead of, not as well as. Rendering a reached-through edge with
-        the sign-in wording would send a member to request a login nobody
-        issues - the exact defect this kind was added to fix."""
+        route instead of, not as well as. Rendering a reached-through edge with the
+        sign-in wording would send a member to request a login nobody issues -
+        the exact defect this kind was added to fix."""
         ResourceDependency.objects.create(
             resource=self.wiki, dependsOn=self.identityProvider,
             kind=ResourceDependency.Kind.REACHED_THROUGH,
@@ -649,7 +625,7 @@ class ResourceDependencyTests(LoginClientMixin, TestCase):
             kind=ResourceDependency.Kind.REACHED_THROUGH,
         )
         self.loginAs(self.member)
-        resp = self.client.get(f"{self.identityProvider.getUrl()}?tab=connections")
+        resp = self.client.get(self.identityProvider.getUrl())
         self.assertContains(resp, "What people reach through this")
         self.assertContains(resp, self.wiki.getUrl())
 
@@ -1017,40 +993,49 @@ CRED_SENTINEL = "ExampleCrudCredentialSentinel"
 RUNS_ON_SENTINEL = "ExampleHostingSentinel"
 
 
-def _resourcePayload(**overrides):
-    """A complete OPEN-layer POST body. The four choice fields are required
-    (TypedChoiceField is required by default), so a payload missing one fails
-    validation for a reason that has nothing to do with what is being tested."""
-    payload = {
-        "name": "Example Wiki",
-        "category": str(ChapterResource.Category.COMMUNICATION),
-        "accessModel": str(ChapterResource.AccessModel.SHARED_VAULT),
-        "payer": str(ChapterResource.Payer.CHAPTER),
-        "blurb": "",
-        "annualCost": "",
-        "costNote": "",
-        "howToGetAccess": "",
-        "siteUrl": "",
-        "accessRequestUrl": "",
-        "steward": "",
-        "stewardName": "",
-    }
+# Every field's valid-and-blank default, keyed by ChapterResourceForm.Keys.
+# _sectionPayload/_createPayload walk a row spec against this table rather
+# than hand-listing one payload per facet, so a field added to a facet or to
+# CREATE_ROWS is required here too instead of silently missing from every
+# payload that happens to validate anyway.
+_K = ChapterResourceForm.Keys
+_FIELD_DEFAULTS = {
+    _K.NAME: "Example Wiki",
+    _K.BLURB: "",
+    _K.CATEGORY: str(ChapterResource.Category.COMMUNICATION),
+    _K.ACCESS_MODEL: str(ChapterResource.AccessModel.SHARED_VAULT),
+    _K.HOW_TO_GET_ACCESS: "",
+    _K.ACCESS_REQUEST_URL: "",
+    _K.SITE_URL: "",
+    _K.STEWARD: "",
+    _K.STEWARD_NAME: "",
+    _K.PAYER: str(ChapterResource.Payer.CHAPTER),
+    _K.ANNUAL_COST: "",
+    _K.COST_NOTE: "",
+    _K.REQUESTABLE: "",
+    _K.LAST_REVIEWED: "",
+    _K.REVIEWED_BY: "",
+    _K.DELEGATION_TIER: str(ChapterResource.DelegationTier.UNCLASSIFIED),
+    _K.REVOCATION_NOTE: "",
+    _K.CONTINUITY_NOTE: "",
+}
+
+
+def _sectionPayload(facetSlug, **overrides):
+    """A complete POST body for one facet's section-edit page
+    (chapter-tool-facet-edit), built by walking FACETS."""
+    facet = chapterForms._FACET_BY_SLUG[facetSlug]
+    payload = {key: _FIELD_DEFAULTS[key] for key in facet.keys}
     payload.update(overrides)
     return payload
 
 
-def _restrictedPayload(**overrides):
-    """The open payload plus the six restricted fields an audit editor also
-    submits. Mirrors ChapterResourceForm.RESTRICTED_KEYS."""
-    payload = _resourcePayload()
-    payload.update({
-        "requestable": "",
-        "lastReviewed": "",
-        "reviewedBy": "",
-        "delegationTier": str(ChapterResource.DelegationTier.UNCLASSIFIED),
-        "revocationNote": "",
-        "continuityNote": "",
-    })
+def _createPayload(**overrides):
+    """A complete POST body for the create page (chapterForms.CREATE_ROWS)."""
+    payload = {
+        key: _FIELD_DEFAULTS[key]
+        for row in chapterForms.CREATE_ROWS for key in row
+    }
     payload.update(overrides)
     return payload
 
@@ -1087,6 +1072,11 @@ class ChapterToolsCrudGateTests(LoginClientMixin, TestCase):
             reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk}),
             reverse("chapter-tool-child-new",
                     kwargs={"pk": self.resource.pk, "childKind": "holders"}),
+            *(
+                reverse("chapter-tool-facet-edit",
+                        kwargs={"pk": self.resource.pk, "facetSlug": facet.slug})
+                for facet in chapterForms.FACETS
+            ),
         ):
             response = self.client.get(url)
             # permission_required without raise_exception redirects to login -
@@ -1099,14 +1089,14 @@ class ChapterToolsCrudGateTests(LoginClientMixin, TestCase):
         url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        # The bare URL opens on Details, so the roster heading is no longer the
-        # marker for "the workbench loaded" - it is the marker for one tab. The
-        # tab strip is what proves the workbench itself rendered.
+        # The bare URL opens on Who has it (holders) now - there is no Details
+        # tab any more, so the tab strip is what proves the workbench itself
+        # rendered, and the roster heading is the marker for the default tab.
         self.assertContains(response, 'class="tab-nav"')
-        self.assertContains(response, "Details")
+        self.assertContains(response, "Who has it now")
         # Paired, so this keeps meaning something if the sections were dropped
         # from the page rather than moved into tabs.
-        self.assertContains(self.client.get(f"{url}?tab=holders"), "Who has it now")
+        self.assertContains(self.client.get(f"{url}?tab=dependencies"), "What this needs")
 
     def test_the_edit_link_is_hidden_from_a_member_and_shown_to_an_editor(self):
         detailUrl = self.resource.getUrl()
@@ -1133,10 +1123,12 @@ class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
     layer. This is the class that matters."""
 
     def setUp(self):
+        self.steward = UserFactory.make("steward")
         self.resource = _makeResource(
             delegationTier=ChapterResource.DelegationTier.RED,
             revocationNote="Rotate the shared vault login.",
             continuityNote=CONTINUITY_SENTINEL,
+            steward=self.steward,
         )
         self.hosting = _makeResource(name=RUNS_ON_SENTINEL)
         ResourceDependency.objects.create(
@@ -1152,20 +1144,33 @@ class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
             "auditEditor", perms=("manageChapterTools", "viewChapterToolAudit"),
         )
         self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
+        self.committeeUrl = reverse(
+            "chapter-tool-facet-edit", kwargs={"pk": self.resource.pk, "facetSlug": "committee-only"},
+        )
+        self.costsUrl = reverse(
+            "chapter-tool-facet-edit", kwargs={"pk": self.resource.pk, "facetSlug": "what-it-costs"},
+        )
 
     def test_restricted_fields_are_absent_from_a_non_audit_editors_form(self):
+        # 404, not the field simply missing from a 200 - the committee-only
+        # section does not exist at all for this editor (_resolveChild's rule).
         self.loginAs(self.editor)
-        response = self.client.get(self.editUrl)
-        self.assertNotContains(response, TIER_FIELD_SENTINEL)
-        # The stored VALUE, not just the field name - a bound form renders
-        # current values, which is the actual leak.
-        self.assertNotContains(response, CONTINUITY_SENTINEL)
+        sectionResponse = self.client.get(self.committeeUrl)
+        self.assertEqual(sectionResponse.status_code, 404)
+        # The stored VALUE must not leak from either surface this editor CAN
+        # reach - the 404 page itself, and the hub, whose committee-only card
+        # (the only place this value would render) is absent for them too.
+        self.assertNotContains(sectionResponse, CONTINUITY_SENTINEL, status_code=404)
+        self.assertNotContains(self.client.get(self.resource.getUrl()), CONTINUITY_SENTINEL)
 
     def test_restricted_fields_are_present_for_an_audit_editor(self):
         # The pairing that keeps the test above honest.
         self.loginAs(self.auditEditor)
-        response = self.client.get(self.editUrl)
+        response = self.client.get(self.committeeUrl)
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, TIER_FIELD_SENTINEL)
+        # The stored VALUE, not just the field name - a bound form renders
+        # current values, which is the actual leak.
         self.assertContains(response, CONTINUITY_SENTINEL)
 
     def test_credentials_are_hidden_from_a_non_audit_editor_and_shown_to_an_audit_one(self):
@@ -1223,14 +1228,27 @@ class ChapterToolsCrudRestrictedLayerTests(LoginClientMixin, TestCase):
         ).exists())
 
     def test_a_non_audit_editor_saving_does_not_wipe_the_restricted_fields(self):
-        """The whole reason _applyCleanedData copies only the keys present."""
+        """The whole reason _applyCleanedData copies only the keys present -
+        now the mechanism behind "only this section is saved" for EVERY
+        section, not just the audit/non-audit split the old workbench had."""
         self.loginAs(self.editor)
-        response = self.client.post(self.editUrl, _resourcePayload(name=self.resource.name))
+        response = self.client.post(self.costsUrl, _sectionPayload("what-it-costs"))
         self.assertEqual(response.status_code, 302)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.delegationTier, ChapterResource.DelegationTier.RED)
         self.assertEqual(self.resource.continuityNote, CONTINUITY_SENTINEL)
         self.assertEqual(self.resource.revocationNote, "Rotate the shared vault login.")
+
+    def test_a_non_audit_editor_saving_a_different_section_does_not_wipe_the_steward(self):
+        """Steward is not restricted - it lives on the open who's-answerable
+        facet - but it is still a field this editor's what-it-costs form does
+        not own, so a save there must leave it exactly as untouched as the
+        audit-only fields above."""
+        self.loginAs(self.editor)
+        response = self.client.post(self.costsUrl, _sectionPayload("what-it-costs"))
+        self.assertEqual(response.status_code, 302)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.steward_id, self.steward.pk)
 
 
 class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
@@ -1240,57 +1258,96 @@ class ChapterToolsCrudWriteTests(LoginClientMixin, TestCase):
         )
         self.loginAs(self.editor)
 
-    def test_create_makes_a_resource_and_lands_on_its_workbench(self):
+    def test_create_lands_on_the_hub_with_every_other_field_defaulted(self):
         response = self.client.post(
-            reverse("chapter-tool-new"), _restrictedPayload(name="Example Vault"),
+            reverse("chapter-tool-new"), _createPayload(name="Example Vault"),
         )
         resource = ChapterResource.objects.get(name="Example Vault")
-        self.assertRedirects(
-            response, reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
-        )
+        # The hub, not the workbench - the create form has no child rows to
+        # fill in immediately any more, just the four fields it just posted.
+        self.assertRedirects(response, resource.getUrl())
+        self.assertEqual(resource.accessModel, ChapterResource.AccessModel.UNCONFIRMED)
+        self.assertEqual(resource.payer, ChapterResource.Payer.UNCONFIRMED)
+        self.assertEqual(resource.delegationTier, ChapterResource.DelegationTier.UNCLASSIFIED)
+        self.assertFalse(resource.requestable)
+        self.assertEqual(resource.howToGetAccess, "")
+        self.assertEqual(resource.costNote, "")
+        self.assertIsNone(resource.annualCost)
+        self.assertIsNone(resource.steward)
+        self.assertIsNone(resource.lastReviewed)
 
     def test_a_duplicate_name_is_a_field_error_not_a_500(self):
         _makeResource(name="Example Vault")
         response = self.client.post(
-            reverse("chapter-tool-new"), _restrictedPayload(name="example vault"),
+            reverse("chapter-tool-new"), _createPayload(name="example vault"),
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
         self.assertEqual(ChapterResource.objects.filter(name__iexact="example vault").count(), 1)
 
-    def test_requestable_without_a_steward_is_rejected_by_the_form(self):
-        """ChapterResource.clean()'s rule. The view never calls full_clean(), so
-        without the form re-implementing it this would save happily."""
+    def test_a_duplicate_name_is_also_a_field_error_on_the_what_it_is_section(self):
+        """clean_name() has no change per the plan, but it now runs against
+        base_fields sliced to one facet - this is the same guard exercised
+        through the edit path instead of create."""
+        _makeResource(name="Example Vault")
+        other = _makeResource(name="Example Chat")
         response = self.client.post(
-            reverse("chapter-tool-new"),
-            _restrictedPayload(name="Example Vault", requestable="on", steward=""),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": other.pk, "facetSlug": "what-it-is"}),
+            _sectionPayload("what-it-is", name="example vault"),
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(ChapterResource.objects.filter(name="Example Vault").exists())
+        self.assertContains(response, "already exists")
+        other.refresh_from_db()
+        self.assertEqual(other.name, "Example Chat")
+
+    def test_requestable_without_a_steward_is_rejected_by_the_form(self):
+        """ChapterResource.clean()'s rule, re-implemented because the view
+        never calls full_clean(). Posted on the committee-only section, which
+        owns `requestable` but not `steward` - Rule A has to read the stored
+        steward through _value() to catch this."""
+        resource = _makeResource(name="Example Vault")
+        response = self.client.post(
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "committee-only"}),
+            _sectionPayload("committee-only", requestable="on"),
+        )
+        self.assertEqual(response.status_code, 200)
+        # The committee-only-specific copy (forms.py's clean()) - pinned so a
+        # future edit that reverts to the old steward-field error message
+        # (unreachable here, since this form has no steward field to attach
+        # it to) fails loudly instead of just changing quietly.
+        self.assertContains(response, "would be a dead letter")
+        resource.refresh_from_db()
+        self.assertFalse(resource.requestable)
 
     def test_requestable_with_a_steward_and_a_green_tier_saves(self):
         steward = UserFactory.make("steward")
+        resource = _makeResource(name="Example Vault", steward=steward)
         response = self.client.post(
-            reverse("chapter-tool-new"),
-            _restrictedPayload(
-                name="Example Vault", requestable="on", steward=str(steward.pk),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "committee-only"}),
+            _sectionPayload(
+                "committee-only", requestable="on",
                 delegationTier=str(ChapterResource.DelegationTier.GREEN),
             ),
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(ChapterResource.objects.get(name="Example Vault").requestable)
+        resource.refresh_from_db()
+        self.assertTrue(resource.requestable)
 
     def test_a_non_audit_editor_cannot_strip_the_steward_off_a_requestable_resource(self):
-        """The rule from the other direction: `requestable` is not on their form,
-        so they cannot turn it on - but they can clear the steward, which breaks
-        the same invariant."""
+        """The rule from the other direction: `requestable` is not on this
+        section's form, so they cannot turn it on - but they can clear the
+        steward, which breaks the same invariant from the other side."""
         steward = UserFactory.make("steward")
         resource = _makeResource(name="Example Vault", requestable=True, steward=steward)
         openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
         self.loginAs(openEditor)
         response = self.client.post(
-            reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
-            _resourcePayload(name="Example Vault", steward=""),
+            reverse("chapter-tool-facet-edit",
+                    kwargs={"pk": resource.pk, "facetSlug": "whos-answerable"}),
+            _sectionPayload("whos-answerable", steward="", stewardName=""),
         )
         self.assertEqual(response.status_code, 200)
         resource.refresh_from_db()
@@ -1517,13 +1574,13 @@ class ChapterToolsTemplateCommentTests(LoginClientMixin, TestCase):
 
     def test_the_workbench_renders_no_comment_text(self):
         # Every tab, not just the default one. The sections are behind ?tab= now,
-        # so checking the bare URL would leave three panels' worth of comments -
+        # so checking the bare URL would leave panels' worth of comments -
         # and this template carries the longest comments in the feature - never
         # looked at. The marker is per tab for the same reason _assertClean pairs
-        # one at all: an empty panel would otherwise pass the leak loop.
+        # one at all: an empty panel would otherwise pass the leak loop. No
+        # "details" tab any more - the resource's own fields moved to the hub.
         url = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
         for tab, marker in (
-            ("details", "Save changes"),
             ("holders", "Who has it now"),
             ("dependencies", "What this needs"),
             ("credentials", "Credentials"),
@@ -1549,6 +1606,21 @@ class ChapterToolsTemplateCommentTests(LoginClientMixin, TestCase):
         auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
         self.loginAs(auditor)
         self._assertClean(self.client.get(reverse("chapter-tools-questions")), "Add a question")
+
+    def test_the_create_page_renders_no_comment_text(self):
+        self._assertClean(
+            self.client.get(reverse("chapter-tool-new")), "Create chapter tool",
+        )
+
+    def test_the_hub_renders_no_comment_text(self):
+        self._assertClean(self.client.get(self.resource.getUrl()), "What it is")
+
+    def test_the_section_page_renders_no_comment_text(self):
+        self._assertClean(
+            self.client.get(reverse("chapter-tool-facet-edit",
+                                    kwargs={"pk": self.resource.pk, "facetSlug": "what-it-costs"})),
+            "Save changes",
+        )
 
 
 class ChapterToolsReadabilityTests(LoginClientMixin, TestCase):
@@ -1622,18 +1694,24 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
             accessLevel="Owner", canGrantAccess=True, ownsAccount=True,
         )
 
-    def test_the_default_tab_is_details(self):
+    def test_the_default_tab_is_holders(self):
+        """There is no details tab any more - the resource's own fields moved
+        to the hub - so the bare URL opens on holders, the child kind the
+        registry's biggest recorded gap lives on."""
         response = self.client.get(self.editUrl)
-        self.assertContains(response, 'href="?tab=details" aria-current="page"')
-        self.assertNotContains(response, "Who has it now")
+        self.assertContains(response, 'href="?tab=holders" aria-current="page"')
+        self.assertContains(response, "Who has it now")
 
     def test_each_tab_renders_only_its_own_section(self):
         """Only one panel at a time - otherwise this is the old stacked page with
         a row of links bolted on top of it."""
         markers = {
-            "details": "Save changes",
             "holders": "Who has it now",
             "dependencies": "What this needs",
+            # Not the bare word "Credentials" - that is also the tab-nav
+            # label, which renders on every tab's page regardless of which is
+            # active, and would make this cross-check pass vacuously.
+            "credentials": "Add a credential",
             "delete": "Delete this chapter tool",
         }
         for tab, marker in markers.items():
@@ -1644,31 +1722,31 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
                     if otherTab != tab:
                         self.assertNotIn(otherMarker, content)
 
-    def test_an_unknown_tab_falls_back_to_details_rather_than_404ing(self):
+    def test_an_unknown_tab_falls_back_to_holders_rather_than_404ing(self):
         """A tab is a view preference. A stale bookmark should land on the page
         you asked for."""
         for bogus in ("", "nope", "holders/../credentials", "DETAILS"):
             with self.subTest(tab=bogus):
                 response = self.client.get(f"{self.editUrl}?tab={bogus}")
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(response, 'href="?tab=details" aria-current="page"')
+                self.assertContains(response, 'href="?tab=holders" aria-current="page"')
 
     def test_the_credentials_tab_is_absent_for_an_editor_without_the_audit_permission(self):
         plainEditor = UserFactory.make("plain", perms=("manageChapterTools",))
         self.loginAs(plainEditor)
         response = self.client.get(self.editUrl)
         self.assertNotContains(response, "?tab=credentials")
-        # And forcing it lands on details rather than an empty labelled tab that
+        # And forcing it lands on holders rather than an empty labelled tab that
         # implies there is something there to be shown.
         forced = self.client.get(f"{self.editUrl}?tab=credentials")
-        self.assertContains(forced, 'href="?tab=details" aria-current="page"')
+        self.assertContains(forced, 'href="?tab=holders" aria-current="page"')
 
     def test_the_delete_control_is_only_on_its_own_tab(self):
-        """It used to sit at the foot of the details tab, which is the form people
-        open most - so the one destructive control on the page was also the one
-        hardest to avoid scrolling past."""
+        """It used to sit at the foot of the old details tab, which was the form
+        people opened most - so the one destructive control on the page was also
+        the one hardest to avoid scrolling past."""
         deleteUrl = reverse("chapter-tool-delete", kwargs={"pk": self.resource.pk})
-        for tab in ("details", "holders", "dependencies", "credentials"):
+        for tab in ("holders", "dependencies", "credentials"):
             with self.subTest(tab=tab):
                 self.assertNotContains(self.client.get(f"{self.editUrl}?tab={tab}"), deleteUrl)
         onTab = self.client.get(f"{self.editUrl}?tab=delete")
@@ -1763,153 +1841,16 @@ class ChapterToolsWorkbenchTabTests(LoginClientMixin, TestCase):
         self.assertIn(f'class="record-aside">{escape(summary)}', content)
 
 
-class ChapterToolDetailTabTests(LoginClientMixin, TestCase):
-    """The detail page's sections are tabs too - the read side of the same
-    move ChapterToolsWorkbenchTabTests covers for the edit workbench. A
-    different tab set (DETAIL_TABS) and a different gate (viewResourceHolders
-    / viewChapterToolAudit, tiered independently, rather than the workbench's
-    single manageChapterTools-plus-audit-subtier), so this is its own class
-    rather than a copy-paste extension of that one."""
+class ChapterFacetTests(LoginClientMixin, TestCase):
+    """The eighteen fields are partitioned into facets (forms.FACETS), each its
+    own card on the hub and its own section-edit page - replacing the flat
+    details form's fieldsets (forms.py's old FIELD_GROUPS).
 
-    def setUp(self):
-        self.member = UserFactory.make("member")
-        self.holderViewer = UserFactory.make("holderViewer", perms=("viewResourceHolders",))
-        self.auditor = UserFactory.make("auditor", perms=("viewChapterToolAudit",))
-        self.resource = _makeResource()
-        self.holder = ResourceHolder.objects.create(
-            resource=self.resource, personName="Example Detail Roster Holder",
-        )
-        ResourceCredential.objects.create(
-            resource=self.resource, label="ExampleDetailCredentialSentinel",
-            kind=ResourceCredential.Kind.VAULT_SHARED_LOGIN,
-        )
-        self.url = self.resource.getUrl()
-
-    def test_the_default_tab_is_access_with_no_tab_param(self):
-        # Auditor rather than the plain member here, so the strip actually
-        # renders and there is an aria-current to check - a single-tab reader
-        # has no strip at all (see the next test).
-        self.loginAs(self.auditor)
-        response = self.client.get(self.url)
-        self.assertContains(response, 'href="?tab=access" aria-current="page"')
-
-    def test_a_reader_with_only_the_access_tab_gets_no_tab_nav(self):
-        """A plain member holds neither viewResourceHolders nor
-        viewChapterToolAudit, and this resource has no dependency edges to
-        earn a connections tab on their own - the single-tab rule applies and
-        no strip renders, not a strip with one link in it."""
-        self.loginAs(self.member)
-        response = self.client.get(self.url)
-        self.assertNotContains(response, "tab-nav")
-
-    def test_an_audit_holder_gets_all_five_tabs(self):
-        self.loginAs(self.auditor)
-        response = self.client.get(f"{self.url}?tab=credentials")
-        for key in ("access", "holders", "connections", "credentials", "committee"):
-            self.assertContains(response, f'href="?tab={key}"')
-        self.assertContains(response, 'href="?tab=credentials" aria-current="page"')
-
-    def test_the_strip_renders_open_tabs_before_restricted_ones(self):
-        """Order is a promise this page makes, so it gets an assertion rather
-        than living only in a comment: a reader meets the sections everybody
-        can see before the two that were logged to reach.
-
-        Written as a literal sequence, not derived from DETAIL_TABS, for the
-        same reason the test above lists the five keys by hand. A test that
-        read its expected order out of the tuple the view orders by would pass
-        no matter what that tuple said."""
-        self.loginAs(self.auditor)
-        content = self.client.get(self.url).content.decode()
-        positions = [
-            content.index(f'href="?tab={key}"')
-            for key in ("access", "holders", "connections", "credentials", "committee")
-        ]
-        self.assertEqual(
-            positions, sorted(positions),
-            "the tab strip is not rendering in open-then-restricted order",
-        )
-
-    def test_roster_markup_appears_only_on_the_holders_tab(self):
-        self.loginAs(self.auditor)
-        default = self.client.get(self.url)
-        self.assertNotContains(default, "Example Detail Roster Holder")
-        holdersTab = self.client.get(f"{self.url}?tab=holders")
-        self.assertContains(holdersTab, "Example Detail Roster Holder")
-
-    def test_credential_markup_appears_only_on_the_credentials_tab(self):
-        self.loginAs(self.auditor)
-        default = self.client.get(self.url)
-        self.assertNotContains(default, "ExampleDetailCredentialSentinel")
-        credentialsTab = self.client.get(f"{self.url}?tab=credentials")
-        self.assertContains(credentialsTab, "ExampleDetailCredentialSentinel")
-
-    def test_a_non_audit_reader_forcing_tab_credentials_lands_on_access(self):
-        """holderViewer, not member: this reader needs a strip that renders
-        (access + holders) so there is an aria-current to check landing back
-        on access, rather than the single-tab case where no strip exists at
-        all to land anywhere on."""
-        self.loginAs(self.holderViewer)
-        response = self.client.get(f"{self.url}?tab=credentials")
-        self.assertContains(response, 'href="?tab=access" aria-current="page"')
-        self.assertNotContains(response, "ExampleDetailCredentialSentinel")
-        self.assertNotContains(response, "Credentials")
-
-    def test_a_non_holder_reader_forcing_tab_holders_lands_on_access(self):
-        self.loginAs(self.member)
-        response = self.client.get(f"{self.url}?tab=holders")
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Example Detail Roster Holder")
-
-    def test_an_unknown_tab_falls_back_to_access(self):
-        self.loginAs(self.auditor)
-        response = self.client.get(f"{self.url}?tab=nonsense")
-        self.assertContains(response, 'href="?tab=access" aria-current="page"')
-
-    def test_restricted_read_log_row_is_written_once_regardless_of_tab(self):
-        """_logRestrictedRead fires on page load for an audit holder, not per
-        panel - the tab strip and the log are two different pieces of state,
-        and coupling them would let a bookmark to a specific tab read the
-        page with no row written."""
-        self.loginAs(self.auditor)
-        for tab in ("access", "holders", "connections", "credentials", "committee"):
-            with self.subTest(tab=tab):
-                ToolAuditReadLog.objects.all().delete()
-                self.client.get(f"{self.url}?tab={tab}")
-                self.assertEqual(ToolAuditReadLog.objects.count(), 1)
-
-    def test_the_tab_counts_render(self):
-        other = _makeResource(name="Example Detail Dependency")
-        ResourceDependency.objects.create(
-            resource=other, dependsOn=self.resource,
-            kind=ResourceDependency.Kind.SIGN_IN,
-        )
-        self.loginAs(self.auditor)
-        response = self.client.get(self.url)
-        self.assertContains(response, 'Who has it <span class="tab-count">(1)</span>')
-        self.assertContains(response, 'Credentials <span class="tab-count">(1)</span>')
-        self.assertContains(response, 'What connects to it <span class="tab-count">(1)</span>')
-
-    def test_the_tab_styles_are_actually_compiled(self):
-        """Same rule as the workbench's version of this test: a class in a
-        template does nothing until output.css is rebuilt, and a stale
-        output.css fails silently."""
-        cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
-        css = cssPath.read_text(encoding="utf-8")
-        for className in (".tab-nav", ".tab", ".tab-count"):
-            self.assertIn(className, css, f"{className} is used in a template but not compiled")
-        self.assertIn('.tab[aria-current="page"]', css)
-
-
-class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
-    """The details form's eighteen fields are grouped into fieldsets, and the
-    grouping is declared on the FORM rather than in the template.
-
-    That is the whole risk being covered. Because edit.html renders
-    FIELD_GROUPS instead of iterating the form, a field the form defines and the
-    groups omit would not error - it would simply never appear on the page, save
-    its default forever, and look like a field nobody had got round to using.
-    So the partition is asserted directly, and the render is asserted to contain
-    every field the form has."""
+    That is the whole risk being covered. A field the form declares and no
+    facet names would not error - it would simply never appear on any page,
+    save its default forever, and look like a field nobody had got round to
+    using. So the partition is asserted directly, and every section page's
+    render is asserted to contain every field its facet names."""
 
     def setUp(self):
         self.editor = UserFactory.make(
@@ -1917,107 +1858,140 @@ class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
         )
         self.loginAs(self.editor)
         self.resource = _makeResource()
-        self.editUrl = reverse("chapter-tool-edit", kwargs={"pk": self.resource.pk})
 
-    def test_every_field_is_in_exactly_one_group(self):
-        grouped = [
-            key
-            for _legend, rows in ChapterResourceForm.FIELD_GROUPS
-            for row in rows
-            for key in row
-        ]
+    def _sectionUrl(self, facetSlug):
+        return reverse("chapter-tool-facet-edit",
+                        kwargs={"pk": self.resource.pk, "facetSlug": facetSlug})
+
+    def test_every_field_is_in_exactly_one_facet(self):
+        keys = [key for facet in chapterForms.FACETS for key in facet.keys]
         declared = set(ChapterResourceForm.base_fields)
         self.assertEqual(
-            set(grouped), declared,
-            "FIELD_GROUPS and the form's own fields have diverged",
+            set(keys), declared,
+            "FACETS and the form's own fields have diverged",
         )
         self.assertEqual(
-            len(grouped), len(set(grouped)),
-            "a field appears in two groups, so it would render twice and the "
-            "second copy would win on submit",
+            len(keys), len(set(keys)),
+            "a field appears in two facets, so it would render on two pages and "
+            "only one save would stick",
         )
 
-    def test_the_last_group_is_exactly_the_restricted_fields(self):
-        """Why it matters that they line up exactly: the group is dropped whole
-        for a non-audit editor. A restricted field parked in an open group would
-        leave that group half-empty for them; an open field parked in the
-        restricted group would become uneditable by anyone without the audit
-        permission, quietly."""
-        legend, rows = ChapterResourceForm.FIELD_GROUPS[-1]
-        self.assertEqual(legend, "Committee only")
-        keys = [key for row in rows for key in row]
-        self.assertEqual(set(keys), set(ChapterResourceForm.RESTRICTED_KEYS))
+    def test_every_create_field_is_also_editable_later(self):
+        createKeys = {key for row in chapterForms.CREATE_ROWS for key in row}
+        self.assertTrue(createKeys.issubset(set(ChapterResourceForm.base_fields)))
+        facetKeys = {key for facet in chapterForms.FACETS for key in facet.keys}
+        for key in createKeys:
+            with self.subTest(field=key):
+                self.assertIn(key, facetKeys, f"{key} is on the create form but in no facet")
+
+    def test_the_last_facet_is_exactly_the_restricted_fields(self):
+        """Why it matters that they line up exactly: the whole facet 404s for
+        a non-audit editor. A restricted field parked in an open facet would
+        make it reachable without viewChapterToolAudit; an open field parked in
+        the restricted facet would become uneditable by anyone without it,
+        quietly."""
+        facet = chapterForms.FACETS[-1]
+        self.assertEqual(facet.legend, "Committee only")
+        self.assertTrue(facet.requiresAudit)
+        self.assertEqual(set(facet.keys), set(ChapterResourceForm.RESTRICTED_KEYS))
 
     def test_an_ungrouped_field_raises_instead_of_vanishing(self):
-        form = ChapterResourceForm(includeRestricted=True)
-        form.fields["inventedExtraField"] = forms.CharField(required=False)
-        with self.assertRaises(ImproperlyConfigured) as caught:
-            form.groupedFields()
-        self.assertIn("inventedExtraField", str(caught.exception))
+        """The guard moved from groupedFields() (called at render time) to a
+        module-level check called from ChapterResourceForm.__init__ (called at
+        construction time) - it still names the field, and it still cannot be
+        silently skipped."""
+        savedFacets = chapterForms.FACETS
+        try:
+            chapterForms.FACETS = savedFacets[:-1]  # drop "Committee only"
+            with self.assertRaises(ImproperlyConfigured) as caught:
+                ChapterResourceForm(rows=chapterForms.CREATE_ROWS)
+            for key in ChapterResourceForm.RESTRICTED_KEYS:
+                self.assertIn(key, str(caught.exception))
+        finally:
+            chapterForms.FACETS = savedFacets
 
-    def test_the_restricted_group_disappears_rather_than_rendering_empty(self):
-        form = ChapterResourceForm(includeRestricted=False)
-        legends = [legend for legend, _rows in form.groupedFields()]
-        self.assertNotIn("Committee only", legends)
-        # The open groups all survive, so the guard removed a group rather than
-        # collapsing the form.
-        self.assertEqual(
-            legends, ["What it is", "Getting in", "Who's answerable", "What it costs"],
-        )
+    def test_the_committee_section_is_a_404_for_a_non_audit_editor(self):
+        """Replaces the old "restricted group disappears rather than rendering
+        empty" test - there is no single page with an empty heading to avoid
+        any more, because the restricted facet is its own URL and that URL
+        does not exist for this editor at all."""
+        openEditor = UserFactory.make("openEditor", perms=("manageChapterTools",))
+        self.loginAs(openEditor)
+        self.assertEqual(self.client.get(self._sectionUrl("committee-only")).status_code, 404)
+        # The open facets all survive - the guard removes only the one
+        # section, never the others.
+        for facetSlug in ("what-it-is", "getting-in", "whos-answerable", "what-it-costs"):
+            with self.subTest(facetSlug=facetSlug):
+                self.assertEqual(self.client.get(self._sectionUrl(facetSlug)).status_code, 200)
 
-    def test_every_group_renders_a_legend_on_the_page(self):
-        content = self.client.get(self.editUrl).content.decode()
-        for legend, _rows in ChapterResourceForm.FIELD_GROUPS:
-            with self.subTest(legend=legend):
-                self.assertIn(
-                    f'<legend class="form-group-legend">{escape(legend)}</legend>',
-                    content,
-                )
+    def test_every_facet_legend_is_a_section_h1_and_a_hub_card_title(self):
+        hubContent = self.client.get(self.resource.getUrl()).content.decode()
+        for facet in chapterForms.FACETS:
+            with self.subTest(legend=facet.legend):
+                sectionContent = self.client.get(self._sectionUrl(facet.slug)).content.decode()
+                self.assertIn(f'<h1 class="page-title">{escape(facet.legend)}</h1>', sectionContent)
+                self.assertIn(f'<span class="record-title">{escape(facet.legend)}</span>', hubContent)
 
-    def test_every_field_still_reaches_the_page(self):
-        """The regression the grouping could cause. formRow.html stamps
+    def test_every_field_still_reaches_its_section_page(self):
+        """The regression the partition could cause. formRow.html stamps
         data-field on every row, so this counts rendered inputs without
         depending on any label wording."""
-        content = self.client.get(self.editUrl).content.decode()
-        for key in ChapterResourceForm(includeRestricted=True).fields:
+        for facet in chapterForms.FACETS:
+            content = self.client.get(self._sectionUrl(facet.slug)).content.decode()
+            for key in facet.keys:
+                with self.subTest(facet=facet.slug, field=key):
+                    self.assertIn(f'data-field="{key}"', content)
+
+    def test_every_create_field_reaches_the_create_page(self):
+        content = self.client.get(reverse("chapter-tool-new")).content.decode()
+        createKeys = [key for row in chapterForms.CREATE_ROWS for key in row]
+        for key in createKeys:
             with self.subTest(field=key):
                 self.assertIn(f'data-field="{key}"', content)
+        # Exactly four - the create form's whole point is that it is NOT the
+        # eighteen-field workbench form any more.
+        self.assertEqual(content.count("data-field=\""), len(createKeys))
 
     def test_paired_fields_share_a_row_and_single_fields_do_not(self):
-        form = ChapterResourceForm(includeRestricted=True)
-        rows = {
-            tuple(field.name for field in fields): isPair
-            for _legend, groupRows in form.groupedFields()
-            for isPair, fields in groupRows
-        }
+        stewardFacet = chapterForms._FACET_BY_SLUG["whos-answerable"]
+        form = ChapterResourceForm(rows=stewardFacet.rows)
+        rows = {tuple(field.name for field in fields): isPair for isPair, fields in form.rows()}
         self.assertIs(rows[("steward", "stewardName")], True)
-        self.assertIs(rows[("lastReviewed", "reviewedBy")], True)
-        self.assertIs(rows[("name",)], False)
-        content = self.client.get(self.editUrl).content.decode()
+
+        costFacet = chapterForms._FACET_BY_SLUG["what-it-costs"]
+        costForm = ChapterResourceForm(rows=costFacet.rows)
+        costRows = {tuple(field.name for field in fields): isPair for isPair, fields in costForm.rows()}
+        self.assertIs(costRows[("payer", "annualCost")], True)
+        self.assertIs(costRows[("costNote",)], False)
+
+        content = self.client.get(self._sectionUrl("whos-answerable")).content.decode()
         self.assertIn('<div class="form-pair">', content)
         # A single-field row gets a bare <div>, not class="" - an empty class
         # attribute would mean the isPair branch had stopped working and every
         # row was being wrapped the same way.
-        self.assertNotIn('<div class="">', content)
+        singleFieldContent = self.client.get(self._sectionUrl("what-it-is")).content.decode()
+        self.assertNotIn('<div class="">', singleFieldContent)
 
-    def test_the_group_styles_are_actually_compiled(self):
+    def test_the_facet_styles_are_actually_compiled(self):
+        """.form-group/.form-group-legend were retired with the flat details
+        form - create.html and section.html each render exactly one facet, so
+        there is no longer a group of groups to fieldset. Only .form-pair
+        survives."""
         cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
         css = cssPath.read_text(encoding="utf-8")
-        for className in (".form-group", ".form-group-legend", ".form-pair"):
-            self.assertIn(className, css, f"{className} is used in a template but not compiled")
-        # The seam-suppressing variant. Without it the last group carries a rule
-        # along the bottom of the card, dividing it from nothing.
-        self.assertIn(".form-group:last-of-type", css)
+        self.assertIn(".form-pair", css, ".form-pair is used in a template but not compiled")
+        self.assertNotIn(".form-group", css, ".form-group should have been retired with FIELD_GROUPS")
 
     def test_a_definition_marker_stays_on_its_label_s_line(self):
-        """Two of the four paired rows have a definition on the LEFT field only
-        (steward, lastReviewed). While the closed marker had a 12rem flex basis it
-        could not fit beside a label in a ~18rem column, so it wrapped and pushed
-        that field's input one line below its partner's - the pair stopped lining
-        up on every row that had a definition.
+        """Two facets carry a definition on the LEFT field of a paired row only
+        (whos-answerable's steward, committee-only's lastReviewed). While the
+        closed marker had a 12rem flex basis it could not fit beside a label in
+        a ~18rem column, so it wrapped and pushed that field's input one line
+        below its partner's - the pair stopped lining up on every row that had
+        a definition.
 
-        Asserted against the compiled CSS because that is the failure this had:
-        the markup was already right and only the layout was wrong."""
+        Asserted against the compiled CSS because that is the failure this
+        had: the markup was already right and only the layout was wrong."""
         cssPath = Path(__file__).resolve().parent.parent / "static" / "css" / "output.css"
         css = cssPath.read_text(encoding="utf-8")
         self.assertIn("flex: 0 1 auto", css)
@@ -2027,11 +2001,319 @@ class ChapterResourceFormGroupTests(LoginClientMixin, TestCase):
         self.assertIn(".explain-row > .explain[open]", css)
         # Both paired rows that carry a definition still render the wrapper the
         # rules above target.
-        content = self.client.get(self.editUrl).content.decode()
-        for key in ("steward", "lastReviewed"):
+        for facetSlug, key in (("whos-answerable", "steward"), ("committee-only", "lastReviewed")):
             with self.subTest(field=key):
+                content = self.client.get(self._sectionUrl(facetSlug)).content.decode()
                 start = content.index(f'data-field="{key}"')
                 self.assertIn('class="explain-row"', content[start:start + 400])
+
+
+class FacetConfirmedDerivationTests(TestCase):
+    """The confirmed-derivation table's edge cases (plan §3) - values only, no
+    model field and no migration. Each case is chosen because a naive
+    implementation gets it backwards."""
+
+    def test_free_payer_with_no_annual_cost_is_confirmed(self):
+        """annualCost is deliberately excluded from the rule - FREE and
+        NATIONAL tools legitimately have none."""
+        resource = _makeResource(payer=ChapterResource.Payer.FREE, annualCost=None)
+        self.assertTrue(chapterForms._FACET_BY_SLUG["what-it-costs"].isConfirmed(resource))
+
+    def test_unconfirmed_payer_is_not_confirmed(self):
+        resource = _makeResource(payer=ChapterResource.Payer.UNCONFIRMED)
+        self.assertFalse(chapterForms._FACET_BY_SLUG["what-it-costs"].isConfirmed(resource))
+
+    def test_a_name_only_steward_alone_is_confirmed(self):
+        """A name-only steward is a real answer (models.py's stewardName help
+        text) - requiring the Echo-account half too would make this
+        permanently unconfirmable for most stewards."""
+        resource = _makeResource(stewardName="Jo")
+        self.assertTrue(chapterForms._FACET_BY_SLUG["whos-answerable"].isConfirmed(resource))
+
+    def test_a_blank_blurb_is_not_confirmed(self):
+        """category always has a creator-chosen value and name is required at
+        create, so blurb is the only honest signal left for what-it-is."""
+        resource = _makeResource(blurb="")
+        self.assertFalse(chapterForms._FACET_BY_SLUG["what-it-is"].isConfirmed(resource))
+
+
+class ChapterFacetHubTests(LoginClientMixin, TestCase):
+    """The hub (chapter_tool_detail): per-facet cards, the steward/audit
+    build-only-if-permitted gates, the saved-alert query param, and the
+    unconfirmed count. See forms.FACETS and
+    chapterToolsViews._buildFacetCards."""
+
+    def setUp(self):
+        self.manager = UserFactory.make(
+            "manager", perms=("manageChapterTools", "viewChapterToolAudit"),
+        )
+        self.member = UserFactory.make("member")
+
+    def _sectionUrl(self, resource, facetSlug):
+        return reverse("chapter-tool-facet-edit",
+                        kwargs={"pk": resource.pk, "facetSlug": facetSlug})
+
+    def test_fresh_resource_is_unconfirmed_with_a_prompt_and_a_manager_sees_a_button(self):
+        resource = _makeResource(name="Example Fresh")
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        self.assertIn('<span class="badge badge-unresolved">Unconfirmed</span>', content)
+        self.assertIn("Nobody is recorded as answerable for this tool.", content)
+        self.assertIn(
+            f'href="{self._sectionUrl(resource, "whos-answerable")}">Confirm the steward</a>',
+            content,
+        )
+
+    def test_a_plain_member_sees_the_prompt_but_no_confirm_button(self):
+        resource = _makeResource(
+            name="Example Fresh Member View", payer=ChapterResource.Payer.UNCONFIRMED,
+        )
+        self.loginAs(self.member)
+        content = self.client.get(resource.getUrl()).content.decode()
+        self.assertIn("Who pays for this, and what does it cost a year?", content)
+        self.assertNotIn("Confirm the cost", content)
+
+    def test_a_fully_filled_resource_is_confirmed_with_an_edit_button(self):
+        steward = UserFactory.make("steward")
+        resource = _makeResource(name="Example Filled", steward=steward)
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        # what-it-is, getting-in, whos-answerable, what-it-costs - all four
+        # open facets confirmed by _makeResource's non-blank defaults; the
+        # fifth badge on the page (committee-only) is Privileged, not this one.
+        self.assertEqual(content.count('<span class="badge badge-active">Confirmed</span>'), 4)
+        self.assertIn(f'href="{self._sectionUrl(resource, "what-it-costs")}">Edit</a>', content)
+
+    def test_the_committee_card_shows_privileged_and_is_absent_for_a_non_audit_manager(self):
+        resource = _makeResource(name="Example Committee Card")
+        openManager = UserFactory.make("openManager", perms=("manageChapterTools",))
+        self.loginAs(openManager)
+        self.assertNotContains(self.client.get(resource.getUrl()), "Committee only")
+
+        self.loginAs(self.manager)
+        response = self.client.get(resource.getUrl())
+        self.assertContains(response, '<span class="record-title">Committee only</span>')
+        self.assertContains(response, '<span class="badge badge-denied">Privileged</span>')
+
+    def test_the_whos_answerable_card_is_absent_for_a_plain_member_and_present_for_a_manager_or_holder_viewer(self):
+        """The steward leak guard - getStewardDisplayName is holder-tier, so
+        the card built from it must not exist at all for a plain member (no
+        holder tier, no manageChapterTools).
+
+        DECIDED POLICY: a manageChapterTools-ONLY editor (no
+        viewResourceHolders/viewChapterToolAudit) DOES get the card - before
+        this hub existed, that editor could already see and edit the steward
+        on the flat workbench's Details tab (steward was never in
+        RESTRICTED_KEYS), so gating the card on hasHolders alone would remove
+        a UI path they used to have while section/whos-answerable kept
+        answering 200 underneath them - a hub that can no longer even link to
+        a page it still serves."""
+        resource = _makeResource(name="Example Steward Gate")
+        plainMember = UserFactory.make("plainMember")
+        self.loginAs(plainMember)
+        self.assertNotContains(self.client.get(resource.getUrl()), "Who&#x27;s answerable")
+
+        managerOnly = UserFactory.make("managerOnly", perms=("manageChapterTools",))
+        self.loginAs(managerOnly)
+        self.assertContains(self.client.get(resource.getUrl()), "Who&#x27;s answerable")
+
+        holderManager = UserFactory.make(
+            "holderManager", perms=("manageChapterTools", "viewResourceHolders"),
+        )
+        self.loginAs(holderManager)
+        self.assertContains(self.client.get(resource.getUrl()), "Who&#x27;s answerable")
+
+    def test_a_manage_only_editor_sees_the_whos_answerable_cards_edit_or_confirm_affordance(self):
+        """Not just the card title - the button that makes the card usable.
+        Fresh (unconfirmed) gets the Confirm button; a resource with a
+        recorded steward gets Edit - both link to the same section page this
+        editor's manageChapterTools already lets them POST to."""
+        managerOnly = UserFactory.make("managerOnly", perms=("manageChapterTools",))
+        self.loginAs(managerOnly)
+
+        fresh = _makeResource(name="Example Fresh Manager Only")
+        freshContent = self.client.get(fresh.getUrl()).content.decode()
+        self.assertIn("Who&#x27;s answerable", freshContent)
+        self.assertIn(
+            f'href="{self._sectionUrl(fresh, "whos-answerable")}">Confirm the steward</a>',
+            freshContent,
+        )
+
+        confirmed = _makeResource(name="Example Confirmed Manager Only", stewardName="Jo")
+        confirmedContent = self.client.get(confirmed.getUrl()).content.decode()
+        self.assertIn(
+            f'href="{self._sectionUrl(confirmed, "whos-answerable")}">Edit</a>',
+            confirmedContent,
+        )
+
+    def test_card_id_matches_its_facet_slug(self):
+        resource = _makeResource(name="Example Ids")
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        for facet in chapterForms.FACETS:
+            with self.subTest(slug=facet.slug):
+                self.assertIn(f'id="{facet.slug}"', content)
+
+    def test_saved_query_param_renders_the_saved_alert(self):
+        resource = _makeResource(name="Example Saved")
+        self.loginAs(self.manager)
+        self.assertContains(
+            self.client.get(f"{resource.getUrl()}?saved=what-it-costs"), "Saved.",
+        )
+        self.assertNotContains(self.client.get(resource.getUrl()), "Saved.")
+
+    def test_the_audit_read_notice_shows_for_an_auditor_and_not_for_anyone_else(self):
+        """The ToolAuditReadLog write (chapterToolsViews._logRestrictedRead)
+        still fires for hasAudit renders of this page - this notice is the
+        on-page half of that contract, telling the auditor their read was
+        logged. It sits where the audit-only content begins, immediately
+        before the committee-only card."""
+        resource = _makeResource(name="Example Audit Notice")
+        notice = "You're viewing the restricted layer - this read was logged."
+
+        self.loginAs(self.manager)  # has viewChapterToolAudit
+        self.assertContains(self.client.get(resource.getUrl()), notice)
+
+        openManager = UserFactory.make("openManager", perms=("manageChapterTools",))
+        self.loginAs(openManager)
+        self.assertNotContains(self.client.get(resource.getUrl()), notice)
+
+        self.loginAs(self.member)
+        self.assertNotContains(self.client.get(resource.getUrl()), notice)
+
+    def test_every_hub_chrome_key_is_actually_rendered_by_the_hub_chrome(self):
+        """The justification for excluding a key from every facet card
+        (HUB_CHROME_KEYS): it has to actually appear somewhere ELSE on the
+        page - the kept-verbatim lead (detail.html's title/blurb/how-to-get-
+        access line, the access-model callout, and the site/request-access
+        buttons) - or it would just vanish off the page entirely."""
+        resource = _makeResource(
+            name="Example Chrome",
+            blurb="A distinctive blurb for this hub-chrome check.",
+            howToGetAccess="A distinctive how-to-get-access line.",
+            accessModel=ChapterResource.AccessModel.SHARED_VAULT,
+            siteUrl="https://example-chrome.invalid/",
+            accessRequestUrl="https://example-chrome-request.invalid/",
+        )
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        self.assertIn("Example Chrome", content)  # NAME (the h1)
+        self.assertIn("A distinctive blurb for this hub-chrome check.", content)  # BLURB
+        self.assertIn("A distinctive how-to-get-access line.", content)  # HOW_TO_GET_ACCESS
+        self.assertIn(resource.get_accessModel_display(), content)  # ACCESS_MODEL
+        self.assertIn("example-chrome.invalid", content)  # SITE_URL
+        self.assertIn("https://example-chrome-request.invalid/", content)  # ACCESS_REQUEST_URL
+
+    def test_unconfirmed_count_matches_the_visible_cards(self):
+        # _makeResource's defaults confirm what-it-is/getting-in/what-it-costs
+        # (non-blank blurb, a real access model and payer) - only
+        # who's-answerable (no steward) is unconfirmed, and committee-only is
+        # excluded from the count regardless.
+        resource = _makeResource(name="Example Count")
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        self.assertIn("1 section still needs confirming.", content)
+
+    def test_hub_fact_labels_match_the_section_forms_own_field_labels(self):
+        resource = _makeResource(name="Example Labels", costNote="Five seats.")
+        self.loginAs(self.manager)
+        content = self.client.get(resource.getUrl()).content.decode()
+        costForm = ChapterResourceForm(rows=chapterForms._FACET_BY_SLUG["what-it-costs"].rows)
+        self.assertIn(f"<dt>{costForm.fields['costNote'].label}</dt>", content)
+
+    def test_each_section_save_touches_only_its_own_facet(self):
+        """Snapshot every column, POST a payload for that facet with values
+        deliberately DIFFERENT from the resource's current stored state (so a
+        cross-facet write of an unchanged value could not slip past this
+        check vacuously), and assert every column OUTSIDE the facet is
+        bit-for-bit identical afterward.
+
+        Every POST also carries FORGED keys for fields the current facet does
+        not own (requestable, delegationTier, steward, name) - a body an
+        attacker or a stale cached form could send regardless of which fields
+        the server actually renders. Django only reads a form's DECLARED
+        fields out of cleaned_data (self.fields was already sliced to `rows`
+        in __init__), so these must have zero effect no matter which facet
+        they ride along with - that is what the "any facet, any body" style
+        of this test is actually checking, not just "the default payload
+        happens not to touch anything."""
+        steward = UserFactory.make("steward")
+        otherSteward = UserFactory.make("otherSteward")
+        resource = _makeResource(
+            name="Example Isolation", steward=steward,
+            delegationTier=ChapterResource.DelegationTier.GREEN,
+        )
+        allKeys = list(_FIELD_DEFAULTS)
+        self.loginAs(self.manager)
+
+        # Each facet's own payload, changed away from the stored state above
+        # in every field it owns.
+        changedPayloads = {
+            "what-it-is": _sectionPayload(
+                "what-it-is", name="Example Isolation Renamed", blurb="Changed blurb.",
+                category=str(ChapterResource.Category.INFRASTRUCTURE),
+            ),
+            "getting-in": _sectionPayload(
+                "getting-in", accessModel=str(ChapterResource.AccessModel.INDIVIDUAL),
+                howToGetAccess="Changed access instructions.",
+                accessRequestUrl="https://example-form.invalid/changed",
+                siteUrl="https://example-site.invalid/changed",
+            ),
+            "whos-answerable": _sectionPayload("whos-answerable", steward=str(otherSteward.pk)),
+            "what-it-costs": _sectionPayload(
+                "what-it-costs", payer=str(ChapterResource.Payer.FREE),
+                annualCost="12.34", costNote="Changed cost note.",
+            ),
+            "committee-only": _sectionPayload(
+                "committee-only", delegationTier=str(ChapterResource.DelegationTier.RED),
+                lastReviewed="2026-02-02", reviewedBy="Changed Reviewer",
+                revocationNote="Changed revocation note.", continuityNote="Changed continuity note.",
+            ),
+        }
+        # Forged out-of-facet keys, present on EVERY post regardless of which
+        # facet owns them. Where a facet's own payload also names one of
+        # these keys (committee-only owns requestable/delegationTier,
+        # whos-answerable owns steward, what-it-is owns name), the facet's
+        # own intended value below overwrites the forged one - the forgery
+        # only matters for the facets that do NOT own the key.
+        forgedKeys = {
+            "requestable": "on",
+            "delegationTier": str(ChapterResource.DelegationTier.RED),
+            "steward": str(otherSteward.pk),
+            "name": "Forged Name",
+        }
+
+        for facet in chapterForms.FACETS:
+            with self.subTest(facet=facet.slug):
+                before = {key: getattr(resource, key) for key in allKeys}
+                payload = dict(forgedKeys)
+                payload.update(changedPayloads[facet.slug])
+                response = self.client.post(self._sectionUrl(resource, facet.slug), payload)
+                self.assertEqual(response.status_code, 302, response.content)
+                resource.refresh_from_db()
+                after = {key: getattr(resource, key) for key in allKeys}
+                for key in allKeys:
+                    if key in facet.keys:
+                        continue
+                    with self.subTest(facet=facet.slug, field=key):
+                        self.assertEqual(before[key], after[key],
+                                         f"{key} changed by a {facet.slug} save")
+
+    def test_the_word_facet_never_reaches_a_page(self):
+        resource = _makeResource(
+            name="Example No Jargon", steward=UserFactory.make("steward"),
+        )
+        self.loginAs(self.manager)
+        urls = [
+            resource.getUrl(),
+            reverse("chapter-tool-new"),
+            reverse("chapter-tool-edit", kwargs={"pk": resource.pk}),
+            *(self._sectionUrl(resource, facet.slug) for facet in chapterForms.FACETS),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                content = self.client.get(url).content.decode()
+                self.assertNotIn("facet", content.lower())
 
 
 class ChapterToolsDirectoryPagingTests(LoginClientMixin, TestCase):
