@@ -202,9 +202,14 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         resp = self.client.get(self.resource.getUrl())
         self.assertContains(resp, "you need a vault account")
 
-    def test_index_legend_covers_every_access_model_shown_and_nothing_else(self):
-        """The legend is built from the rows actually on screen, so a member
-        never reads a definition for a model the page doesn't use."""
+    def test_index_legend_covers_every_access_model_shown(self):
+        """Superseded by pagination (ChapterToolsDirectoryPagingTests): the
+        access-model disclosure now moved onto each card and deliberately
+        lists the COMPLETE ladder every time - see
+        ChapterResource.getAccessModelLegend's docstring. A legend built from
+        only the models on screen was the exact bug pagination would have
+        reintroduced (a phrase defined on page one, undefined on page two),
+        so this only checks presence now, not absence."""
         _makeResource(name="Example Bank", accessModel=ChapterResource.AccessModel.INDIVIDUAL)
         self.loginAs(self.member)
         resp = self.client.get(reverse("chapter-tools"))
@@ -212,7 +217,6 @@ class ChapterToolsVisibilityTests(LoginClientMixin, TestCase):
         # &#x27; and a raw "person's" would never match the rendered HTML.
         self.assertContains(resp, "you need a vault account")          # SHARED_VAULT, in use
         self.assertContains(resp, "does not affect anybody else")      # INDIVIDUAL, in use
-        self.assertNotContains(resp, "An automated account does the work")  # SERVICE_ACCOUNT, unused
 
     def test_index_does_not_lay_the_directory_out_as_a_table(self):
         """The directory renders as cards, not rows.
